@@ -10,7 +10,7 @@ export async function sendTextMessage(io, req, res) {
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
   // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
   const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
@@ -20,7 +20,7 @@ export async function sendTextMessage(io, req, res) {
   try {
     // Enviar mensaje via WhatsApp
     const response = await axios.post(
-      `https://graph.facebook.com/v13.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
+      `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
       {
         messaging_product: "whatsapp",
         to: phone,
@@ -29,7 +29,7 @@ export async function sendTextMessage(io, req, res) {
       },
       {
         headers: {
-          'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+          'Authorization': `Bearer ${whatsapp_api_token}`,
           'Content-Type': 'application/json'
         }
       }
@@ -185,9 +185,9 @@ export async function sendVideoMessage(io, req, res) {
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
-  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: phone,
@@ -205,7 +205,7 @@ export async function sendVideoMessage(io, req, res) {
   try {
     const response = await axios.post(url, payload, {
       headers: {
-        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsapp_api_token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -275,9 +275,9 @@ export async function sendDocumentMessage(io, req, res) {
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
-  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: phone,
@@ -296,7 +296,7 @@ export async function sendDocumentMessage(io, req, res) {
   try {
     const response = await axios.post(url, payload, {
       headers: {
-        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsapp_api_token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -363,9 +363,9 @@ export async function sendAudioMessage(io, req, res) {
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
-  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: phone,
@@ -383,7 +383,7 @@ export async function sendAudioMessage(io, req, res) {
   try {
     const response = await axios.post(url, payload, {
       headers: {
-        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsapp_api_token}`,
         'Content-Type': 'application/json'
       }
     });
@@ -576,7 +576,7 @@ export async function sendTemplateMessage(io, req, res) {
 
     // Obtener la integración de WhatsApp para la compañía
     const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(template.company_id);
-    const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID } = whatsappIntegration;
+    const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
 
     for (const contact of contacts) {
       const responsibleUserId = responsibleUserIds[responsibleIndex];
@@ -627,9 +627,9 @@ export async function sendTemplateMessage(io, req, res) {
 
         // Obtener los detalles de la integración usando `integration_id`
         const conversationIntegration = await getIntegrationDetailsById(conversation.integration_id);
-        WHATSAPP_API_TOKEN = conversationIntegration.WHATSAPP_API_TOKEN;
-        WHATSAPP_PHONE_NUMBER_ID = conversationIntegration.WHATSAPP_PHONE_NUMBER_ID;
-        WHATSAPP_BUSINESS_ACCOUNT_ID = conversationIntegration.WHATSAPP_BUSINESS_ACCOUNT_ID;
+        whatsapp_api_token = conversationIntegration.whatsapp_api_token;
+        whatsapp_phone_number_id = conversationIntegration.whatsapp_phone_number_id;
+        whatsapp_business_account_id = conversationIntegration.whatsapp_business_account_id;
       }
 
       // Reemplazar variables en la plantilla
@@ -652,7 +652,7 @@ export async function sendTemplateMessage(io, req, res) {
       let response;
 
       if (template.header_type === 'TEXT') {
-        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
+        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
         const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
@@ -662,7 +662,7 @@ export async function sendTemplateMessage(io, req, res) {
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'IMAGE') {
         const imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/13/ChatGPT-Logo.png'; // Línea para pruebas
-        response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
+        response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = imageUrl;
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -673,7 +673,7 @@ export async function sendTemplateMessage(io, req, res) {
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'VIDEO') {
         const videoUrl = 'https://cdn.pixabay.com/video/2020/09/08/49375-459436752_small.mp4'; // Línea para pruebas
-        response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
+        response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = videoUrl;
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -684,8 +684,8 @@ export async function sendTemplateMessage(io, req, res) {
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'DOCUMENT') {
         const documentUrl = 'https://www.turnerlibros.com/wp-content/uploads/2021/02/ejemplo.pdf'; // Línea para pruebas
-        const mediaId = await uploadDocumentToWhatsApp(documentUrl, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
-        response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
+        const mediaId = await uploadDocumentToWhatsApp(documentUrl, whatsapp_api_token, whatsapp_phone_number_id);
+        response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = documentUrl;
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable

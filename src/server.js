@@ -416,9 +416,9 @@ app.post('/upload-template-media', uploadTemplateMedia.single('media'), async (r
 app.post('/create-template', async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id } = req.body;
   const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
-  const { WHATSAPP_API_TOKEN, WHATSAPP_BUSINESS_ACCOUNT_ID } = integrationDetails;
-  const whatsappApiToken = WHATSAPP_API_TOKEN;
-  const whatsappBusinessAccountId = WHATSAPP_BUSINESS_ACCOUNT_ID;
+  const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
+  const whatsappApiToken = whatsapp_api_token;
+  const whatsappBusinessAccountId = whatsapp_business_account_id;
 
   const validName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
 

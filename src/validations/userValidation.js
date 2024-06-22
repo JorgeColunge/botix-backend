@@ -3,8 +3,8 @@ import Joi from 'joi';
 const newRegisterValidation = (data) => {
   const schema = Joi.object({
     id_usuario: Joi.number().required().messages({
-      'any.required': 'El campo id_usuario es obligatorio.',
-      'number.base': 'El campo id_usuario debe ser un número.'
+      'any.required': 'El campo ID de usuario es obligatorio.',
+      'number.base': 'El campo ID de usuario debe ser un número.'
     }),
     nombre: Joi.string().min(3).required().messages({
       'any.required': 'El campo nombre es obligatorio.',
@@ -21,9 +21,9 @@ const newRegisterValidation = (data) => {
       'string.base': 'El campo teléfono debe ser una cadena de texto.'
     }),
     email: Joi.string().email().required().messages({
-      'any.required': 'El campo email es obligatorio.',
-      'string.email': 'El campo email debe ser un correo electrónico válido.',
-      'string.base': 'El campo email debe ser una cadena de texto.'
+      'any.required': 'El campo email de usuario es obligatorio.',
+      'string.email': 'El campo email de usuario debe ser un correo electrónico válido.',
+      'string.base': 'El campo email de usuario debe ser una cadena de texto.'
     }),
     rol: Joi.string().required().messages({
       'any.required': 'El campo rol es obligatorio.',

@@ -1,6 +1,6 @@
 import express from 'express';
 import { register as registerAuth, login as loginAuth, edit } from '../controllers/authController.js';
-import { registerValidation, newRegisterValidation, loginValidation } from '../validations/userValidation.js';
+import { registerValidation, loginValidation } from '../validations/userValidation.js';
 import passport from 'passport';
 import '../config/passportConfig.js';
 

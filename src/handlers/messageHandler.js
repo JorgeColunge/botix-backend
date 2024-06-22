@@ -7,6 +7,8 @@ import { dirname } from 'path';
 import { processConversation } from './chatbot.js';
 import { processConversationRouter } from './routerChatbot.js';
 import { processEsteticaConversation } from './routerEstetica.js';
+import { processRestauranteConversation } from './restaurantChatbot.js';
+import { processLanguageConversation } from './lenguageChatbot.js';
 import ffmpeg from 'fluent-ffmpeg';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -14,15 +16,14 @@ const __dirname = dirname(__filename);
 
 const PORT = process.env.PORT || 3001;
 
-// Function to process received messages of different types
-async function processMessage(io, senderId, messageData, oldMessage) {
-  console.log('Processing message from sender:', senderId);
-  console.log('Message data:', messageData);
+async function processMessage(io, senderId, messageData, oldMessage, integrationDetails) {
+  console.log('Procesando mensaje del remitente:', senderId);
+  console.log('Datos del mensaje:', messageData);
 
-  // Get or create the conversation
-  const conversationId = await getOrCreateConversation(senderId);
+  const { whatsapp_api_token, company_id, id: integration_id, whatsapp_phone_number_id } = integrationDetails;
 
-  // Check the time of the last message
+  const conversationId = await getOrCreateConversation(senderId, integration_id);
+
   const lastMessageQuery = `
     SELECT received_at FROM messages
     WHERE conversation_fk = $1
@@ -34,19 +35,19 @@ async function processMessage(io, senderId, messageData, oldMessage) {
   if (lastMessageRes.rows.length > 0) {
     const lastMessageTime = new Date(lastMessageRes.rows[0].received_at);
     const currentTime = new Date();
-    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60); // Difference in minutes
+    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60); 
 
-    if (timeDifference > 2) {
-      // Update the responsible user and state
+    if (whatsapp_phone_number_id === '245093422023458' && timeDifference > 5) {
       await assignResponsibleUser(conversationId, 1011);
-      await updateConversationState(conversationId, 'new');
-    }
+      await processConversationRouter(io, senderId, messageData, conversationId, 'new', integrationDetails);
+    } else if (whatsapp_phone_number_id === '356027174259293' && timeDifference > 5) {
+      await assignResponsibleUser(conversationId, 654321);
+    } 
   }
 
   const incrementUnread = `UPDATE conversations SET unread_messages = unread_messages + 1 WHERE conversation_id = $1`;
   await pool.query(incrementUnread, [conversationId]);
 
-  // Get the number of unread messages and the responsible user ID
   const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
   const unreadMessages = unreadRes.rows[0].unread_messages;
   const responsibleUserId = unreadRes.rows[0].id_usuario;
@@ -59,14 +60,14 @@ async function processMessage(io, senderId, messageData, oldMessage) {
     const mediaType = messageData.type;
     const mediaData = messageData[mediaType];
     if (mediaData && mediaData.id && mediaData.mime_type) {
-      mediaUrl = await downloadMedia(mediaData.id, mediaData.mime_type);
+      mediaUrl = await downloadMedia(mediaData.id, mediaData.mime_type, whatsapp_api_token);
       if ((mediaType === 'image' || mediaType === 'video' || mediaType === 'document') && mediaData.caption) {
-        messageText = mediaData.caption; // Set message text to image, video, or document caption if available
+        messageText = mediaData.caption;
       }
     }
   } 
 
-  console.log('Reply from ID:', replyFrom);
+  console.log('Responder desde ID:', replyFrom);
 
   let thumbnailUrl = null;
   let mediaDuration = null;
@@ -76,13 +77,12 @@ async function processMessage(io, senderId, messageData, oldMessage) {
     if (fs.existsSync(mediaPath)) {
       try {
         mediaDuration = await getVideoDurationInSeconds(mediaPath);
-        // If it's a video, create a thumbnail
         if (messageData.type === 'video') {
           const thumbnailPath = await createThumbnail(mediaPath);
           thumbnailUrl = thumbnailPath.replace('public', '');
         }
       } catch (err) {
-        console.error('Error getting media duration or generating thumbnail:', err);
+        console.error('Error obteniendo la duración del medio o generando miniatura:', err);
       }
     }
   }
@@ -105,14 +105,14 @@ async function processMessage(io, senderId, messageData, oldMessage) {
   `;
 
   const values = [
-    messageData.id,  // Add the message ID here
+    messageData.id,
     senderId,
     conversationId,
     messageData.type,
     messageText,
     mediaUrl,
-    thumbnailUrl,     // URL of the thumbnail for videos
-    mediaDuration,    // Duration of the audio or video
+    thumbnailUrl,
+    mediaDuration,
     messageData.latitude || null,
     messageData.longitude || null,
     messageData.file_name || null,
@@ -123,10 +123,9 @@ async function processMessage(io, senderId, messageData, oldMessage) {
   if (oldMessage == "no") {
     try {
       const res = await pool.query(insertQuery, values);
-      console.log('Inserted message with conversation ID:', conversationId, 'Message details:', res.rows[0]);
+      console.log('Mensaje insertado con ID de conversación:', conversationId, 'Detalles del mensaje:', res.rows[0]);
       const newMessage = res.rows[0];
 
-      // Emit the processed message to clients
       io.emit('newMessage', {
         id: newMessage.id,
         conversationId: conversationId,
@@ -147,39 +146,56 @@ async function processMessage(io, senderId, messageData, oldMessage) {
         state: newMessage.state
       });
 
-      console.log('Message emitted:', newMessage.id);
+      console.log('Mensaje emitido:', newMessage.id);
     } catch (error) {
-      console.error('Error inserting message into database:', error);
+      console.error('Error insertando mensaje en la base de datos:', error);
     }
   }
-/*
-  if (responsibleUserId === 1010) {
-    await processConversation(io, senderId, messageData, conversationId, state);
-  } else if (responsibleUserId === 1011) {
-    await processConversationRouter(io, senderId, messageData, conversationId, state);
-  } else if (responsibleUserId === 1013) {
-    await processEsteticaConversation(io, senderId, messageData, conversationId, state);
-  }*/
+
+  if (whatsapp_phone_number_id === '245093422023458') {
+    const lastMessageTime = new Date(lastMessageRes.rows[0].received_at);
+    const currentTime = new Date();
+    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60);
+
+    if (timeDifference > 5) {
+      await assignResponsibleUser(conversationId, 1011);
+      await processConversationRouter(io, senderId, messageData, conversationId, state, integrationDetails);
+    } else {
+      if (responsibleUserId === 1010) {
+        await processConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+      } else if (responsibleUserId === 1011) {
+        await processConversationRouter(io, senderId, messageData, conversationId, state, integrationDetails);
+      } else if (responsibleUserId === 1013) {
+        await processEsteticaConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+      } else if (responsibleUserId === 1012) {
+        await processRestauranteConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+      } else if (responsibleUserId === 1014) {
+        await processLanguageConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+      }
+    }
+  } else if (whatsapp_phone_number_id === '356027174259293') {
+    if (oldMessage == "no") {
+      await assignResponsibleUser(conversationId, 654321);
+    }
+  }
 }
 
-// Function to assign a responsible user to a conversation
 async function assignResponsibleUser(conversationId, userId) {
   const query = 'UPDATE conversations SET id_usuario = $2 WHERE conversation_id = $1';
   try {
     await pool.query(query, [conversationId, userId]);
   } catch (error) {
-    console.error('Database error assigning responsible user:', error);
+    console.error('Error de base de datos asignando usuario responsable:', error);
     throw error;
   }
 }
 
-// Function to update the state of a conversation
 async function updateConversationState(conversationId, newState) {
   const query = 'UPDATE conversations SET state = $2 WHERE conversation_id = $1';
   try {
     await pool.query(query, [conversationId, newState]);
   } catch (error) {
-    console.error('Database error updating conversation state:', error);
+    console.error('Error de base de datos actualizando estado de conversación:', error);
     throw error;
   }
 }
@@ -209,43 +225,37 @@ const createThumbnail = (videoPath) => new Promise((resolve, reject) => {
     .on('error', (err) => reject(err))
     .output(thumbnailPath)
     .outputOptions([
-      '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=290:290', // Crop to square then scale
-      '-frames:v', '1' // Only output one frame
+      '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=290:290',
+      '-frames:v', '1'
     ])
     .run();
 });
 
-// Function to download and save any type of media file
-async function downloadMedia(mediaId, mimeType) {
-  console.log('Media ID received for download:', mediaId);
+async function downloadMedia(mediaId, mimeType, whatsappApiToken) {
+  console.log('ID de medio recibido para descargar:', mediaId);
   const getUrl = `https://graph.facebook.com/v19.0/${mediaId}`;
 
   try {
-    // Get the media URL
     const getUrlResponse = await axios.get(getUrl, {
       headers: {
-        'Authorization': `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsappApiToken}`,
       },
     });
 
     const mediaUrl = getUrlResponse.data.url;
     if (!mediaUrl) {
-      console.error('Media URL not found in response:', getUrlResponse.data);
+      console.error('URL de medio no encontrada en la respuesta:', getUrlResponse.data);
       return null;
     }
 
-    // Download the media file
     const mediaResponse = await axios.get(mediaUrl, {
       responseType: 'arraybuffer',
       headers: {
-        'Authorization': `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsappApiToken}`,
       },
     });
 
-    // Determine the file extension based on the MIME type
     const extension = mimeType.split('/')[1];
-
-    // Determine the directory based on the MIME type
     let mediaDir;
     switch (mimeType.split('/')[0]) {
       case 'image':
@@ -269,44 +279,39 @@ async function downloadMedia(mediaId, mimeType) {
       fs.mkdirSync(mediaDir, { recursive: true });
     }
 
-    // Save the media file
     const mediaPath = path.join(mediaDir, `${mediaId}.${extension}`);
     fs.writeFileSync(mediaPath, mediaResponse.data);
-    console.log('Media stored at:', mediaPath);
+    console.log('Medio almacenado en:', mediaPath);
 
-    // URL to access the file from the server
     const mediaServerUrl = `/media/${mimeType.split('/')[0] === 'application' ? 'documents' : mimeType.split('/')[0] + 's'}/${mediaId}.${extension}`;
     return mediaServerUrl;
   } catch (error) {
-    console.error('Failed to download media. Error:', error.message);
+    console.error('Error al descargar medio:', error.message);
     return null;
   }
 }
 
-// Utility function to get or create a conversation
-async function getOrCreateConversation(phoneNumber) {
+async function getOrCreateConversation(phoneNumber, integrationId) {
   const findQuery = 'SELECT conversation_id FROM conversations WHERE phone_number = $1';
   try {
     let result = await pool.query(findQuery, [phoneNumber]);
     if (result.rows.length > 0) {
-      return result.rows[0].conversation_id; // Return the ID if the conversation exists
+      return result.rows[0].conversation_id;
     } else {
-      // Create a new contact
       const contactQuery = 'INSERT INTO contacts (phone_number, label) VALUES ($1, $2) RETURNING id';
-      const contactResult = await pool.query(contactQuery, [phoneNumber, "Contacto inicial"]);
-      const contactId = contactResult.rows[0].id; // Obtén el ID del contacto recién insertado
+      const contactResult = await pool.query(contactQuery, [phoneNumber, 1]);
+      const contactId = contactResult.rows[0].id; 
 
       console.log(`ID del contacto: ${contactId}`);
 
-      // Create a new conversation if it doesn't exist
-      const insertQuery = 'INSERT INTO conversations (phone_number, state, id_usuario, contact_id) VALUES ($1, $2, $3, $4) RETURNING conversation_id';
-      const conversationResult = await pool.query(insertQuery, [phoneNumber, 'new', 1011, contactId]); // Utiliza contactId como un valor numérico
+      const insertQuery = 'INSERT INTO conversations (phone_number, state, id_usuario, contact_id, integration_id) VALUES ($1, $2, $3, $4, $5) RETURNING conversation_id';
+      const conversationResult = await pool.query(insertQuery, [phoneNumber, 'new', 1011, contactId, integrationId]); 
       const conversationId = conversationResult.rows[0].conversation_id;
 
-      return conversationId; // Return the new conversation ID
+      return conversationId; 
     }
   } catch (err) {
-    console.error('Database error in getOrCreateConversation:', err);
+    console.error('Error de base de datos en getOrCreateConversation:', err);
     throw err;
   }
 }
@@ -318,11 +323,10 @@ async function getConversationState(conversationId) {
     if (result.rows.length > 0) {
       return result.rows[0].state;
     } else {
-      // If the conversation is not found, consider an initial state
       return 'new';
     }
   } catch (error) {
-    console.error('Database error getting conversation state:', error);
+    console.error('Error de base de datos obteniendo estado de conversación:', error);
     throw error;
   }
 }

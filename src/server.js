@@ -181,9 +181,8 @@ function respondToWhatsApp(req, res) {
 
 
 
+// Endpoint del webhook
 app.post('/webhook', async (req, res) => {
-  respondToWhatsApp(req, res); // Envía la respuesta inmediata
-
   console.log(`Webhook received at ${new Date().toISOString()}: ${JSON.stringify(req.body, null, 2)}`);
 
   try {
@@ -214,10 +213,8 @@ app.post('/webhook', async (req, res) => {
             const messageId = statusUpdate.id;
             const status = statusUpdate.status;
 
-            // Actualizar estado del mensaje en la tabla replies
             await updateReplyStatus(messageId, status);
 
-            // Emitir evento a través de socket.io
             io.emit('replyStatusUpdate', { messageId, status });
             console.log(`Emitted replyStatusUpdate event for messageId: ${messageId} with status: ${status}`);
           }
@@ -231,6 +228,9 @@ app.post('/webhook', async (req, res) => {
 
         const messageData = change.value;
         const senderId = messageData.contacts[0].wa_id;
+        const phone_number_id = messageData.metadata.phone_number_id;
+
+        const integrationDetails = await getIntegrationDetails(phone_number_id);
 
         if (messageData.messages && messageData.messages.length > 0) {
           const firstMessage = messageData.messages[0];
@@ -248,7 +248,7 @@ app.post('/webhook', async (req, res) => {
           switch (firstMessage.type) {
             case 'text':
               if (firstMessage.text) {
-                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no");
+                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails);
               }
               break;
             case 'location':
@@ -259,28 +259,28 @@ app.post('/webhook', async (req, res) => {
                   latitude: firstMessage.location.latitude,
                   longitude: firstMessage.location.longitude,
                   context
-                });
+                }, null, integrationDetails);
               }
               break;
             case 'image':
-              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no");
+              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails);
               break;
             case 'audio':
-              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no");
+              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails);
               break;
             case 'video':
-              await processMessage(io, senderId, { id: messageId, type: 'video', video: firstMessage.video, context }, "no");
+              await processMessage(io, senderId, { id: messageId, type: 'video', video: firstMessage.video, context }, "no", integrationDetails);
               break;
             case 'document':
               const file_name = firstMessage.document.filename;
-              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no");
+              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails);
               break;
             case 'sticker':
-              await processMessage(io, senderId, { id: messageId, type: 'sticker', sticker: firstMessage.sticker, context }, "no");
+              await processMessage(io, senderId, { id: messageId, type: 'sticker', sticker: firstMessage.sticker, context }, "no", integrationDetails);
               break;
             case 'button':
               if (firstMessage.button) {
-                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no");
+                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails);
               }
               break;
             default:
@@ -415,8 +415,10 @@ app.post('/upload-template-media', uploadTemplateMedia.single('media'), async (r
 
 app.post('/create-template', async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id } = req.body;
-  const whatsappApiToken = process.env.WHATSAPP_API_TOKEN;
-  const whatsappBusinessAccountId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
+  const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
+  const { WHATSAPP_API_TOKEN, WHATSAPP_BUSINESS_ACCOUNT_ID } = integrationDetails;
+  const whatsappApiToken = WHATSAPP_API_TOKEN;
+  const whatsappBusinessAccountId = WHATSAPP_BUSINESS_ACCOUNT_ID;
 
   const validName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
 
@@ -676,6 +678,34 @@ app.post('/create-flow', async (req, res) => {
 
 
 
+async function getIntegrationDetails(phoneNumberId) {
+  const query = `
+    SELECT * FROM integrations
+    WHERE WHATSAPP_PHONE_NUMBER_ID = $1
+  `;
+  const result = await pool.query(query, [phoneNumberId]);
+
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  } else {
+    throw new Error(`Integration details not found for phone_number_id: ${phoneNumberId}`);
+  }
+}
+
+async function getIntegrationDetailsByCompanyId(companyId) {
+  const query = `
+    SELECT * FROM integrations
+    WHERE company_id = $1 AND type = 'whatsapp'
+    LIMIT 1;
+  `;
+  const result = await pool.query(query, [companyId]);
+
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  } else {
+    throw new Error(`Integration details not found for company_id: ${companyId} and type: 'whatsapp'`);
+  }
+}
 
 
 

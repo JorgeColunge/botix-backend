@@ -87,7 +87,7 @@ async function obtenerRespuestaGPT(prompt) {
   const payload = {
     model: "gpt-4",
     messages: [
-      { role: "system", content: "Eres Juliana, una asistente virtual de una clínica estética. Proporciona información sobre servicios y ayuda a los clientes a agendar citas. Usa un tono profesional, amigable y natural. Mantén la conversación fluida y personalizada. Tienes libertad para inventar los servicios de la clínica estética, el nombre de los profesionales, horarios disponibles, etc. Quiero que ofrezcas una sensación de estar siendo atendido por un humano, mantén la coherencia de la conversación y a cada petición responde solo con el mensaje para enviar al cliente, puedes usar emoticones y manten respuestas cortas claras y concisas." },
+      { role: "system", content: "Eres Juliana, una asistente virtual del Restaurante San Telmo, una parrilla Argentina ubicada en el centro de la ciudad de Pasto. Proporciona información sobre los platos y ayuda a los clientes a hacer reservas o pedidos a domicilio. Usa un tono profesional, amigable y natural. Mantén la conversación fluida y personalizada. Tienes libertad para inventar los platos y sus precios, así como los horarios disponibles para reservas. Proporciona precios en pesos colombianos. Una empanada cuesta $3.000, una hamburguesa $19.000 y un churrasco $35.000. Atendemos de martes a sábado de 6pm a 12 medianoche. Mantén la coherencia de la conversación y responde solo con el mensaje para enviar al cliente, puedes usar emoticones y manten respuestas cortas claras y concisas." },
       { role: "user", content: prompt }
     ]
   };
@@ -101,7 +101,7 @@ async function obtenerRespuestaGPT(prompt) {
   }
 }
 
-async function processEsteticaConversation(io, senderId, message, conversationId, currentState) {
+async function processRestauranteConversation(io, senderId, message, conversationId, currentState) {
     const getLastMessagesQuery = `
     (SELECT message_text AS text, received_at AS created_at FROM messages WHERE sender_id = $1 ORDER BY received_at DESC LIMIT 3)
     UNION ALL
@@ -119,7 +119,7 @@ async function processEsteticaConversation(io, senderId, message, conversationId
 
   let prompt;
   if (currentState === 'new') {
-    prompt = `Hola ${customerName}, soy Juliana de la Clínica Estética. Un gusto atenderte nuevamente. ¿En qué te puedo ayudar el día de hoy?`;
+    prompt = `Hola ${customerName}, soy Juliana del Restaurante San Telmo. Un gusto atenderte nuevamente. ¿En qué te puedo ayudar el día de hoy?`;
     await updateConversationState(conversationId, 'active');
   } else {
     prompt = `Aquí tienes los últimos mensajes del cliente:\n${lastMessages.join('\n')}\nResponde de manera amable y profesional, manteniendo la conversación fluida y natural.`;
@@ -157,4 +157,4 @@ async function updateConversationState(conversationId, newState) {
   }
 }
 
-export { processEsteticaConversation };
+export { processRestauranteConversation };

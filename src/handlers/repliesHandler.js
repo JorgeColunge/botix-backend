@@ -3,13 +3,14 @@ import pool from '../config/dbConfig.js';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-const token = process.env.WHATSAPP_API_TOKEN; // Asegúrate de tener tu token en las variables de entorno
-const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID; // ID del número de teléfono también en variables de entorno
-const whatsappBusinessId = process.env.WHATSAPP_BUSINESS_ACCOUNT_ID;
 const backendUrl = process.env.BACKEND_URL;
 
 export async function sendTextMessage(io, req, res) {
   const { phone, messageText, conversationId } = req.body;
+
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
 
   // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
   const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
@@ -19,7 +20,7 @@ export async function sendTextMessage(io, req, res) {
   try {
     // Enviar mensaje via WhatsApp
     const response = await axios.post(
-      `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
+      `https://graph.facebook.com/v13.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`,
       {
         messaging_product: "whatsapp",
         to: phone,
@@ -28,7 +29,7 @@ export async function sendTextMessage(io, req, res) {
       },
       {
         headers: {
-          'Authorization': `Bearer ${token}`,
+          'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
           'Content-Type': 'application/json'
         }
       }
@@ -86,339 +87,360 @@ export async function sendTextMessage(io, req, res) {
     console.error('Error sending message:', error);
     res.status(500).json({ error: error.message });
   }
-};
+}
 
 
-
-// Función para enviar una imagen por WhatsApp
 export async function sendImageMessage(io, req, res) {
-    const { phone, imageUrl, conversationId } = req.body;
-    const fullImageUrl = `${backendUrl}${imageUrl}`; // Agregar el prefijo a la URL de la imagen
-    console.log(fullImageUrl);
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    const payload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "image",
-      image: { link: fullImageUrl }
-    };
-  
-    // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
-    const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
-    const unreadMessages = unreadRes.rows[0].unread_messages;
-    const responsibleUserId = unreadRes.rows[0].id_usuario;
-  
-    try {
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log(response.data);
-  
-      // Intenta insertar en la base de datos
-      const insertQuery = `
-        INSERT INTO replies (
-          replies_id,
-          sender_id,
-          conversation_fk,
-          reply_type,
-          reply_text,
-          reply_media_url,
-          latitude,
-          longitude
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
-      `;
-      const messageValues = [
-        response.data.messages[0].id,
-        phone,           
-        conversationId,
-        'image',
-        null,
-        imageUrl,
-        null,
-        null
-      ];
-      const result = await pool.query(insertQuery, messageValues);
-      console.log('Inserted reply ID:', result.rows[0]);
-      const newMessage = result.rows[0];
-      // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-      io.emit('newMessage', {
-        id: newMessage.replies_id,
-        conversationId: conversationId,
-        timestamp: newMessage.created_at,
-        senderId: phone,
-        type: 'reply',
-        message_type: 'image',
-        text: null,
-        url: imageUrl,
-        thumbnail_url: null,
-        duration: null,
-        latitude: null,
-        longitude: null,
-        unread_messages: unreadMessages,
-        responsibleUserId: responsibleUserId
-      });
-      console.log('Mensaje emitido:', newMessage.replies_id);
-  
-    } catch (error) {
-      console.error('Error sending WhatsApp image:', error.response?.data || error.message);
-      res.status(500).json({ error: error.message });
+  const { phone, imageUrl, conversationId } = req.body;
+  const fullImageUrl = `${backendUrl}${imageUrl}`; // Agregar el prefijo a la URL de la imagen
+  console.log(fullImageUrl);
+
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
+
+    if (!whatsapp_api_token || !whatsapp_phone_number_id) {
+      throw new Error('Faltan detalles de integración necesarios para enviar el mensaje.');
     }
-}
 
+  const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "image",
+    image: { link: fullImageUrl }
+  };
 
-// Función para enviar una video por WhatsApp
-export async function sendVideoMessage(io, req, res) {
-    const { phone, videoUrl, videoThumbnail, videoDuration, conversationId } = req.body;
-    const fullVideoUrl = `${backendUrl}${videoUrl}`;
-    console.log(fullVideoUrl);
+  // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
+  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+  const unreadMessages = unreadRes.rows[0].unread_messages;
+  const responsibleUserId = unreadRes.rows[0].id_usuario;
 
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    const payload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "video",
-      video: {
-        link: fullVideoUrl
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${whatsapp_api_token}`,
+        'Content-Type': 'application/json'
       }
-    };
+    });
+    console.log(response.data);
 
-    // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
-    const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
-    const unreadMessages = unreadRes.rows[0].unread_messages;
-    const responsibleUserId = unreadRes.rows[0].id_usuario;
+    // Intenta insertar en la base de datos
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
+    `;
+    const messageValues = [
+      response.data.messages[0].id,
+      phone,           
+      conversationId,
+      'image',
+      null,
+      imageUrl,
+      null,
+      null
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+    io.emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'image',
+      text: null,
+      url: imageUrl,
+      thumbnail_url: null,
+      duration: null,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId
+    });
+    console.log('Mensaje emitido:', newMessage.replies_id);
 
-    try {
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log(response.data);
-  
-      // Intenta insertar en la base de datos
-      const insertQuery = `
-        INSERT INTO replies (
-          replies_id,
-          sender_id,
-          conversation_fk,
-          reply_type,
-          reply_text,
-          reply_media_url,
-          latitude,
-          longitude,
-          thumbnail_url,
-          duration
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) RETURNING *;
-      `;
-      const messageValues = [
-        response.data.messages[0].id,
-        phone,           
-        conversationId,
-        'video',
-        null,
-        videoUrl,
-        null,
-        null,
-        videoThumbnail,
-        videoDuration
-      ];
-      const result = await pool.query(insertQuery, messageValues);
-      console.log('Inserted reply ID:', result.rows[0]);
-      const newMessage = result.rows[0];
-      // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-      io.emit('newMessage', {
-        id: newMessage.replies_id,
-        conversationId: conversationId,
-        timestamp: newMessage.created_at,
-        senderId: phone,
-        type: 'reply',
-        message_type: 'video',
-        text: null,
-        url: videoUrl,
-        thumbnail_url: videoThumbnail,
-        duration: videoDuration,
-        latitude: null,
-        longitude: null,
-        unread_messages: unreadMessages,
-        responsibleUserId: responsibleUserId
-      });
-      console.log('Mensaje emitido:', newMessage.replies_id);
-  
-    } catch (error) {
-      console.error('Error sending WhatsApp video:', error.response?.data || error.message);
-      res.status(500).json({ error: error.message });
-    }
+  } catch (error) {
+    console.error('Error sending WhatsApp image:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
 }
+
+
+
+export async function sendVideoMessage(io, req, res) {
+  const { phone, videoUrl, videoThumbnail, videoDuration, conversationId } = req.body;
+  const fullVideoUrl = `${backendUrl}${videoUrl}`;
+  console.log(fullVideoUrl);
+
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
+
+  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "video",
+    video: {
+      link: fullVideoUrl
+    }
+  };
+
+  // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
+  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+  const unreadMessages = unreadRes.rows[0].unread_messages;
+  const responsibleUserId = unreadRes.rows[0].id_usuario;
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(response.data);
+
+    // Intenta insertar en la base de datos
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        thumbnail_url,
+        duration
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $9) RETURNING *;
+    `;
+    const messageValues = [
+      response.data.messages[0].id,
+      phone,           
+      conversationId,
+      'video',
+      null,
+      videoUrl,
+      null,
+      null,
+      videoThumbnail,
+      videoDuration
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+    io.emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'video',
+      text: null,
+      url: videoUrl,
+      thumbnail_url: videoThumbnail,
+      duration: videoDuration,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId
+    });
+    console.log('Mensaje emitido:', newMessage.replies_id);
+
+  } catch (error) {
+    console.error('Error sending WhatsApp video:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
+
 
 
 // Función para enviar un documento por WhatsApp
 export async function sendDocumentMessage(io, req, res) {
-    const { phone, documentUrl, documentName, conversationId } = req.body;
-    const fullDocumentUrl = `${backendUrl}${documentUrl}`; // Add the prefix to the document URL
+  const { phone, documentUrl, documentName, conversationId } = req.body;
+  const fullDocumentUrl = `${backendUrl}${documentUrl}`; // Add the prefix to the document URL
 
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    const payload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "document",
-      document: {
-        link: fullDocumentUrl,
-        filename: documentName
-      }
-    };
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
 
-    // Get the count of unread messages and the responsible user ID
-    const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
-    const unreadMessages = unreadRes.rows[0].unread_messages;
-    const responsibleUserId = unreadRes.rows[0].id_usuario;
-
-    try {
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log(response.data);
-  
-      // Try to insert into the database
-      const insertQuery = `
-        INSERT INTO replies (
-          replies_id,
-          sender_id,
-          conversation_fk,
-          reply_type,
-          reply_text,
-          reply_media_url,
-          latitude,
-          longitude,
-          file_name
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
-      `;
-      const messageValues = [
-        response.data.messages[0].id,
-        phone,           
-        conversationId,
-        'document',
-        null,
-        documentUrl,
-        null,
-        null,
-        documentName
-      ];
-      const result = await pool.query(insertQuery, messageValues);
-      console.log('Inserted reply ID:', result.rows[0]);
-      const newMessage = result.rows[0];
-      // Emit the processed message to clients subscribed to that conversation
-      io.emit('newMessage', {
-        id: newMessage.replies_id,
-        conversationId: conversationId,
-        timestamp: newMessage.created_at,
-        senderId: phone,
-        type: 'reply',
-        message_type: 'document',
-        text: null,
-        url: documentUrl,
-        thumbnail_url: null,
-        duration: null,
-        latitude: null,
-        longitude: null,
-        unread_messages: unreadMessages,
-        responsibleUserId: responsibleUserId,
-        file_name: documentName
-      });
-      console.log('Message emitted:', newMessage.replies_id);
-  
-    } catch (error) {
-      console.error('Error sending WhatsApp document:', error.response?.data || error.message);
-      res.status(500).json({ error: error.message });
+  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "document",
+    document: {
+      link: fullDocumentUrl,
+      filename: documentName
     }
+  };
+
+  // Get the count of unread messages and the responsible user ID
+  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+  const unreadMessages = unreadRes.rows[0].unread_messages;
+  const responsibleUserId = unreadRes.rows[0].id_usuario;
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(response.data);
+
+    // Try to insert into the database
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        file_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+    `;
+    const messageValues = [
+      response.data.messages[0].id,
+      phone,           
+      conversationId,
+      'document',
+      null,
+      documentUrl,
+      null,
+      null,
+      documentName
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    // Emit the processed message to clients subscribed to that conversation
+    io.emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'document',
+      text: null,
+      url: documentUrl,
+      thumbnail_url: null,
+      duration: null,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId,
+      file_name: documentName
+    });
+    console.log('Message emitted:', newMessage.replies_id);
+
+  } catch (error) {
+    console.error('Error sending WhatsApp document:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
 }
 
-// Función para enviar un audio por WhatsApp
+
 export async function sendAudioMessage(io, req, res) {
-    const { phone, audioUrl, audioDuration, conversationId } = req.body;
-    const fullAudioUrl = `${backendUrl}${audioUrl}`;
-  
-    const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
-    const payload = {
-      messaging_product: "whatsapp",
-      to: phone,
-      type: "audio",
-      audio: {
-        link: fullAudioUrl
-      }
-    };
-  
-    // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
-    const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
-    const unreadMessages = unreadRes.rows[0].unread_messages;
-    const responsibleUserId = unreadRes.rows[0].id_usuario;
-  
-    try {
-      const response = await axios.post(url, payload, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
-      });
-      console.log(response.data);
-  
-      // Intenta insertar en la base de datos
-      const insertQuery = `
-        INSERT INTO replies (
-          replies_id,
-          sender_id,
-          conversation_fk,
-          reply_type,
-          reply_text,
-          reply_media_url,
-          latitude,
-          longitude,
-          duration
-        ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
-      `;
-      const messageValues = [
-        response.data.messages[0].id,
-        phone,           
-        conversationId,
-        'audio',
-        null,
-        audioUrl,
-        null,
-        null,
-        audioDuration
-      ];
-      const result = await pool.query(insertQuery, messageValues);
-      console.log('Inserted reply ID:', result.rows[0]);
-      const newMessage = result.rows[0];
-      // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-      io.emit('newMessage', {
-        id: newMessage.replies_id,
-        conversationId: conversationId,
-        timestamp: newMessage.created_at,
-        senderId: phone,
-        type: 'reply',
-        message_type: 'audio',
-        text: null,
-        url: audioUrl,
-        duration: audioDuration,
-        latitude: null,
-        longitude: null,
-        unread_messages: unreadMessages,
-        responsibleUserId: responsibleUserId
-      });
-      console.log('Mensaje emitido:', newMessage.replies_id);
-  
-    } catch (error) {
-      console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
-      res.status(500).json({ error: error.message });
+  const { phone, audioUrl, audioDuration, conversationId } = req.body;
+  const fullAudioUrl = `${backendUrl}${audioUrl}`;
+
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID } = integrationDetails;
+
+  const url = `https://graph.facebook.com/v19.0/${WHATSAPP_PHONE_NUMBER_ID}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "audio",
+    audio: {
+      link: fullAudioUrl
     }
+  };
+
+  // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
+  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+  const unreadMessages = unreadRes.rows[0].unread_messages;
+  const responsibleUserId = unreadRes.rows[0].id_usuario;
+
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${WHATSAPP_API_TOKEN}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(response.data);
+
+    // Intenta insertar en la base de datos
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        duration
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+    `;
+    const messageValues = [
+      response.data.messages[0].id,
+      phone,           
+      conversationId,
+      'audio',
+      null,
+      audioUrl,
+      null,
+      null,
+      audioDuration
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+    io.emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'audio',
+      text: null,
+      url: audioUrl,
+      duration: audioDuration,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId
+    });
+    console.log('Mensaje emitido:', newMessage.replies_id);
+
+  } catch (error) {
+    console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
   }
+}
+
 
 
 
@@ -552,6 +574,10 @@ export async function sendTemplateMessage(io, req, res) {
 
     let responsibleIndex = 0;
 
+    // Obtener la integración de WhatsApp para la compañía
+    const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(template.company_id);
+    const { WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID } = whatsappIntegration;
+
     for (const contact of contacts) {
       const responsibleUserId = responsibleUserIds[responsibleIndex];
       responsibleIndex = (responsibleIndex + 1) % responsibleUserIds.length;
@@ -569,24 +595,41 @@ export async function sendTemplateMessage(io, req, res) {
       if (conversationResult.rows.length === 0) {
         // Crear nueva conversación
         const insertConversationQuery = `
-          INSERT INTO conversations (phone_number, state, last_update, unread_messages, id_usuario, contact_id)
-          VALUES ($1, $2, NOW(), $3, $4, $5) RETURNING *;
+          INSERT INTO conversations (phone_number, state, last_update, unread_messages, id_usuario, contact_id, integration_id)
+          VALUES ($1, $2, NOW(), $3, $4, $5, $6) RETURNING *;
         `;
-        const insertConversationValues = [contact.phone_number, campaign.state_conversation || null, 0, responsibleUserId, contact.id];
+        const insertConversationValues = [
+          contact.phone_number,
+          campaign.state_conversation || null,
+          0,
+          responsibleUserId,
+          contact.id,
+          whatsappIntegration.id
+        ];
         const insertConversationResult = await pool.query(insertConversationQuery, insertConversationValues);
         conversation = insertConversationResult.rows[0];
         console.log('Nueva conversación creada:', conversation.conversation_id);
       } else {
-        // Actualizar la conversación existente
+        // Actualizar la conversación existente y obtener la integración
+        conversation = conversationResult.rows[0];
         const updateConversationQuery = `
           UPDATE conversations
           SET state = COALESCE($1, state), last_update = NOW(), id_usuario = $2
           WHERE contact_id = $3 RETURNING *;
         `;
-        const updateConversationValues = [campaign.state_conversation || null, responsibleUserId, contact.id];
+        const updateConversationValues = [
+          campaign.state_conversation || null,
+          responsibleUserId,
+          contact.id
+        ];
         const updateConversationResult = await pool.query(updateConversationQuery, updateConversationValues);
         conversation = updateConversationResult.rows[0];
-        console.log('Conversación actualizada:', conversation.conversation_id);
+
+        // Obtener los detalles de la integración usando `integration_id`
+        const conversationIntegration = await getIntegrationDetailsById(conversation.integration_id);
+        WHATSAPP_API_TOKEN = conversationIntegration.WHATSAPP_API_TOKEN;
+        WHATSAPP_PHONE_NUMBER_ID = conversationIntegration.WHATSAPP_PHONE_NUMBER_ID;
+        WHATSAPP_BUSINESS_ACCOUNT_ID = conversationIntegration.WHATSAPP_BUSINESS_ACCOUNT_ID;
       }
 
       // Reemplazar variables en la plantilla
@@ -605,11 +648,11 @@ export async function sendTemplateMessage(io, req, res) {
       }
 
       let mediaUrl = null;
-      let footer = template.footer_text || '';
+      let footer = template.footer || '';
       let response;
 
       if (template.header_type === 'TEXT') {
-        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters);
+        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
         const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
@@ -619,7 +662,7 @@ export async function sendTemplateMessage(io, req, res) {
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'IMAGE') {
         const imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/13/ChatGPT-Logo.png'; // Línea para pruebas
-        response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters);
+        response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
         mediaUrl = imageUrl;
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -630,7 +673,7 @@ export async function sendTemplateMessage(io, req, res) {
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'VIDEO') {
         const videoUrl = 'https://cdn.pixabay.com/video/2020/09/08/49375-459436752_small.mp4'; // Línea para pruebas
-        response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters);
+        response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
         mediaUrl = videoUrl;
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -641,8 +684,8 @@ export async function sendTemplateMessage(io, req, res) {
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'DOCUMENT') {
         const documentUrl = 'https://www.turnerlibros.com/wp-content/uploads/2021/02/ejemplo.pdf'; // Línea para pruebas
-        const mediaId = await uploadDocumentToWhatsApp(documentUrl);
-        response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters);
+        const mediaId = await uploadDocumentToWhatsApp(documentUrl, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID);
+        response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_BUSINESS_ACCOUNT_ID);
         mediaUrl = documentUrl;
 
         // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -664,151 +707,149 @@ export async function sendTemplateMessage(io, req, res) {
 
 
 
-
-const sendWhatsAppMessage = async (phone, templateName, language, parameters) => {
+const sendWhatsAppMessage = async (phone, templateName, language, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {
-      const payload = {
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "template",
-          template: {
-              namespace: whatsappBusinessId,
-              name: templateName,
-              language: {
-                  code: language,
-                  policy: "deterministic"
-              },
-              components: [
-                  {
-                      type: "header",
-                      parameters: parameters.filter((_, index) => index === 0).map(value => ({ type: "text", text: value }))
-                  },
-                  {
-                      type: "body",
-                      parameters: parameters.filter((_, index) => index !== 0).map(value => ({ type: "text", text: value }))
-                  }
-              ]
-          }
-      };
-
-      console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
-
-      const response = await axios.post(
-          `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
-          payload,
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        namespace: whatsappBusinessId,
+        name: templateName,
+        language: {
+          code: language,
+          policy: "deterministic"
+        },
+        components: [
           {
-              headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-              }
+            type: "header",
+            parameters: parameters.filter((_, index) => index === 0).map(value => ({ type: "text", text: value }))
+          },
+          {
+            type: "body",
+            parameters: parameters.filter((_, index) => index !== 0).map(value => ({ type: "text", text: value }))
           }
-      );
-      return response.data;
+        ]
+      }
+    };
+
+    console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
+
+    const response = await axios.post(
+      `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
   } catch (error) {
-      console.error('Error sending WhatsApp message:', error);
-      throw error;
+    console.error('Error sending WhatsApp message:', error);
+    throw error;
   }
 };
 
-const sendImageWhatsAppMessage = async (phone, templateName, language, imageUrl, parameters) => {
+const sendImageWhatsAppMessage = async (phone, templateName, language, imageUrl, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {
-      const payload = {
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "template",
-          template: {
-              namespace: whatsappBusinessId,
-              name: templateName,
-              language: {
-                  code: language,
-                  policy: "deterministic"
-              },
-              components: [
-                  {
-                      type: "header",
-                      parameters: [{
-                          type: "image",
-                          image: { link: imageUrl }
-                      }]
-                  },
-                  {
-                      type: "body",
-                      parameters: parameters.map(value => ({ type: "text", text: value }))
-                  }
-              ]
-          }
-      };
-
-      console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
-
-      const response = await axios.post(
-          `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
-          payload,
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        namespace: whatsappBusinessId,
+        name: templateName,
+        language: {
+          code: language,
+          policy: "deterministic"
+        },
+        components: [
           {
-              headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-              }
+            type: "header",
+            parameters: [{
+              type: "image",
+              image: { link: imageUrl }
+            }]
+          },
+          {
+            type: "body",
+            parameters: parameters.map(value => ({ type: "text", text: value }))
           }
-      );
-      return response.data;
+        ]
+      }
+    };
+
+    console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
+
+    const response = await axios.post(
+      `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
   } catch (error) {
-      console.error('Error sending WhatsApp message:', error);
-      throw error;
+    console.error('Error sending WhatsApp message:', error);
+    throw error;
   }
 };
 
-const sendVideoWhatsAppMessage = async (phone, templateName, language, videoUrl, parameters) => {
+const sendVideoWhatsAppMessage = async (phone, templateName, language, videoUrl, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {
-      const payload = {
-          messaging_product: "whatsapp",
-          to: phone,
-          type: "template",
-          template: {
-              namespace: whatsappBusinessId,
-              name: templateName,
-              language: {
-                  code: language,
-                  policy: "deterministic"
-              },
-              components: [
-                  {
-                      type: "header",
-                      parameters: [{
-                          type: "video",
-                          video: { link: videoUrl }
-                      }]
-                  },
-                  {
-                      type: "body",
-                      parameters: parameters.map(value => ({ type: "text", text: value }))
-                  }
-              ]
-          }
-      };
-
-      console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
-
-      const response = await axios.post(
-          `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
-          payload,
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        namespace: whatsappBusinessId,
+        name: templateName,
+        language: {
+          code: language,
+          policy: "deterministic"
+        },
+        components: [
           {
-              headers: {
-                  'Authorization': `Bearer ${token}`,
-                  'Content-Type': 'application/json'
-              }
+            type: "header",
+            parameters: [{
+              type: "video",
+              video: { link: videoUrl }
+            }]
+          },
+          {
+            type: "body",
+            parameters: parameters.map(value => ({ type: "text", text: value }))
           }
-      );
-      return response.data;
+        ]
+      }
+    };
+
+    console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
+
+    const response = await axios.post(
+      `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
   } catch (error) {
-      console.error('Error sending WhatsApp message:', error);
-      throw error;
+    console.error('Error sending WhatsApp message:', error);
+    throw error;
   }
 };
 
-const sendDocumentWhatsAppMessage = async (phone, templateName, language, documentUrl, parameters) => {
+const sendDocumentWhatsAppMessage = async (phone, templateName, language, mediaId, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {
-    const mediaId = await uploadDocumentToWhatsApp(documentUrl);
     const payload = {
       messaging_product: "whatsapp",
       to: phone,
@@ -855,7 +896,7 @@ const sendDocumentWhatsAppMessage = async (phone, templateName, language, docume
   }
 };
 
-const uploadDocumentToWhatsApp = async (documentUrl) => {
+const uploadDocumentToWhatsApp = async (documentUrl, token, phoneNumberId) => {
   try {
     const response = await axios.post(
       `https://graph.facebook.com/v13.0/${phoneNumberId}/media`,
@@ -1005,3 +1046,43 @@ export async function sendTemplateToSingleContact(io, req, res) {
   }
 };
 
+async function getIntegrationDetailsByConversationId(conversationId) {
+  const query = `
+    SELECT i.* FROM integrations i
+    JOIN conversations c ON i.id = c.integration_id
+    WHERE c.conversation_id = $1
+  `;
+  const result = await pool.query(query, [conversationId]);
+
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  } else {
+    throw new Error(`Integration details not found for conversation_id: ${conversationId}`);
+  }
+}
+
+// Función para obtener los detalles de integración usando el `integration_id`
+async function getIntegrationDetailsById(integrationId) {
+  const query = 'SELECT * FROM integrations WHERE id = $1';
+  const result = await pool.query(query, [integrationId]);
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  } else {
+    throw new Error(`Integration details not found for id: ${integrationId}`);
+  }
+}
+
+// Función para obtener la integración de WhatsApp usando el `company_id`
+async function getWhatsAppIntegrationByCompanyId(companyId) {
+  const query = `
+    SELECT * FROM integrations 
+    WHERE company_id = $1 AND type = 'whatsapp'
+    LIMIT 1
+  `;
+  const result = await pool.query(query, [companyId]);
+  if (result.rows.length > 0) {
+    return result.rows[0];
+  } else {
+    throw new Error(`WhatsApp integration not found for company_id: ${companyId}`);
+  }
+}

@@ -132,7 +132,7 @@ const registerValidation = (data) => {
     telefono: Joi.string().max(15).optional().allow(''),
     email: Joi.string().email().required(),
     rol: Joi.number().required(),
-    contraseña: Joi.string().min(6).required(),
+    contraseña: Joi.string().min(6).allow(''),
     socket_id: Joi.optional().allow(''),
     link_foto: Joi.string().optional().allow(''),
     department_id: Joi.number().allow(null),

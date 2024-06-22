@@ -1,29 +1,70 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/dbConfig.js';
+import { registerValidation } from '../validations/userValidation.js';
 
 // Función para registrar un nuevo usuario
 export const register = async (req, res) => {
-    const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, socket_id, company_id, department_id } = req.body;
-    try {
-      const userExists = await pool.query('SELECT * FROM users WHERE id_usuario = $1;', [id_usuario]);
-      if (userExists.rows.length > 0) {
-        return res.status(409).send('El ID de usuario ya está registrado.');
-      }
-  
-      const salt = await bcrypt.genSalt(10);
-      const contraseñaHash = await bcrypt.hash(contraseña, salt);
-  
-      await pool.query(
-        'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, socket_id, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11);',
-        [id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseñaHash, socket_id, company_id, department_id]
-      );
-  
-      res.status(201).json({ message: "Usuario creado", nombre });
-    } catch (err) {
-      console.error(err);
-      res.status(500).send('Error al registrar al usuario: ' + err.message);
+  const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, empresa, plan } = req.body;
+
+  // Validación de los datos de registro
+  const { error } = registerValidation(req.body);
+  if (error) return res.status(400).send(error.details[0].message);
+
+  try {
+    // Verificar si la empresa ya existe
+    const companyExists = await pool.query('SELECT * FROM companies WHERE document_number = $1;', [empresa.document_number]);
+    if (companyExists.rows.length > 0) {
+      return res.status(409).send('El número de documento de la empresa ya está registrado.');
     }
+
+    // Crear la empresa si no existe
+    const result = await pool.query(
+      'INSERT INTO companies (name, document_type, document_number, address, city, country, postal_code, email, phone, logo) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id;',
+      [empresa.name, empresa.document_type, empresa.document_number, empresa.address, empresa.city, empresa.country, empresa.postal_code, empresa.email, empresa.phone, empresa.logo]
+    );
+    const createdCompanyId = result.rows[0].id;
+
+    // Crear una licencia con las características recibidas en el cuerpo de la solicitud
+    await pool.query(
+      'INSERT INTO licenses (type, contacts, users, ai_messages, ai_analysis, company_id, integrations, automations, bot_messages, state) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);',
+      [plan.type, plan.contacts, plan.users, plan.ai_messages, plan.ai_analysis, createdCompanyId, plan.integrations, plan.automations, plan.bot_messages, 'pendiente']
+    );
+
+    // Crear el rol con el nombre indicado por el usuario
+    const roleResult = await pool.query(
+      'INSERT INTO roles (name, company_id, type) VALUES ($1, $2, $3) RETURNING id;',
+      [rol, createdCompanyId, 'Humano']
+    );
+    const createdRoleId = roleResult.rows[0].id;
+
+    // Crear el privilegio "Admin" para el rol creado
+    await pool.query(
+      'INSERT INTO privileges_roles (name, role_id) VALUES ($1, $2);',
+      ['Admin', createdRoleId]
+    );
+
+    // Verificar si el usuario ya existe
+    const userExists = await pool.query('SELECT * FROM users WHERE id_usuario = $1;', [id_usuario]);
+    if (userExists.rows.length > 0) {
+      return res.status(409).send('El ID de usuario ya está registrado.');
+    }
+
+    // Encriptar la contraseña
+    const salt = await bcrypt.genSalt(10);
+    const contraseñaHash = await bcrypt.hash(contraseña, salt);
+
+    // Crear el usuario con el rol creado
+    await pool.query(
+      'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);',
+      [id_usuario, nombre, apellido, telefono, email, link_foto, createdRoleId, contraseñaHash, createdCompanyId, null]
+    );
+
+    res.status(201).json({ message: "Usuario, empresa, licencia, rol y privilegio creados exitosamente", nombre });
+  } catch (err) {
+    console.error(err);
+    res.status(500).send('Error al registrar al usuario, la empresa, la licencia, el rol y el privilegio: ' + err.message);
+  }
 };
 
 // Función para iniciar sesión

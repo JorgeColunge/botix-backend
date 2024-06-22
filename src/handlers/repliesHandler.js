@@ -997,7 +997,15 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
 
 
 export async function sendTemplateToSingleContact(io, req, res) {
-  const { conversation, template, parameters } = req.body;
+  const { conversation, template, parameters, company_id } = req.body;
+
+if (!company_id) {
+  return res.status(400).json({ error: 'Company ID is required' });
+}
+
+// Obtener la integración de WhatsApp para la compañía
+const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(company_id);
+const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
 
   try {
     const phoneNumber = conversation.phone_number;
@@ -1005,19 +1013,19 @@ export async function sendTemplateToSingleContact(io, req, res) {
     let mediaUrl = null;
 
     if (template.header_type === 'TEXT') {
-      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters);
+      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
     } else if (template.header_type === 'IMAGE') {
       const imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/13/ChatGPT-Logo.png'; // Línea para pruebas
-      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters);
+      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = imageUrl;
     } else if (template.header_type === 'VIDEO') {
       const videoUrl = 'https://cdn.pixabay.com/video/2020/09/08/49375-459436752_small.mp4'; // Línea para pruebas
-      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters);
+      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = videoUrl;
     } else if (template.header_type === 'DOCUMENT') {
       const documentUrl = 'https://www.turnerlibros.com/wp-content/uploads/2021/02/ejemplo.pdf'; // Línea para pruebas
       const mediaId = await uploadDocumentToWhatsApp(documentUrl);
-      response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters);
+      response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;
     }
 

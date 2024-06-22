@@ -22,7 +22,8 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
 
   const { whatsapp_api_token, company_id, id: integration_id, whatsapp_phone_number_id } = integrationDetails;
 
-  const conversationId = await getOrCreateConversation(senderId, integration_id);
+  const contactId = await getOrCreateContact(senderId, company_id);
+  const conversationId = await getOrCreateConversation(contactId, senderId, integration_id);
 
   const lastMessageQuery = `
     SELECT received_at FROM messages
@@ -35,14 +36,14 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
   if (lastMessageRes.rows.length > 0) {
     const lastMessageTime = new Date(lastMessageRes.rows[0].received_at);
     const currentTime = new Date();
-    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60); 
+    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60); // Diferencia en minutos
 
-    if (whatsapp_phone_number_id === '245093422023458' && timeDifference > 5) {
+    if (company_id === 2 && timeDifference > 5) {
       await assignResponsibleUser(conversationId, 1011);
       await processConversationRouter(io, senderId, messageData, conversationId, 'new', integrationDetails);
-    } else if (whatsapp_phone_number_id === '356027174259293' && timeDifference > 5) {
+    } else if (company_id === 3 && timeDifference > 5) {
       await assignResponsibleUser(conversationId, 654321);
-    } 
+    }
   }
 
   const incrementUnread = `UPDATE conversations SET unread_messages = unread_messages + 1 WHERE conversation_id = $1`;
@@ -53,26 +54,25 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
   const responsibleUserId = unreadRes.rows[0].id_usuario;
 
   let mediaUrl = null;
-  let messageText = messageData.text || null; 
+  let messageText = messageData.text || null;
   let replyFrom = messageData.context?.from || null;
 
-  if (messageData.type === 'image' || messageData.type === 'audio' || messageData.type === 'video' || messageData.type === 'document' || messageData.type === 'sticker') {
-    const mediaType = messageData.type;
-    const mediaData = messageData[mediaType];
+  if (['image', 'audio', 'video', 'document', 'sticker'].includes(messageData.type)) {
+    const mediaData = messageData[messageData.type];
     if (mediaData && mediaData.id && mediaData.mime_type) {
       mediaUrl = await downloadMedia(mediaData.id, mediaData.mime_type, whatsapp_api_token);
-      if ((mediaType === 'image' || mediaType === 'video' || mediaType === 'document') && mediaData.caption) {
+      if (['image', 'video', 'document'].includes(messageData.type) && mediaData.caption) {
         messageText = mediaData.caption;
       }
     }
-  } 
+  }
 
   console.log('Responder desde ID:', replyFrom);
 
   let thumbnailUrl = null;
   let mediaDuration = null;
 
-  if ((messageData.type === 'video' || messageData.type === 'audio') && mediaUrl) {
+  if (['video', 'audio'].includes(messageData.type) && mediaUrl) {
     const mediaPath = path.join(__dirname, '..', '..', 'public', mediaUrl);
     if (fs.existsSync(mediaPath)) {
       try {
@@ -91,13 +91,13 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     INSERT INTO messages (
       id,
       sender_id,
-      conversation_fk, 
-      message_type, 
-      message_text, 
-      message_media_url, 
+      conversation_fk,
+      message_type,
+      message_text,
+      message_media_url,
       thumbnail_url,
       duration,
-      latitude, 
+      latitude,
       longitude,
       file_name,
       reply_from
@@ -143,8 +143,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         responsibleUserId: responsibleUserId,
         file_name: messageData.file_name,
         reply_from: newMessage.reply_from,
-        state: newMessage.state
+        state: newMessage.state,
+        company_id: integrationDetails.company_id // Añadir company_id aquí
       });
+      
 
       console.log('Mensaje emitido:', newMessage.id);
     } catch (error) {
@@ -152,28 +154,34 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     }
   }
 
-  if (whatsapp_phone_number_id === '245093422023458') {
+  if (company_id === 2) {
     const lastMessageTime = new Date(lastMessageRes.rows[0].received_at);
     const currentTime = new Date();
-    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60);
+    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60); // Diferencia en minutos
 
     if (timeDifference > 5) {
       await assignResponsibleUser(conversationId, 1011);
       await processConversationRouter(io, senderId, messageData, conversationId, state, integrationDetails);
     } else {
-      if (responsibleUserId === 1010) {
-        await processConversation(io, senderId, messageData, conversationId, state, integrationDetails);
-      } else if (responsibleUserId === 1011) {
-        await processConversationRouter(io, senderId, messageData, conversationId, state, integrationDetails);
-      } else if (responsibleUserId === 1013) {
-        await processEsteticaConversation(io, senderId, messageData, conversationId, state, integrationDetails);
-      } else if (responsibleUserId === 1012) {
-        await processRestauranteConversation(io, senderId, messageData, conversationId, state, integrationDetails);
-      } else if (responsibleUserId === 1014) {
-        await processLanguageConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+      switch (responsibleUserId) {
+        case 1010:
+          await processConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+          break;
+        case 1011:
+          await processConversationRouter(io, senderId, messageData, conversationId, state, integrationDetails);
+          break;
+        case 1013:
+          await processEsteticaConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+          break;
+        case 1012:
+          await processRestauranteConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+          break;
+        case 1014:
+          await processLanguageConversation(io, senderId, messageData, conversationId, state, integrationDetails);
+          break;
       }
     }
-  } else if (whatsapp_phone_number_id === '356027174259293') {
+  } else if (company_id === 3) {
     if (oldMessage == "no") {
       await assignResponsibleUser(conversationId, 654321);
     }
@@ -291,24 +299,36 @@ async function downloadMedia(mediaId, mimeType, whatsappApiToken) {
   }
 }
 
-async function getOrCreateConversation(phoneNumber, integrationId) {
-  const findQuery = 'SELECT conversation_id FROM conversations WHERE phone_number = $1';
+async function getOrCreateContact(phoneNumber, companyId) {
+  const findQuery = 'SELECT id FROM contacts WHERE phone_number = $1 AND company_id = $2';
   try {
-    let result = await pool.query(findQuery, [phoneNumber]);
+    let result = await pool.query(findQuery, [phoneNumber, companyId]);
+    if (result.rows.length > 0) {
+      return result.rows[0].id;
+    } else {
+      const contactQuery = 'INSERT INTO contacts (phone_number, company_id) VALUES ($1, $2) RETURNING id';
+      const contactResult = await pool.query(contactQuery, [phoneNumber, companyId]);
+      const contactId = contactResult.rows[0].id;
+      console.log(`ID del contacto: ${contactId}`);
+      return contactId;
+    }
+  } catch (err) {
+    console.error('Error de base de datos en getOrCreateContact:', err);
+    throw err;
+  }
+}
+
+async function getOrCreateConversation(contactId, phoneNumber, integrationId) {
+  const findQuery = 'SELECT conversation_id FROM conversations WHERE contact_id = $1';
+  try {
+    let result = await pool.query(findQuery, [contactId]);
     if (result.rows.length > 0) {
       return result.rows[0].conversation_id;
     } else {
-      const contactQuery = 'INSERT INTO contacts (phone_number, label) VALUES ($1, $2) RETURNING id';
-      const contactResult = await pool.query(contactQuery, [phoneNumber, 1]);
-      const contactId = contactResult.rows[0].id; 
-
-      console.log(`ID del contacto: ${contactId}`);
-
       const insertQuery = 'INSERT INTO conversations (phone_number, state, id_usuario, contact_id, integration_id) VALUES ($1, $2, $3, $4, $5) RETURNING conversation_id';
-      const conversationResult = await pool.query(insertQuery, [phoneNumber, 'new', 1011, contactId, integrationId]); 
+      const conversationResult = await pool.query(insertQuery, [phoneNumber, 'new', 1011, contactId, integrationId]);
       const conversationId = conversationResult.rows[0].conversation_id;
-
-      return conversationId; 
+      return conversationId;
     }
   } catch (err) {
     console.error('Error de base de datos en getOrCreateConversation:', err);

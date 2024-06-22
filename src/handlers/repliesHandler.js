@@ -4,6 +4,7 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const backendUrl = process.env.BACKEND_URL;
+const frontendUrl = process.env.FRONTEND_URL;
 
 export async function sendTextMessage(io, req, res) {
   const { phone, messageText, conversationId } = req.body;
@@ -655,7 +656,7 @@ export async function sendTemplateMessage(io, req, res) {
         // Almacenar el mensaje con placeholders reemplazados
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'IMAGE') {
-        const imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/13/ChatGPT-Logo.png'; // Línea para pruebas
+        const imageUrl = `${frontendUrl}${template.medio}`
         response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = imageUrl;
 
@@ -666,7 +667,7 @@ export async function sendTemplateMessage(io, req, res) {
         // Almacenar el mensaje con placeholders reemplazados y la URL de la imagen
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'VIDEO') {
-        const videoUrl = 'https://cdn.pixabay.com/video/2020/09/08/49375-459436752_small.mp4'; // Línea para pruebas
+        const videoUrl = `${frontendUrl}${template.medio}`
         response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = videoUrl;
 
@@ -677,7 +678,7 @@ export async function sendTemplateMessage(io, req, res) {
         // Almacenar el mensaje con placeholders reemplazados y la URL del video
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'DOCUMENT') {
-        const documentUrl = 'https://www.turnerlibros.com/wp-content/uploads/2021/02/ejemplo.pdf'; // Línea para pruebas
+        const documentUrl = `${frontendUrl}${template.medio}`
         const mediaId = await uploadDocumentToWhatsApp(documentUrl, whatsapp_api_token, whatsapp_phone_number_id);
         response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = documentUrl;
@@ -1009,15 +1010,15 @@ const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_
     if (template.header_type === 'TEXT') {
       response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
     } else if (template.header_type === 'IMAGE') {
-      const imageUrl = 'https://upload.wikimedia.org/wikipedia/commons/1/13/ChatGPT-Logo.png'; // Línea para pruebas
+      const imageUrl = `${frontendUrl}${template.medio}`
       response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = imageUrl;
     } else if (template.header_type === 'VIDEO') {
-      const videoUrl = 'https://cdn.pixabay.com/video/2020/09/08/49375-459436752_small.mp4'; // Línea para pruebas
+      const videoUrl = `${frontendUrl}${template.medio}`
       response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = videoUrl;
     } else if (template.header_type === 'DOCUMENT') {
-      const documentUrl = 'https://www.turnerlibros.com/wp-content/uploads/2021/02/ejemplo.pdf'; // Línea para pruebas
+      const documentUrl = `${frontendUrl}${template.medio}`
       const mediaId = await uploadDocumentToWhatsApp(documentUrl);
       response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;

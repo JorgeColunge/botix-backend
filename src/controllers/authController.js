@@ -1,15 +1,15 @@
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
 import pool from '../config/dbConfig.js';
-import { registerValidation } from '../validations/userValidation.js';
+import { newRegisterValidation } from '../validations/userValidation.js';
 
 // Función para registrar un nuevo usuario
 export const register = async (req, res) => {
   const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, empresa, plan } = req.body;
 
   // Validación de los datos de registro
-  const { error } = registerValidation(req.body);
-  if (error) return res.status(400).send(error.details[0].message);
+  const { error } = newRegisterValidation(req.body);
+  if (error) return res.status(400).send({error: error.details[0].message});
 
   try {
     // Verificar si la empresa ya existe

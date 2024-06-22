@@ -624,12 +624,6 @@ export async function sendTemplateMessage(io, req, res) {
         ];
         const updateConversationResult = await pool.query(updateConversationQuery, updateConversationValues);
         conversation = updateConversationResult.rows[0];
-
-        // Obtener los detalles de la integración usando `integration_id`
-        const conversationIntegration = await getIntegrationDetailsById(conversation.integration_id);
-        whatsapp_api_token = conversationIntegration.whatsapp_api_token;
-        whatsapp_phone_number_id = conversationIntegration.whatsapp_phone_number_id;
-        whatsapp_business_account_id = conversationIntegration.whatsapp_business_account_id;
       }
 
       // Reemplazar variables en la plantilla

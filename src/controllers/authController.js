@@ -34,7 +34,7 @@ export const register = async (req, res) => {
     // Crear el rol con el nombre indicado por el usuario
     const roleResult = await pool.query(
       'INSERT INTO roles (name, company_id, type) VALUES ($1, $2, $3) RETURNING id;',
-      [rol, createdCompanyId, 'humano']
+      [rol, createdCompanyId, 'Humano']
     );
     const createdRoleId = roleResult.rows[0].id;
 

@@ -1,6 +1,6 @@
 import Joi from 'joi';
 
-const registerValidation = (data) => {
+const newRegisterValidation = (data) => {
   const schema = Joi.object({
     id_usuario: Joi.number().required().messages({
       'any.required': 'El campo id_usuario es obligatorio.',
@@ -124,6 +124,22 @@ const registerValidation = (data) => {
   return schema.validate(data, { abortEarly: false });
 };
 
+const registerValidation = (data) => {
+  const schema = Joi.object({
+    id_usuario: Joi.number().required(),
+    nombre: Joi.string().min(3).required(),
+    apellido: Joi.string().min(3).required(),
+    telefono: Joi.string().max(15).optional().allow(''),
+    email: Joi.string().email().required(),
+    rol: Joi.number().required(),
+    contraseña: Joi.string().min(6).required(),
+    socket_id: Joi.optional().allow(''),
+    link_foto: Joi.string().optional().allow(''),
+    department_id: Joi.number().allow(null),
+    company_id: Joi.number().required()
+  });
+  return schema.validate(data, { abortEarly: false });
+};
 
 const loginValidation = (data) => {
   const schema = Joi.object({
@@ -133,4 +149,4 @@ const loginValidation = (data) => {
   return schema.validate(data);
 };
 
-export { registerValidation, loginValidation };
+export { newRegisterValidation, registerValidation, loginValidation };

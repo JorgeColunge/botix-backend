@@ -346,7 +346,7 @@ router.get('/messages/:id', async (req, res) => {
 
 function getMediaUrl(type, mediaUrl, latitude, longitude) {
   if (!mediaUrl) return null; // Manejar mediaUrl nulo o indefinido
-  const host = process.env.HOST || 'http://localhost:3001'; 
+  const host = process.env.BACKEND_URL || 'https://botix.axiomarobotics.com:10000'; 
   switch (type) {
     case 'image':
     case 'audio':
@@ -363,7 +363,7 @@ function getMediaUrl(type, mediaUrl, latitude, longitude) {
 
 function getThumbnailUrl(type, thumbnailUrl) {
   if (!thumbnailUrl) return null; // Manejar thumbnailUrl nulo o indefinido
-  const host = process.env.HOST || 'http://localhost:3001';
+  const host = process.env.BACKEND_URL || 'https://botix.axiomarobotics.com:10000';
   switch (type) {
     case 'image':
     case 'audio':

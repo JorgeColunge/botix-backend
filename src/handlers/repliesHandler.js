@@ -4,14 +4,13 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 const backendUrl = process.env.BACKEND_URL;
-const frontendUrl = process.env.FRONTEND_URL;
 
 export async function sendTextMessage(io, req, res) {
   const { phone, messageText, conversationId } = req.body;
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
+  const { whatsapp_api_token, whatsapp_phone_number_id} = integrationDetails;
 
   // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
   const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
@@ -81,7 +80,8 @@ export async function sendTextMessage(io, req, res) {
       type: 'reply',
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
-      reply_from: newMessage.reply_from
+      reply_from: newMessage.reply_from,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
     });
     console.log('Mensaje emitido:', newMessage.id);
   } catch (error) {
@@ -167,7 +167,8 @@ export async function sendImageMessage(io, req, res) {
       latitude: null,
       longitude: null,
       unread_messages: unreadMessages,
-      responsibleUserId: responsibleUserId
+      responsibleUserId: responsibleUserId,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
     });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
@@ -257,7 +258,8 @@ export async function sendVideoMessage(io, req, res) {
       latitude: null,
       longitude: null,
       unread_messages: unreadMessages,
-      responsibleUserId: responsibleUserId
+      responsibleUserId: responsibleUserId,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
     });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
@@ -347,7 +349,8 @@ export async function sendDocumentMessage(io, req, res) {
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
-      file_name: documentName
+      file_name: documentName,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
     });
     console.log('Message emitted:', newMessage.replies_id);
 
@@ -432,7 +435,8 @@ export async function sendAudioMessage(io, req, res) {
       latitude: null,
       longitude: null,
       unread_messages: unreadMessages,
-      responsibleUserId: responsibleUserId
+      responsibleUserId: responsibleUserId,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
     });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
@@ -656,7 +660,7 @@ export async function sendTemplateMessage(io, req, res) {
         // Almacenar el mensaje con placeholders reemplazados
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'IMAGE') {
-        const imageUrl = `${frontendUrl}${template.medio}`
+        const imageUrl = `${backendUrl}${template.medio}`
         response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = imageUrl;
 
@@ -667,7 +671,7 @@ export async function sendTemplateMessage(io, req, res) {
         // Almacenar el mensaje con placeholders reemplazados y la URL de la imagen
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'VIDEO') {
-        const videoUrl = `${frontendUrl}${template.medio}`
+        const videoUrl = `${backendUrl}${template.medio}`
         response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = videoUrl;
 
@@ -678,7 +682,7 @@ export async function sendTemplateMessage(io, req, res) {
         // Almacenar el mensaje con placeholders reemplazados y la URL del video
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       } else if (template.header_type === 'DOCUMENT') {
-        const documentUrl = `${frontendUrl}${template.medio}`
+        const documentUrl = `${backendUrl}${template.medio}`
         const mediaId = await uploadDocumentToWhatsApp(documentUrl, whatsapp_api_token, whatsapp_phone_number_id);
         response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = documentUrl;
@@ -916,6 +920,10 @@ const uploadDocumentToWhatsApp = async (documentUrl, token, phoneNumberId) => {
 
 
 const storeMessage = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl = null, whatsappMessageId, headerType, footerText = null) => {
+
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversation.conversation_id);
+
   // Dividir parámetros en header, body y button
   const headerParameters = parameters.slice(0, 1);
   const bodyParameters = parameters.slice(1, 4); // Ajusta el rango según la cantidad de variables del cuerpo
@@ -980,7 +988,8 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
           unread_messages: unreadMessages,
           responsibleUserId: responsibleUserId,
           reply_type_header: headerType,
-          footer: footerTextReplaced
+          footer: footerTextReplaced,
+          company_id: integrationDetails.company_id // Añadir company_id aquí
       });
       console.log('Mensaje emitido:', newMessage.replies_id);
   } catch (error) {
@@ -1010,15 +1019,15 @@ const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_
     if (template.header_type === 'TEXT') {
       response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
     } else if (template.header_type === 'IMAGE') {
-      const imageUrl = `${frontendUrl}${template.medio}`
+      const imageUrl = `${backendUrl}${template.medio}`
       response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = imageUrl;
     } else if (template.header_type === 'VIDEO') {
-      const videoUrl = `${frontendUrl}${template.medio}`
+      const videoUrl = `${backendUrl}${template.medio}`
       response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = videoUrl;
     } else if (template.header_type === 'DOCUMENT') {
-      const documentUrl = `${frontendUrl}${template.medio}`
+      const documentUrl = `${backendUrl}${template.medio}`
       const mediaId = await uploadDocumentToWhatsApp(documentUrl);
       response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;

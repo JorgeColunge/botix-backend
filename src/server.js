@@ -205,6 +205,19 @@ app.post('/webhook', async (req, res) => {
 
           io.emit('templateStatusUpdate', { templateId, status });
           console.log(`Emitted templateStatusUpdate event for templateId: ${templateId} with status: ${status}`);
+
+          // Actualizar el estado del template en la base de datos
+          try {
+            const query = `
+              UPDATE templates_wa
+              SET state = $1
+              WHERE id = $2
+            `;
+            await pool.query(query, [status, templateId]);
+            console.log(`Template ${templateId} updated to state ${status}`);
+          } catch (error) {
+            console.error('Error updating template status:', error);
+          }
           continue;
         }
 

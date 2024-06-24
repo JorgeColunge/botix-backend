@@ -707,8 +707,19 @@ app.post('/create-template', async (req, res) => {
   }
 });
 
+// Eliminar una plantilla
+app.delete('/api/templates/:id', async (req, res) => {
+  const { id } = req.params;
 
-
+  try {
+    const query = 'DELETE FROM templates_wa WHERE id = $1 RETURNING *';
+    const result = await pool.query(query, [id]);
+    res.status(200).send(result.rows[0]);
+  } catch (error) {
+    console.error('Error deleting template:', error.message);
+    res.status(500).send({ error: error.message });
+  }
+});
 
 app.post('/create-flow', async (req, res) => {
   try {

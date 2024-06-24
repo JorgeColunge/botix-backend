@@ -457,11 +457,15 @@ app.post('/create-template', async (req, res) => {
         medio = component.example?.header_handle[0] || null;
       } else if (headerType === 'TEXT') {
         headerText = component.text;
-        headerExample = { "header_text": ["Ejemplo de encabezado"] }; // Añadir ejemplo para HEADER
+        if (headerText.includes('{{')) {
+          headerExample = { "header_text": ["Ejemplo de encabezado"] }; // Añadir ejemplo para HEADER si contiene variables
+        }
       }
     } else if (component.type === 'BODY') {
       bodyText = component.text;
-      bodyExample = { "body_text": [["Ejemplo de cuerpo"]] }; // Añadir ejemplo para BODY
+      if (bodyText.includes('{{')) {
+        bodyExample = { "body_text": [["Ejemplo de cuerpo"]] }; // Añadir ejemplo para BODY si contiene variables
+      }
     } else if (component.type === 'FOOTER') {
       footer = component.text;
     } else if (component.type === 'BUTTONS') {
@@ -591,114 +595,114 @@ app.post('/create-template', async (req, res) => {
       console.log('Datos a enviar a la API de Facebook:', JSON.stringify(templateData, null, 2));
 
       // Realizar la llamada a la API de Facebook
-      const response = await axios.post(
-        `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
-        templateData,
-        {
-          headers: {
-            Authorization: `Bearer ${whatsappApiToken}`,
-            'Content-Type': 'application/json'
-          }
+    const response = await axios.post(
+      `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
+      templateData,
+      {
+        headers: {
+          Authorization: `Bearer ${whatsappApiToken}`,
+          'Content-Type': 'application/json'
         }
-      );
+      }
+    );
 
-      console.log('Template creation successful:', response.data);
+    console.log('Template creation successful:', response.data);
 
-      const templateId = response.data.id; 
+    const templateId = response.data.id;
 
-      const query = `
-        INSERT INTO templates_wa (id, type, nombre, language, header_type, type_medio, medio, body_text, header_text, footer, buttons, state, company_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
-      `;
-      const values = [
-        templateId,
-        category,
-        validName,
-        language,
-        headerType,
-        typeMedio,
-        medio,
-        bodyText,
-        headerText,
-        footer,
-        JSON.stringify(buttons), // Convertir los botones a JSON
-        'PENDING',
-        company_id
-      ];
-      await pool.query(query, values);
+    const query = `
+      INSERT INTO templates_wa (id, type, nombre, language, header_type, type_medio, medio, body_text, header_text, footer, buttons, state, company_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `;
+    const values = [
+      templateId,
+      category,
+      validName,
+      language,
+      headerType,
+      typeMedio,
+      medio,
+      bodyText,
+      headerText,
+      footer,
+      JSON.stringify(buttons), // Convertir los botones a JSON
+      'PENDING',
+      company_id
+    ];
+    await pool.query(query, values);
 
-      if (Array.isArray(componentsWithSourceAndVariable)) {
-        // Almacenar variables del cuerpo
-        const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
-        if (bodyComponent) {
-          const bodyVariables = bodyComponent.example?.body_text[0] || [];
-          const bodySources = bodyComponent.source || [];
-          const bodyVariableNames = bodyComponent.variable || [];
-          for (let i = 0; i < bodyVariables.length; i++) {
-            const queryBody = `
-              INSERT INTO variable_body (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesBody = [
-              `{{${i + 1}}}`, 
-              bodyVariables[i], 
-              templateId, 
-              bodySources[i], 
-              bodyVariableNames[i]
-            ];
-            await pool.query(queryBody, valuesBody);
-          }
-        }
-
-        // Almacenar variables del encabezado
-        const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
-        if (headerComponent) {
-          const headerVariables = headerComponent.example?.header_text || [];
-          const headerSources = headerComponent.source || [];
-          const headerVariableNames = headerComponent.variable || [];
-          for (let i = 0; i < headerVariables.length; i++) {
-            const queryHeader = `
-              INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesHeader = [
-              `{{${i + 1}}}`, 
-              headerVariables[i], 
-              templateId, 
-              headerSources[i], 
-              headerVariableNames[i]
-            ];
-            await pool.query(queryHeader, valuesHeader);
-          }
-        }
-
-        // Almacenar variables del botón
-        const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
-        if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-          const buttonVariables = buttonComponent.buttons[0]?.example?.url_text || [];
-          const buttonSources = buttonComponent.source || [];
-          const buttonVariableNames = buttonComponent.variable || [];
-          if (buttonVariables.length > 0) {
-            const queryButton = `
-              INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesButton = [
-              `{{1}}`, 
-              buttonVariables.join(''), 
-              templateId,
-              buttonSources[0],
-              buttonVariableNames[0]
-            ];
-            await pool.query(queryButton, valuesButton);
-          }
+    if (Array.isArray(componentsWithSourceAndVariable)) {
+      // Almacenar variables del cuerpo
+      const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
+      if (bodyComponent) {
+        const bodyVariables = bodyComponent.example?.body_text[0] || [];
+        const bodySources = bodyComponent.source || [];
+        const bodyVariableNames = bodyComponent.variable || [];
+        for (let i = 0; i < bodyVariables.length; i++) {
+          const queryBody = `
+            INSERT INTO variable_body (name, example, template_wa_id, source, variable)
+            VALUES ($1, $2, $3, $4, $5)
+          `;
+          const valuesBody = [
+            `{{${i + 1}}}`, 
+            bodyVariables[i], 
+            templateId, 
+            bodySources[i], 
+            bodyVariableNames[i]
+          ];
+          await pool.query(queryBody, valuesBody);
         }
       }
 
+      // Almacenar variables del encabezado
+      const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
+      if (headerComponent) {
+        const headerVariables = headerComponent.example?.header_text || [];
+        const headerSources = headerComponent.source || [];
+        const headerVariableNames = headerComponent.variable || [];
+        for (let i = 0; i < headerVariables.length; i++) {
+          const queryHeader = `
+            INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
+            VALUES ($1, $2, $3, $4, $5)
+          `;
+          const valuesHeader = [
+            `{{${i + 1}}}`, 
+            headerVariables[i], 
+            templateId, 
+            headerSources[i], 
+            headerVariableNames[i]
+          ];
+          await pool.query(queryHeader, valuesHeader);
+        }
+      }
+
+      // Almacenar variables del botón
+      const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
+      if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+        const buttonVariables = buttonComponent.buttons[0]?.example?.url_text || [];
+        const buttonSources = buttonComponent.source || [];
+        const buttonVariableNames = buttonComponent.variable || [];
+        if (buttonVariables.length > 0) {
+          const queryButton = `
+            INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+            VALUES ($1, $2, $3, $4, $5)
+          `;
+          const valuesButton = [
+            `{{1}}`, 
+            buttonVariables.join(''), 
+            templateId,
+            buttonSources[0],
+            buttonVariableNames[0]
+          ];
+          await pool.query(queryButton, valuesButton);
+        }
+      }
+    }
+
       res.status(200).send(response.data);
-    } catch (error) {
-      console.error('Error creating template:', error.response ? error.response.data : error.message);
-      res.status(500).send(error.response ? error.response.data : error.message);
+  } catch (error) {
+    console.error('Error creating template:', error.response ? error.response.data : error.message);
+    res.status(500).send(error.response ? error.response.data : error.message);
     }
   }
 });

@@ -448,13 +448,93 @@ export async function sendAudioMessage(io, req, res) {
 
 
 
+export async function sendLocationMessage(io, req, res) {
+  const { phone, latitude, longitude, streetName, conversationId } = req.body;
 
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
+  const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
+  const payload = {
+    messaging_product: "whatsapp",
+    to: phone,
+    type: "location",
+    location: {
+      latitude: latitude.toString(),
+      longitude: longitude.toString(),
+      name: streetName
+    }
+  };
 
+  // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
+  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+  const unreadMessages = unreadRes.rows[0].unread_messages;
+  const responsibleUserId = unreadRes.rows[0].id_usuario;
 
+  try {
+    const response = await axios.post(url, payload, {
+      headers: {
+        'Authorization': `Bearer ${whatsapp_api_token}`,
+        'Content-Type': 'application/json'
+      }
+    });
+    console.log(response.data);
 
+    // Intenta insertar en la base de datos
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        location_name
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+    `;
+    const messageValues = [
+      response.data.messages[0].id,
+      phone,           
+      conversationId,
+      'location',
+      null,
+      null,
+      latitude,
+      longitude,
+      streetName
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+    io.emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'location',
+      text: null,
+      url: null,
+      thumbnail_url: null,
+      duration: null,
+      latitude: latitude,
+      longitude: longitude,
+      location_name: streetName,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
+    });
+    console.log('Mensaje emitido:', newMessage.replies_id);
 
-
+  } catch (error) {
+    console.error('Error sending WhatsApp location:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
 
 
 

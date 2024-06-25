@@ -581,7 +581,7 @@ export async function sendTemplateMessage(io, req, res) {
 
     // Obtener la integración de WhatsApp para la compañía
     const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(template.company_id);
-    const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
+    const { WHATSAPP_API_TOKEN: whatsapp_api_token, WHATSAPP_PHONE_NUMBER_ID: whatsapp_phone_number_id, WHATSAPP_BUSINESS_ACCOUNT_ID: whatsapp_business_account_id } = whatsappIntegration;
 
     for (const contact of contacts) {
       const responsibleUserId = responsibleUserIds[responsibleIndex];
@@ -1009,7 +1009,7 @@ if (!company_id) {
 
 // Obtener la integración de WhatsApp para la compañía
 const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(company_id);
-const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
+const { WHATSAPP_API_TOKEN: whatsapp_api_token, WHATSAPP_PHONE_NUMBER_ID: whatsapp_phone_number_id, WHATSAPP_BUSINESS_ACCOUNT_ID: whatsapp_business_account_id } = whatsappIntegration;
 
   try {
     const phoneNumber = conversation.phone_number;

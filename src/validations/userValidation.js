@@ -149,4 +149,45 @@ const loginValidation = (data) => {
   return schema.validate(data);
 };
 
-export { newRegisterValidation, registerValidation, loginValidation };
+const botRegisterValidation = (data) => {
+  const schema = Joi.object({
+    id_usuario: Joi.number().required().messages({
+      'any.required': 'El campo ID de usuario es obligatorio.',
+      'number.base': 'El campo ID de usuario debe ser un número.'
+    }),
+    nombre: Joi.string().min(3).required().messages({
+      'any.required': 'El campo nombre es obligatorio.',
+      'string.min': 'El campo nombre debe tener al menos 3 caracteres.',
+      'string.base': 'El campo nombre debe ser una cadena de texto.'
+    }),
+    apellido: Joi.string().min(3).required().messages({
+      'any.required': 'El campo apellido es obligatorio.',
+      'string.min': 'El campo apellido debe tener al menos 3 caracteres.',
+      'string.base': 'El campo apellido debe ser una cadena de texto.'
+    }),
+    email: Joi.string().email({ tlds: { allow: false } }).required().messages({
+      'any.required': 'El campo email de usuario es obligatorio.',
+      'string.email': 'El campo email de usuario debe ser un correo electrónico válido.',
+      'string.base': 'El campo email de usuario debe ser una cadena de texto.'
+    }),
+    contraseña: Joi.string().min(6).required().messages({
+      'any.required': 'El campo contraseña es obligatorio.',
+      'string.min': 'El campo contraseña debe tener al menos 6 caracteres.',
+      'string.base': 'El campo contraseña debe ser una cadena de texto.'
+    }),
+    company_id: Joi.number().required().messages({
+      'any.required': 'El campo company_id es obligatorio.',
+      'number.base': 'El campo company_id debe ser un número.'
+    }),
+    department_id: Joi.number().allow(null).messages({
+      'number.base': 'El campo department_id debe ser un número.'
+    }),
+    tipoBot: Joi.string().valid('Bot de Chat', 'Bot de Chat IA', 'Bot de Gestión').required().messages({
+      'any.required': 'El campo tipo de bot es obligatorio.',
+      'string.valid': 'El campo tipo de bot debe ser uno de los valores permitidos.'
+    })
+  });
+  return schema.validate(data, { abortEarly: false });
+};
+
+export { newRegisterValidation, registerValidation, loginValidation, botRegisterValidation };

@@ -491,20 +491,18 @@ export async function sendLocationMessage(io, req, res) {
         reply_text,
         reply_media_url,
         latitude,
-        longitude,
-        location_name
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+        longitude
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *;
     `;
     const messageValues = [
       response.data.messages[0].id,
       phone,           
       conversationId,
       'location',
-      null,
+      streetName,
       null,
       latitude,
-      longitude,
-      streetName
+      longitude
     ];
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
@@ -517,13 +515,12 @@ export async function sendLocationMessage(io, req, res) {
       senderId: phone,
       type: 'reply',
       message_type: 'location',
-      text: null,
+      text: streetName,
       url: null,
       thumbnail_url: null,
       duration: null,
       latitude: latitude,
       longitude: longitude,
-      location_name: streetName,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
       company_id: integrationDetails.company_id // Añadir company_id aquí
@@ -661,7 +658,7 @@ export async function sendTemplateMessage(io, req, res) {
 
     // Obtener la integración de WhatsApp para la compañía
     const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(template.company_id);
-    const { WHATSAPP_API_TOKEN: whatsapp_api_token, WHATSAPP_PHONE_NUMBER_ID: whatsapp_phone_number_id, WHATSAPP_BUSINESS_ACCOUNT_ID: whatsapp_business_account_id } = whatsappIntegration;
+    const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
 
     for (const contact of contacts) {
       const responsibleUserId = responsibleUserIds[responsibleIndex];
@@ -772,6 +769,15 @@ export async function sendTemplateMessage(io, req, res) {
         const unreadMessages = unreadRes.rows[0].unread_messages;
 
         // Almacenar el mensaje con placeholders reemplazados y la URL del documento
+        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+      }else{
+        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+
+        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+        const unreadMessages = unreadRes.rows[0].unread_messages;
+
+        // Almacenar el mensaje con placeholders reemplazados
         await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
       }
     }
@@ -1081,6 +1087,7 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
 
 
 export async function sendTemplateToSingleContact(io, req, res) {
+  console.log('Request Body:', req.body);
   const { conversation, template, parameters, company_id } = req.body;
 
 if (!company_id) {
@@ -1089,7 +1096,7 @@ if (!company_id) {
 
 // Obtener la integración de WhatsApp para la compañía
 const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(company_id);
-const { WHATSAPP_API_TOKEN: whatsapp_api_token, WHATSAPP_PHONE_NUMBER_ID: whatsapp_phone_number_id, WHATSAPP_BUSINESS_ACCOUNT_ID: whatsapp_business_account_id } = whatsappIntegration;
+const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
 
   try {
     const phoneNumber = conversation.phone_number;
@@ -1111,6 +1118,8 @@ const { WHATSAPP_API_TOKEN: whatsapp_api_token, WHATSAPP_PHONE_NUMBER_ID: whatsa
       const mediaId = await uploadDocumentToWhatsApp(documentUrl);
       response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;
+    }else{
+      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
     }
 
     if (response) {

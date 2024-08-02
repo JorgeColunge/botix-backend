@@ -4,7 +4,7 @@ import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
 import bodyParser from 'body-parser';
 import cors from 'cors';
-import { processMessage } from './handlers/messageHandler.js';
+import { executeBotCode } from './handlers/botExecutor.js';
 import upload from './handlers/upload.js';
 import createRouter from './routes/routes.js';
 import pool from './config/dbConfig.js';
@@ -18,6 +18,11 @@ import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import FormData from 'form-data';
 import sharp from 'sharp';
+import bcrypt from 'bcrypt';
+import geoip from 'geoip-lite';
+import moment from 'moment-timezone';
+import { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, getReverseGeocoding, getGeocoding, assignResponsibleUser } from './handlers/messageHandler.js'
+import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from './handlers/repliesHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -261,7 +266,7 @@ app.post('/webhook', async (req, res) => {
           switch (firstMessage.type) {
             case 'text':
               if (firstMessage.text) {
-                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails);
+                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req);
               }
               break;
             case 'location':
@@ -272,28 +277,28 @@ app.post('/webhook', async (req, res) => {
                   latitude: firstMessage.location.latitude,
                   longitude: firstMessage.location.longitude,
                   context
-                }, null, integrationDetails);
+                }, null, integrationDetails,req);
               }
               break;
             case 'image':
-              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails);
+              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails, req);
               break;
             case 'audio':
-              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails);
+              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails, req);
               break;
             case 'video':
-              await processMessage(io, senderId, { id: messageId, type: 'video', video: firstMessage.video, context }, "no", integrationDetails);
+              await processMessage(io, senderId, { id: messageId, type: 'video', video: firstMessage.video, context }, "no", integrationDetails, req);
               break;
             case 'document':
               const file_name = firstMessage.document.filename;
-              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails);
+              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails, req);
               break;
             case 'sticker':
-              await processMessage(io, senderId, { id: messageId, type: 'sticker', sticker: firstMessage.sticker, context }, "no", integrationDetails);
+              await processMessage(io, senderId, { id: messageId, type: 'sticker', sticker: firstMessage.sticker, context }, "no", integrationDetails, req);
               break;
             case 'button':
               if (firstMessage.button) {
-                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails);
+                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails, req);
               }
               break;
             default:
@@ -458,13 +463,13 @@ app.post('/create-template', async (req, res) => {
       } else if (headerType === 'TEXT') {
         headerText = component.text;
         if (headerText.includes('{{')) {
-          headerExample = { "header_text": ["Ejemplo de encabezado"] }; // Añadir ejemplo para HEADER si contiene variables
+          headerExample = { "header_text": component.example.header_text }; // Añadir ejemplo para HEADER si contiene variables
         }
       }
     } else if (component.type === 'BODY') {
       bodyText = component.text;
       if (bodyText.includes('{{')) {
-        bodyExample = { "body_text": [["Ejemplo de cuerpo"]] }; // Añadir ejemplo para BODY si contiene variables
+        bodyExample = { "body_text": component.example.body_text }; // Añadir ejemplo para BODY si contiene variables
       }
     } else if (component.type === 'FOOTER') {
       footer = component.text;
@@ -772,6 +777,112 @@ async function getIntegrationDetailsByCompanyId(companyId) {
     throw new Error(`Integration details not found for company_id: ${companyId} and type: 'whatsapp'`);
   }
 }
+
+// Middleware para obtener la IP del cliente
+app.use((req, res, next) => {
+  const ip = req.headers['x-forwarded-for'] || req.connection.remoteAddress;
+  const geo = geoip.lookup(ip);
+
+  if (geo) {
+      const timezone = geo.timezone;
+      req.clientTimezone = timezone;
+  } else {
+      req.clientTimezone = 'UTC'; // Valor por defecto
+  }
+
+  next();
+});
+
+
+
+// Ejemplo de uso en una ruta
+app.get('/calculate-time', (req, res) => {
+  const clientTimezone = req.clientTimezone || 'America/Bogota';
+  const currentTime = moment().tz(clientTimezone).format();
+  
+  res.send(`La hora actual en tu zona horaria (${clientTimezone}) es: ${currentTime}`);
+});
+
+app.post('/bot', async (req, res) => {
+  //const externalData = req.body;
+
+  console.log(`Solicitud recibida a las ${new Date().toISOString()}:`, req.body);
+  const externalData = req.body;
+  const { botCredentials } = req.body;
+  const { email, password } = botCredentials;
+
+  try {
+    // Verificar las credenciales en la tabla users
+    const userResult = await pool.query('SELECT id_usuario, contraseña, company_id FROM users WHERE email = $1', [email]);
+    
+    if (userResult.rowCount === 0) {
+      console.log('Usuario no encontrado');
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = userResult.rows[0];
+    
+    const isPasswordCorrect = await bcrypt.compare(password, user.contraseña);
+    
+    if (!isPasswordCorrect) {
+      console.log('Contraseña incorrecta');
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    const id_usuario = user.id_usuario;
+    const company_id = user.company_id;
+    const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
+    const clientTimezone = req.clientTimezone || 'America/Bogota';
+
+    // Consultar en la tabla bots por el campo id_usuario
+    const botResult = await pool.query('SELECT codigo FROM bots WHERE id_usuario = $1', [id_usuario]);
+
+    if (botResult.rowCount === 0) {
+      console.log('Bot no encontrado');
+      return res.status(404).json({ error: 'Bot no encontrado' });
+    }
+
+    const botCode = botResult.rows[0].codigo;
+
+    // Ejecutar el código del bot
+    const context = {
+      sendTextMessage,
+      sendImageMessage,
+      sendVideoMessage,
+      sendDocumentMessage,
+      sendAudioMessage,
+      sendTemplateMessage,
+      sendTemplateToSingleContact,
+      sendLocationMessage,
+      io,
+      senderId: '', 
+      messageData: '', 
+      conversationId: '', 
+      pool,
+      axios,
+      getContactInfo,
+      updateContactName,
+      createContact,
+      updateContactCompany,
+      updateConversationState,
+      assignResponsibleUser,
+      processMessage,
+      getReverseGeocoding,
+      getGeocoding,
+      integrationDetails, 
+      externalData,
+      clientTimezone,
+      moment
+    };
+
+    await executeBotCode(botCode, context);
+
+    res.status(200).json({ status: 'Bot ejecutado correctamente' });
+  } catch (error) {
+    console.error('Error al verificar las credenciales o consultar el bot:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 
 

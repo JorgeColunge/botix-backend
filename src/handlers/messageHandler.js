@@ -1,22 +1,37 @@
 import axios from 'axios';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import pool from '../config/dbConfig.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import ffmpeg from 'fluent-ffmpeg';
+import moment from 'moment-timezone';
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from '../handlers/repliesHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const PORT = process.env.PORT || 3001;
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
 
-async function processMessage(io, senderId, messageData, oldMessage, integrationDetails) {
+const axiosInstance = axios.create({
+  httpsAgent,
+});
+
+const externalData = '';
+
+async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
   console.log('Procesando mensaje del remitente:', senderId);
   console.log('Datos del mensaje:', messageData);
 
   const { whatsapp_api_token, company_id, id: integration_id, whatsapp_phone_number_id } = integrationDetails;
+
+  // Usar req.clientTimezone directamente
+  const clientTimezone = req.clientTimezone || 'America/Bogota';
+
+  console.log(`Zona horaria del cliente: ${clientTimezone}`);
 
   const contactId = await getOrCreateContact(senderId, company_id);
   const conversationId = await getOrCreateConversation(contactId, senderId, integration_id, company_id);
@@ -156,7 +171,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
                 messageData,
                 conversationId,
                 pool,
-                obtenerRespuestaGPT,
+                axios: axiosInstance,
                 getContactInfo,
                 updateContactName,
                 createContact,
@@ -166,7 +181,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
                 processMessage,
                 getReverseGeocoding,
                 getGeocoding,
-                integrationDetails
+                integrationDetails,
+                externalData,
+                clientTimezone,
+                moment
               });
             } else {
               console.error('No se encontró código del bot para el usuario:', responsibleUserId);
@@ -229,7 +247,7 @@ async function executeBotCode(botCode, context) {
     messageData,
     conversationId,
     pool,
-    obtenerRespuestaGPT,
+    axios,
     getContactInfo,
     updateContactName,
     createContact,
@@ -239,7 +257,10 @@ async function executeBotCode(botCode, context) {
     processMessage,
     getReverseGeocoding,
     getGeocoding,
-    integrationDetails
+    integrationDetails,
+    externalData,
+    clientTimezone,
+    moment
   } = context;
 
   try {
@@ -257,7 +278,7 @@ async function executeBotCode(botCode, context) {
       'messageData',
       'conversationId',
       'pool',
-      'obtenerRespuestaGPT',
+      'axios',
       'getContactInfo',
       'updateContactName',
       'createContact',
@@ -268,6 +289,9 @@ async function executeBotCode(botCode, context) {
       'getReverseGeocoding',
       'getGeocoding',
       'integrationDetails',
+      'externalData',
+      'clientTimezone',
+      'moment',
       botCode
     );
 
@@ -285,7 +309,7 @@ async function executeBotCode(botCode, context) {
       messageData,
       conversationId,
       pool,
-      obtenerRespuestaGPT,
+      axios,
       getContactInfo,
       updateContactName,
       createContact,
@@ -295,7 +319,10 @@ async function executeBotCode(botCode, context) {
       processMessage,
       getReverseGeocoding,
       getGeocoding,
-      integrationDetails
+      integrationDetails,
+      externalData,
+      clientTimezone,
+      moment
     );
   } catch (error) {
     console.error('Error ejecutando el código del bot:', error);
@@ -343,7 +370,7 @@ const createThumbnail = (videoPath) => new Promise((resolve, reject) => {
     .run();
 });
 
-async function downloadMedia(mediaId, mimeType, whatsappApiToken) {
+async function downloadMedia(mediaId, mimeType, whatsapp_api_token) {
   console.log('ID de medio recibido para descargar:', mediaId);
   const getUrl = `https://graph.facebook.com/v19.0/${mediaId}`;
 
@@ -422,10 +449,10 @@ async function getOrCreateContact(phoneNumber, companyId) {
   }
 }
 
-async function getContactInfo(phoneNumber) {
-  const query = 'SELECT first_name, last_name, organization, id FROM contacts WHERE phone_number = $1';
+async function getContactInfo(phoneNumber, companyId) {
+  const query = 'SELECT first_name, last_name, organization, id FROM contacts WHERE phone_number = $1 AND company_id = $2';
   try {
-    const result = await pool.query(query, [phoneNumber]);
+    const result = await pool.query(query, [phoneNumber, companyId]);
     if (result.rows.length > 0) {
       return result.rows[0];
     } else {
@@ -437,54 +464,63 @@ async function getContactInfo(phoneNumber) {
   }
 }
 
-async function updateContactName(io, phoneNumber, firstName, lastName) {
+async function updateContactName(io, phoneNumber, companyId, firstName, lastName) {
   const query = `
     UPDATE contacts SET 
-    first_name = $2, 
-    last_name = $3
-    WHERE phone_number = $1
+    first_name = $3, 
+    last_name = $4
+    WHERE phone_number = $1 AND company_id = $2
     RETURNING *;
   `;
   try {
-    const result = await pool.query(query, [phoneNumber, firstName, lastName]);
-    const updatedContact = result.rows[0];
-    io.emit('contactUpdated', updatedContact);
+    const result = await pool.query(query, [phoneNumber, companyId, firstName, lastName]);
+    if (result.rows.length > 0) {
+      const updatedContact = result.rows[0];
+      io.emit('contactUpdated', updatedContact);
+    } else {
+      console.log('No contact found for the given phone number and company ID.');
+    }
   } catch (err) {
     console.error('Database error in updateContactName:', err);
     throw err;
   }
 }
 
-async function updateContactCompany(io, phoneNumber, organization) {
+async function updateContactCompany(io, phoneNumber, companyId, organization) {
   const query = `
     UPDATE contacts SET 
-    organization = $2 
-    WHERE phone_number = $1
+    organization = $3 
+    WHERE phone_number = $1 AND company_id = $2
     RETURNING *;
   `;
   try {
-    const result = await pool.query(query, [phoneNumber, organization]);
-    const updatedContact = result.rows[0];
-    io.emit('contactUpdated', updatedContact);
+    const result = await pool.query(query, [phoneNumber, companyId, organization]);
+    if (result.rows.length > 0) {
+      const updatedContact = result.rows[0];
+      io.emit('contactUpdated', updatedContact);
+    } else {
+      console.log('No contact found for the given phone number and company ID.');
+    }
   } catch (err) {
     console.error('Database error in updateContactCompany:', err);
     throw err;
   }
 }
 
-async function createContact(io, phoneNumber, firstName, lastName, organization, label) {
+async function createContact(io, phoneNumber, companyId, firstName, lastName, organization, label) {
   const query = `
     INSERT INTO contacts (
       phone_number, 
+      company_id,
       first_name, 
       last_name, 
       organization,
       label
-    ) VALUES ($1, $2, $3, $4, $5)
+    ) VALUES ($1, $2, $3, $4, $5, $6)
     RETURNING *;
   `;
   try {
-    const result = await pool.query(query, [phoneNumber, firstName, lastName, organization, label]);
+    const result = await pool.query(query, [phoneNumber, companyId, firstName, lastName, organization, label]);
     const newContact = result.rows[0];
     io.emit('contactUpdated', newContact);
   } catch (err) {
@@ -537,9 +573,10 @@ async function getReverseGeocoding(latitude, longitude) {
     const house_number = addressComponents.find(comp => comp.types.includes('street_number'))?.long_name;
     const city = addressComponents.find(comp => comp.types.includes('locality'))?.long_name;
     const state = addressComponents.find(comp => comp.types.includes('administrative_area_level_1'))?.long_name;
+    const country = addressComponents.find(comp => comp.types.includes('country'))?.long_name;
 
     // Construye la dirección en el formato deseado
-    let formattedAddress = `${road || ''} #${house_number || ''} ${city || ''}, ${state || ''}`;
+    let formattedAddress = `${road || ''} #${house_number || ''} ${city || ''}, ${country || ''}`;
     formattedAddress = formattedAddress.replace(/\s{2,}/g, ' ').replace(/^,\s*|,\s*$/g, '');
 
     return formattedAddress;
@@ -565,9 +602,8 @@ async function getGeocoding(address) {
   }
 }
 
-async function assignResponsibleUser(io, conversationId, newUserId) {
+async function assignResponsibleUser(io, conversationId, oldUserId, newUserId) {
   const query = 'UPDATE conversations SET id_usuario = $2 WHERE conversation_id = $1 RETURNING *;';
-  const oldUserId = "1011";
 
   try {
     const result = await pool.query(query, [conversationId, newUserId]);
@@ -622,4 +658,4 @@ async function getConversationState(conversationId) {
   }
 }
 
-export { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, obtenerRespuestaGPT, getReverseGeocoding, getGeocoding, assignResponsibleUser };
+export { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, getReverseGeocoding, getGeocoding, assignResponsibleUser };

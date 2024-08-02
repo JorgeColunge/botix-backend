@@ -485,14 +485,29 @@ router.delete('/users/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const deleteQuery = 'DELETE FROM users WHERE id_usuario = $1';
-    await pool.query(deleteQuery, [id]);
-    res.send('User deleted successfully');
+    // Comenzar una transacción
+    await pool.query('BEGIN');
+
+    // Eliminar cualquier registro en la tabla bots que haga referencia al usuario
+    const deleteBotsQuery = 'DELETE FROM bots WHERE id_usuario = $1';
+    await pool.query(deleteBotsQuery, [id]);
+
+    // Ahora eliminar el usuario
+    const deleteUserQuery = 'DELETE FROM users WHERE id_usuario = $1';
+    await pool.query(deleteUserQuery, [id]);
+
+    // Finalizar la transacción
+    await pool.query('COMMIT');
+
+    res.send('User and associated bot(s) deleted successfully');
   } catch (error) {
-    console.error('Error deleting user:', error);
+    // En caso de error, revertir la transacción
+    await pool.query('ROLLBACK');
+    console.error('Error deleting user and bot(s):', error);
     res.status(500).send('Internal Server Error');
   }
 });
+
 
 const profileStorage = multer.diskStorage({
   destination: function (req, file, cb) {
@@ -1611,6 +1626,13 @@ router.get('/default-user/:companyId', async (req, res) => {
 // Ruta para cambiar el usuario predefinido de una empresa
 router.put('/change-default-user', async (req, res) => {
   const { companyId, userId } = req.body;
+  console.log(`Request received with companyId: ${companyId} and userId: ${userId}`);
+  
+  if (!companyId || !userId) {
+    console.error('Missing companyId or userId');
+    return res.status(400).json({ error: 'Missing companyId or userId' });
+  }
+
   try {
     const query = `
       INSERT INTO default_users (company_id, id_usuario, created_at, updated_at)
@@ -1621,12 +1643,76 @@ router.put('/change-default-user', async (req, res) => {
     `;
     const result = await pool.query(query, [companyId, userId]);
     if (result.rows.length === 0) {
+      console.log('Company not found');
       return res.status(404).json({ error: 'Company not found' });
     }
+    console.log('Default user updated:', result.rows[0]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating or inserting default user:', error);
     res.status(500).send('Internal Server Error');
+  }
+});
+
+router.get('/bots/:id', async (req, res) => {
+  const { id } = req.params;
+  try {
+    const botQuery = 'SELECT * FROM bots WHERE id_usuario = $1';
+    const botResult = await pool.query(botQuery, [id]);
+    if (botResult.rows.length === 0) {
+      return res.status(404).send('Bot not found');
+    }
+    res.json(botResult.rows[0]);
+  } catch (error) {
+    console.error('Error fetching bot:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.put('/bots/:id', async (req, res) => {
+  const { id } = req.params;
+  const { codigo, react_flow } = req.body;
+
+  if (!codigo || !react_flow) {
+    return res.status(400).send('Codigo and reactflow are required');
+  }
+
+  try {
+    const updateQuery = 'UPDATE bots SET codigo = $1, react_flow = $2 WHERE id_usuario = $3';
+    const updateResult = await pool.query(updateQuery, [codigo, react_flow, id]);
+
+    if (updateResult.rowCount === 0) {
+      return res.status(404).send('Bot not found');
+    }
+
+    res.send('Bot updated successfully');
+  } catch (error) {
+    console.error('Error updating bot:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.post('/end-conversation', async (req, res) => {
+  const { conversationId, companyId } = req.body;
+
+  try {
+    // Actualizar el estado de la conversación
+    const updateQuery = `
+      UPDATE conversations
+      SET state = 'new'
+      WHERE conversation_id = $1
+      RETURNING *;
+    `;
+    const result = await pool.query(updateQuery, [conversationId]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Conversation not found' });
+    }
+
+    res.json({ message: 'Conversation state updated successfully', conversation: result.rows[0] });
+  } catch (error) {
+    console.error('Error updating conversation state:', error);
+    res.status(500).json({ error: 'Internal server error' });
   }
 });
 

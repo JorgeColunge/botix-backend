@@ -1,5 +1,5 @@
 import express from 'express';
-import { register as registerAuth, login as loginAuth, edit } from '../controllers/authController.js';
+import { register as registerAuth, login as loginAuth, edit, registerUser, registerBot} from '../controllers/authController.js';
 import { registerValidation, loginValidation } from '../validations/userValidation.js';
 import passport from 'passport';
 import '../config/passportConfig.js';
@@ -7,6 +7,10 @@ import '../config/passportConfig.js';
 const router = express.Router();
 
 router.post('/register', registerAuth);
+
+router.post('/register-user', registerUser);
+
+router.post('/register-bot', registerBot);
 
 router.post('/login', (req, res) => {
   const { error } = loginValidation(req.body);

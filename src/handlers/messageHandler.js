@@ -1,132 +1,120 @@
 import axios from 'axios';
+import https from 'https';
 import fs from 'fs';
 import path from 'path';
 import pool from '../config/dbConfig.js';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
-import { processConversation } from './chatbot.js';
-import { processConversationRouter } from './routerChatbot.js';
-import { processEsteticaConversation } from './routerEstetica.js';
 import ffmpeg from 'fluent-ffmpeg';
+import moment from 'moment-timezone';
+import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from '../handlers/repliesHandler.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
-const PORT = process.env.PORT || 3001;
+const httpsAgent = new https.Agent({
+  rejectUnauthorized: false,
+});
 
-// Function to process received messages of different types
-async function processMessage(io, senderId, messageData, oldMessage) {
-  console.log('Processing message from sender:', senderId);
-  console.log('Message data:', messageData);
+const axiosInstance = axios.create({
+  httpsAgent,
+});
 
-  // Get or create the conversation
-  const conversationId = await getOrCreateConversation(senderId);
+const externalData = '';
 
-  // Check the time of the last message
-  const lastMessageQuery = `
-    SELECT received_at FROM messages
-    WHERE conversation_fk = $1
-    ORDER BY received_at DESC
-    LIMIT 1;
-  `;
-  const lastMessageRes = await pool.query(lastMessageQuery, [conversationId]);
+async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
+  console.log('Procesando mensaje del remitente:', senderId);
+  console.log('Datos del mensaje:', messageData);
 
-  if (lastMessageRes.rows.length > 0) {
-    const lastMessageTime = new Date(lastMessageRes.rows[0].received_at);
-    const currentTime = new Date();
-    const timeDifference = (currentTime - lastMessageTime) / (1000 * 60); // Difference in minutes
+  const { whatsapp_api_token, company_id, id: integration_id, whatsapp_phone_number_id } = integrationDetails;
 
-    if (timeDifference > 2) {
-      // Update the responsible user and state
-      await assignResponsibleUser(conversationId, 1011);
-      await updateConversationState(conversationId, 'new');
-    }
-  }
+  // Usar req.clientTimezone directamente
+  const clientTimezone = req.clientTimezone || 'America/Bogota';
 
-  const incrementUnread = `UPDATE conversations SET unread_messages = unread_messages + 1 WHERE conversation_id = $1`;
-  await pool.query(incrementUnread, [conversationId]);
+  console.log(`Zona horaria del cliente: ${clientTimezone}`);
 
-  // Get the number of unread messages and the responsible user ID
-  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
-  const unreadMessages = unreadRes.rows[0].unread_messages;
-  const responsibleUserId = unreadRes.rows[0].id_usuario;
+  const contactId = await getOrCreateContact(senderId, company_id);
+  const conversationId = await getOrCreateConversation(contactId, senderId, integration_id, company_id);
 
-  let mediaUrl = null;
-  let messageText = messageData.text || null; 
-  let replyFrom = messageData.context?.from || null;
+  if (oldMessage !== "Si") {
+    const incrementUnread = `UPDATE conversations SET unread_messages = unread_messages + 1 WHERE conversation_id = $1`;
+    await pool.query(incrementUnread, [conversationId]);
 
-  if (messageData.type === 'image' || messageData.type === 'audio' || messageData.type === 'video' || messageData.type === 'document' || messageData.type === 'sticker') {
-    const mediaType = messageData.type;
-    const mediaData = messageData[mediaType];
-    if (mediaData && mediaData.id && mediaData.mime_type) {
-      mediaUrl = await downloadMedia(mediaData.id, mediaData.mime_type);
-      if ((mediaType === 'image' || mediaType === 'video' || mediaType === 'document') && mediaData.caption) {
-        messageText = mediaData.caption; // Set message text to image, video, or document caption if available
-      }
-    }
-  } 
+    const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+    const unreadMessages = unreadRes.rows[0].unread_messages;
+    const responsibleUserId = unreadRes.rows[0].id_usuario;
 
-  console.log('Reply from ID:', replyFrom);
+    let mediaUrl = null;
+    let messageText = messageData.text || null;
+    let replyFrom = messageData.context?.from || null;
 
-  let thumbnailUrl = null;
-  let mediaDuration = null;
-
-  if ((messageData.type === 'video' || messageData.type === 'audio') && mediaUrl) {
-    const mediaPath = path.join(__dirname, '..', '..', 'public', mediaUrl);
-    if (fs.existsSync(mediaPath)) {
-      try {
-        mediaDuration = await getVideoDurationInSeconds(mediaPath);
-        // If it's a video, create a thumbnail
-        if (messageData.type === 'video') {
-          const thumbnailPath = await createThumbnail(mediaPath);
-          thumbnailUrl = thumbnailPath.replace('public', '');
+    if (['image', 'audio', 'video', 'document', 'sticker'].includes(messageData.type)) {
+      const mediaData = messageData[messageData.type];
+      if (mediaData && mediaData.id && mediaData.mime_type) {
+        mediaUrl = await downloadMedia(mediaData.id, mediaData.mime_type, whatsapp_api_token);
+        if (['image', 'video', 'document'].includes(messageData.type) && mediaData.caption) {
+          messageText = mediaData.caption;
         }
-      } catch (err) {
-        console.error('Error getting media duration or generating thumbnail:', err);
       }
     }
-  }
 
-  const insertQuery = `
-    INSERT INTO messages (
-      id,
-      sender_id,
-      conversation_fk, 
-      message_type, 
-      message_text, 
-      message_media_url, 
-      thumbnail_url,
-      duration,
-      latitude, 
-      longitude,
-      file_name,
-      reply_from
-    ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
-  `;
+    console.log('Responder desde ID:', replyFrom);
 
-  const values = [
-    messageData.id,  // Add the message ID here
-    senderId,
-    conversationId,
-    messageData.type,
-    messageText,
-    mediaUrl,
-    thumbnailUrl,     // URL of the thumbnail for videos
-    mediaDuration,    // Duration of the audio or video
-    messageData.latitude || null,
-    messageData.longitude || null,
-    messageData.file_name || null,
-    replyFrom
-  ];
-  const state = await getConversationState(conversationId);
+    let thumbnailUrl = null;
+    let mediaDuration = null;
 
-  if (oldMessage == "no") {
+    if (['video', 'audio'].includes(messageData.type) && mediaUrl) {
+      const mediaPath = path.join(__dirname, '..', '..', 'public', mediaUrl);
+      if (fs.existsSync(mediaPath)) {
+        try {
+          mediaDuration = await getVideoDurationInSeconds(mediaPath);
+          if (messageData.type === 'video') {
+            const thumbnailPath = await createThumbnail(mediaPath);
+            thumbnailUrl = thumbnailPath.replace('public', '');
+          }
+        } catch (err) {
+          console.error('Error obteniendo la duración del medio o generando miniatura:', err);
+        }
+      }
+    }
+
+    const insertQuery = `
+      INSERT INTO messages (
+        id,
+        sender_id,
+        conversation_fk,
+        message_type,
+        message_text,
+        message_media_url,
+        thumbnail_url,
+        duration,
+        latitude,
+        longitude,
+        file_name,
+        reply_from
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+    `;
+
+    const values = [
+      messageData.id,
+      senderId,
+      conversationId,
+      messageData.type,
+      messageText,
+      mediaUrl,
+      thumbnailUrl,
+      mediaDuration,
+      messageData.latitude || null,
+      messageData.longitude || null,
+      messageData.file_name || null,
+      replyFrom
+    ];
+
     try {
       const res = await pool.query(insertQuery, values);
-      console.log('Inserted message with conversation ID:', conversationId, 'Message details:', res.rows[0]);
+      console.log('Mensaje insertado con ID de conversación:', conversationId, 'Detalles del mensaje:', res.rows[0]);
       const newMessage = res.rows[0];
 
-      // Emit the processed message to clients
       io.emit('newMessage', {
         id: newMessage.id,
         conversationId: conversationId,
@@ -144,42 +132,209 @@ async function processMessage(io, senderId, messageData, oldMessage) {
         responsibleUserId: responsibleUserId,
         file_name: messageData.file_name,
         reply_from: newMessage.reply_from,
-        state: newMessage.state
+        state: newMessage.state,
+        company_id: integrationDetails.company_id // Añadir company_id aquí
       });
 
-      console.log('Message emitted:', newMessage.id);
+      console.log('Mensaje emitido:', newMessage.id);
+
+      // Obtener el rol del usuario responsable y procesar según su tipo
+      const roleQuery = 'SELECT rol FROM users WHERE id_usuario = $1';
+      const roleResult = await pool.query(roleQuery, [responsibleUserId]);
+      if (roleResult.rows.length > 0) {
+        const userRole = roleResult.rows[0].rol;
+
+        const typeQuery = 'SELECT type FROM roles WHERE id = $1';
+        const typeResult = await pool.query(typeQuery, [userRole]);
+        if (typeResult.rows.length > 0) {
+          const roleType = typeResult.rows[0].type;
+
+          if (roleType.includes('Bot')) {
+            // Obtener y ejecutar el código del bot
+            const botQuery = 'SELECT codigo FROM bots WHERE id_usuario = $1';
+            const botResult = await pool.query(botQuery, [responsibleUserId]);
+            if (botResult.rows.length > 0) {
+              const botCode = botResult.rows[0].codigo;
+
+              // Ejecutar el código del bot (esto depende de cómo esté estructurado el código de los bots)
+              await executeBotCode(botCode, {
+                sendTextMessage,
+                sendImageMessage,
+                sendVideoMessage,
+                sendDocumentMessage,
+                sendAudioMessage,
+                sendTemplateMessage,
+                sendTemplateToSingleContact,
+                sendLocationMessage,
+                io,
+                senderId,
+                messageData,
+                conversationId,
+                pool,
+                axios: axiosInstance,
+                getContactInfo,
+                updateContactName,
+                createContact,
+                updateContactCompany,
+                updateConversationState,
+                assignResponsibleUser,
+                processMessage,
+                getReverseGeocoding,
+                getGeocoding,
+                integrationDetails,
+                externalData,
+                clientTimezone,
+                moment
+              });
+            } else {
+              console.error('No se encontró código del bot para el usuario:', responsibleUserId);
+            }
+          }
+        } else {
+          console.error('No se encontró tipo de rol para el rol:', userRole);
+        }
+      } else {
+        console.error('No se encontró rol para el usuario:', responsibleUserId);
+      }
     } catch (error) {
-      console.error('Error inserting message into database:', error);
+      console.error('Error insertando mensaje en la base de datos:', error);
     }
+  } else {
+    console.log('Mensaje redirigido, no se almacena ni se emite');
   }
-/*
-  if (responsibleUserId === 1010) {
-    await processConversation(io, senderId, messageData, conversationId, state);
-  } else if (responsibleUserId === 1011) {
-    await processConversationRouter(io, senderId, messageData, conversationId, state);
-  } else if (responsibleUserId === 1013) {
-    await processEsteticaConversation(io, senderId, messageData, conversationId, state);
-  }*/
 }
 
-// Function to assign a responsible user to a conversation
-async function assignResponsibleUser(conversationId, userId) {
-  const query = 'UPDATE conversations SET id_usuario = $2 WHERE conversation_id = $1';
+
+async function getOrCreateConversation(contactId, phoneNumber, integrationId, companyId) {
+  const findQuery = 'SELECT conversation_id, id_usuario FROM conversations WHERE contact_id = $1';
   try {
-    await pool.query(query, [conversationId, userId]);
-  } catch (error) {
-    console.error('Database error assigning responsible user:', error);
-    throw error;
+    let result = await pool.query(findQuery, [contactId]);
+    if (result.rows.length > 0) {
+      return result.rows[0].conversation_id;
+    } else {
+      // Obtener el usuario predeterminado para la empresa
+      const defaultUserQuery = `
+        SELECT id_usuario 
+        FROM default_users 
+        WHERE company_id = $1
+      `;
+      const defaultUserResult = await pool.query(defaultUserQuery, [companyId]);
+      const defaultUserId = defaultUserResult.rows[0].id_usuario;
+
+      const insertQuery = 'INSERT INTO conversations (phone_number, state, id_usuario, contact_id, integration_id) VALUES ($1, $2, $3, $4, $5) RETURNING conversation_id';
+      const conversationResult = await pool.query(insertQuery, [phoneNumber, 'new', defaultUserId, contactId, integrationId]);
+      const conversationId = conversationResult.rows[0].conversation_id;
+      return conversationId;
+    }
+  } catch (err) {
+    console.error('Error de base de datos en getOrCreateConversation:', err);
+    throw err;
   }
 }
 
-// Function to update the state of a conversation
+async function executeBotCode(botCode, context) {
+  const {
+    sendTextMessage,
+    sendImageMessage,
+    sendVideoMessage,
+    sendDocumentMessage,
+    sendAudioMessage,
+    sendTemplateMessage,
+    sendTemplateToSingleContact,
+    sendLocationMessage,
+    io,
+    senderId,
+    messageData,
+    conversationId,
+    pool,
+    axios,
+    getContactInfo,
+    updateContactName,
+    createContact,
+    updateContactCompany,
+    updateConversationState,
+    assignResponsibleUser,
+    processMessage,
+    getReverseGeocoding,
+    getGeocoding,
+    integrationDetails,
+    externalData,
+    clientTimezone,
+    moment
+  } = context;
+
+  try {
+    const botFunction = new Function(
+      'sendTextMessage',
+      'sendImageMessage',
+      'sendVideoMessage',
+      'sendDocumentMessage',
+      'sendAudioMessage',
+      'sendTemplateMessage',
+      'sendTemplateToSingleContact',
+      'sendLocationMessage',
+      'io',
+      'senderId',
+      'messageData',
+      'conversationId',
+      'pool',
+      'axios',
+      'getContactInfo',
+      'updateContactName',
+      'createContact',
+      'updateContactCompany',
+      'updateConversationState',
+      'assignResponsibleUser',
+      'processMessage',
+      'getReverseGeocoding',
+      'getGeocoding',
+      'integrationDetails',
+      'externalData',
+      'clientTimezone',
+      'moment',
+      botCode
+    );
+
+    await botFunction(
+      sendTextMessage,
+      sendImageMessage,
+      sendVideoMessage,
+      sendDocumentMessage,
+      sendAudioMessage,
+      sendTemplateMessage,
+      sendTemplateToSingleContact,
+      sendLocationMessage,
+      io,
+      senderId,
+      messageData,
+      conversationId,
+      pool,
+      axios,
+      getContactInfo,
+      updateContactName,
+      createContact,
+      updateContactCompany,
+      updateConversationState,
+      assignResponsibleUser,
+      processMessage,
+      getReverseGeocoding,
+      getGeocoding,
+      integrationDetails,
+      externalData,
+      clientTimezone,
+      moment
+    );
+  } catch (error) {
+    console.error('Error ejecutando el código del bot:', error);
+  }
+}
+
 async function updateConversationState(conversationId, newState) {
   const query = 'UPDATE conversations SET state = $2 WHERE conversation_id = $1';
   try {
     await pool.query(query, [conversationId, newState]);
   } catch (error) {
-    console.error('Database error updating conversation state:', error);
+    console.error('Error de base de datos actualizando estado de conversación:', error);
     throw error;
   }
 }
@@ -209,43 +364,37 @@ const createThumbnail = (videoPath) => new Promise((resolve, reject) => {
     .on('error', (err) => reject(err))
     .output(thumbnailPath)
     .outputOptions([
-      '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=290:290', // Crop to square then scale
-      '-frames:v', '1' // Only output one frame
+      '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=290:290',
+      '-frames:v', '1'
     ])
     .run();
 });
 
-// Function to download and save any type of media file
-async function downloadMedia(mediaId, mimeType) {
-  console.log('Media ID received for download:', mediaId);
+async function downloadMedia(mediaId, mimeType, whatsapp_api_token) {
+  console.log('ID de medio recibido para descargar:', mediaId);
   const getUrl = `https://graph.facebook.com/v19.0/${mediaId}`;
 
   try {
-    // Get the media URL
     const getUrlResponse = await axios.get(getUrl, {
       headers: {
-        'Authorization': `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsapp_api_token}`,
       },
     });
 
     const mediaUrl = getUrlResponse.data.url;
     if (!mediaUrl) {
-      console.error('Media URL not found in response:', getUrlResponse.data);
+      console.error('URL de medio no encontrada en la respuesta:', getUrlResponse.data);
       return null;
     }
 
-    // Download the media file
     const mediaResponse = await axios.get(mediaUrl, {
       responseType: 'arraybuffer',
       headers: {
-        'Authorization': `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+        'Authorization': `Bearer ${whatsapp_api_token}`,
       },
     });
 
-    // Determine the file extension based on the MIME type
     const extension = mimeType.split('/')[1];
-
-    // Determine the directory based on the MIME type
     let mediaDir;
     switch (mimeType.split('/')[0]) {
       case 'image':
@@ -269,46 +418,229 @@ async function downloadMedia(mediaId, mimeType) {
       fs.mkdirSync(mediaDir, { recursive: true });
     }
 
-    // Save the media file
     const mediaPath = path.join(mediaDir, `${mediaId}.${extension}`);
     fs.writeFileSync(mediaPath, mediaResponse.data);
-    console.log('Media stored at:', mediaPath);
+    console.log('Medio almacenado en:', mediaPath);
 
-    // URL to access the file from the server
     const mediaServerUrl = `/media/${mimeType.split('/')[0] === 'application' ? 'documents' : mimeType.split('/')[0] + 's'}/${mediaId}.${extension}`;
     return mediaServerUrl;
   } catch (error) {
-    console.error('Failed to download media. Error:', error.message);
+    console.error('Error al descargar medio:', error.message);
     return null;
   }
 }
 
-// Utility function to get or create a conversation
-async function getOrCreateConversation(phoneNumber) {
-  const findQuery = 'SELECT conversation_id FROM conversations WHERE phone_number = $1';
+async function getOrCreateContact(phoneNumber, companyId) {
+  const findQuery = 'SELECT id FROM contacts WHERE phone_number = $1 AND company_id = $2';
   try {
-    let result = await pool.query(findQuery, [phoneNumber]);
+    let result = await pool.query(findQuery, [phoneNumber, companyId]);
     if (result.rows.length > 0) {
-      return result.rows[0].conversation_id; // Return the ID if the conversation exists
+      return result.rows[0].id;
     } else {
-      // Create a new contact
-      const contactQuery = 'INSERT INTO contacts (phone_number, label) VALUES ($1, $2) RETURNING id';
-      const contactResult = await pool.query(contactQuery, [phoneNumber, "Contacto inicial"]);
-      const contactId = contactResult.rows[0].id; // Obtén el ID del contacto recién insertado
-
+      const contactQuery = 'INSERT INTO contacts (phone_number, company_id) VALUES ($1, $2) RETURNING id';
+      const contactResult = await pool.query(contactQuery, [phoneNumber, companyId]);
+      const contactId = contactResult.rows[0].id;
       console.log(`ID del contacto: ${contactId}`);
-
-      // Create a new conversation if it doesn't exist
-      const insertQuery = 'INSERT INTO conversations (phone_number, state, id_usuario, contact_id) VALUES ($1, $2, $3, $4) RETURNING conversation_id';
-      const conversationResult = await pool.query(insertQuery, [phoneNumber, 'new', 1011, contactId]); // Utiliza contactId como un valor numérico
-      const conversationId = conversationResult.rows[0].conversation_id;
-
-      return conversationId; // Return the new conversation ID
+      return contactId;
     }
   } catch (err) {
-    console.error('Database error in getOrCreateConversation:', err);
+    console.error('Error de base de datos en getOrCreateContact:', err);
     throw err;
   }
+}
+
+async function getContactInfo(phoneNumber, companyId) {
+  const query = 'SELECT first_name, last_name, organization, id FROM contacts WHERE phone_number = $1 AND company_id = $2';
+  try {
+    const result = await pool.query(query, [phoneNumber, companyId]);
+    if (result.rows.length > 0) {
+      return result.rows[0];
+    } else {
+      return null;
+    }
+  } catch (err) {
+    console.error('Database error in getContactInfo:', err);
+    throw err;
+  }
+}
+
+async function updateContactName(io, phoneNumber, companyId, firstName, lastName) {
+  const query = `
+    UPDATE contacts SET 
+    first_name = $3, 
+    last_name = $4
+    WHERE phone_number = $1 AND company_id = $2
+    RETURNING *;
+  `;
+  try {
+    const result = await pool.query(query, [phoneNumber, companyId, firstName, lastName]);
+    if (result.rows.length > 0) {
+      const updatedContact = result.rows[0];
+      io.emit('contactUpdated', updatedContact);
+    } else {
+      console.log('No contact found for the given phone number and company ID.');
+    }
+  } catch (err) {
+    console.error('Database error in updateContactName:', err);
+    throw err;
+  }
+}
+
+async function updateContactCompany(io, phoneNumber, companyId, organization) {
+  const query = `
+    UPDATE contacts SET 
+    organization = $3 
+    WHERE phone_number = $1 AND company_id = $2
+    RETURNING *;
+  `;
+  try {
+    const result = await pool.query(query, [phoneNumber, companyId, organization]);
+    if (result.rows.length > 0) {
+      const updatedContact = result.rows[0];
+      io.emit('contactUpdated', updatedContact);
+    } else {
+      console.log('No contact found for the given phone number and company ID.');
+    }
+  } catch (err) {
+    console.error('Database error in updateContactCompany:', err);
+    throw err;
+  }
+}
+
+async function createContact(io, phoneNumber, companyId, firstName, lastName, organization, label) {
+  const query = `
+    INSERT INTO contacts (
+      phone_number, 
+      company_id,
+      first_name, 
+      last_name, 
+      organization,
+      label
+    ) VALUES ($1, $2, $3, $4, $5, $6)
+    RETURNING *;
+  `;
+  try {
+    const result = await pool.query(query, [phoneNumber, companyId, firstName, lastName, organization, label]);
+    const newContact = result.rows[0];
+    io.emit('contactUpdated', newContact);
+  } catch (err) {
+    console.error('Database error in createContact:', err);
+    throw err;
+  }
+}
+
+async function obtenerRespuestaGPT(prompt) {
+  const apiKey = process.env.OPENAI_API_KEY;
+  const url = "https://api.openai.com/v1/chat/completions";
+
+  const headers = {
+    'Authorization': `Bearer ${apiKey}`,
+    'Content-Type': 'application/json'
+  };
+
+  const payload = {
+    model: "gpt-4",
+    messages: [
+      { role: "system", content: "Eres un asistente virtual de Axioma Robotics para la prueba de funcionamiento de los Chat Bots." },
+      { role: "user", content: prompt }
+    ]
+  };
+
+  try {
+    const response = await axios.post(url, payload, { headers });
+    return response.data.choices[0].message.content.trim();
+  } catch (error) {
+    console.error("Error al obtener respuesta de GPT-4:", error);
+    return "Error al obtener la respuesta";
+  }
+}
+
+async function getReverseGeocoding(latitude, longitude) {
+  try {
+    const api = process.env.GOOGLE_MAPS_API_KEY
+    const response = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?latlng=${latitude},${longitude}&key=${api}`);
+    console.log(api);
+    console.log(response);
+    const data = response.data;
+
+    if (data.status !== 'OK' || !data.results[0]) {
+      console.error('Geocoding error:', data.status);
+      return null;
+    }
+
+    const addressComponents = data.results[0].address_components;
+    const road = addressComponents.find(comp => comp.types.includes('route'))?.long_name;
+    const house_number = addressComponents.find(comp => comp.types.includes('street_number'))?.long_name;
+    const city = addressComponents.find(comp => comp.types.includes('locality'))?.long_name;
+    const state = addressComponents.find(comp => comp.types.includes('administrative_area_level_1'))?.long_name;
+    const country = addressComponents.find(comp => comp.types.includes('country'))?.long_name;
+
+    // Construye la dirección en el formato deseado
+    let formattedAddress = `${road || ''} #${house_number || ''} ${city || ''}, ${country || ''}`;
+    formattedAddress = formattedAddress.replace(/\s{2,}/g, ' ').replace(/^,\s*|,\s*$/g, '');
+
+    return formattedAddress;
+  } catch (error) {
+    console.error('Error during reverse geocoding:', error.response.data || error.message);
+    return null;
+}
+}
+
+async function getGeocoding(address) {
+  try {
+    const response = await axios.get(`https://maps.googleapis.com/maps/api/geocode/json?address=${encodeURIComponent(address)}&key=${process.env.GOOGLE_MAPS_API_KEY}`);
+    if (response.data.status !== 'OK') {
+      console.error('Geocoding error:', response.data.status);
+      return null;
+    }
+
+    const { lat, lng } = response.data.results[0].geometry.location;
+    return { latitude: lat, longitude: lng };
+  } catch (error) {
+    console.error('Error during geocoding:', error);
+    return null;
+  }
+}
+
+async function assignResponsibleUser(io, conversationId, oldUserId, newUserId) {
+  const query = 'UPDATE conversations SET id_usuario = $2 WHERE conversation_id = $1 RETURNING *;';
+
+  try {
+    const result = await pool.query(query, [conversationId, newUserId]);
+    const updatedConversation = result.rows[0];
+
+    io.emit('responsibleChanged', {
+      conversationId,
+      newUserId,
+      updatedConversation
+    });
+
+    if (oldUserId && oldUserId !== newUserId) {
+      io.to(`user-${newUserId}`).emit('responsibleChanged', {
+        conversationId,
+        newUserId,
+        updatedConversation
+      });
+      io.to(`user-${oldUserId}`).emit('responsibleRemoved', {
+        conversationId
+      });
+      console.log(`Emitted responsibleRemoved to oldUserId: ${oldUserId}`);
+    }
+
+    io.emit('updateConversationInfo', {
+      conversationId,
+      updatedConversation
+    });
+  } catch (error) {
+    console.error('Database error assigning responsible user:', error);
+    throw error;
+  }
+}
+
+async function handleNewMessage(io, senderId, messageData) {
+  const conversationId = await getOrCreateConversation(senderId);
+  const currentState = await getConversationState(conversationId);
+  await processConversationRouter(io, senderId, messageData, conversationId, currentState);
 }
 
 async function getConversationState(conversationId) {
@@ -318,7 +650,6 @@ async function getConversationState(conversationId) {
     if (result.rows.length > 0) {
       return result.rows[0].state;
     } else {
-      // If the conversation is not found, consider an initial state
       return 'new';
     }
   } catch (error) {
@@ -327,4 +658,4 @@ async function getConversationState(conversationId) {
   }
 }
 
-export { processMessage, updateConversationState };
+export { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, getReverseGeocoding, getGeocoding, assignResponsibleUser };

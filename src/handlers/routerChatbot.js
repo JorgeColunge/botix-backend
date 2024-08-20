@@ -1,11 +1,10 @@
 import axios from 'axios';
 import pool from '../config/dbConfig.js';
-import { processMessage } from './messageHandler.js';  // Importar la función processMessage
+import { processMessage } from './messageHandler.js';
 
 const token = process.env.WHATSAPP_API_TOKEN;
 const phoneNumberId = process.env.WHATSAPP_PHONE_NUMBER_ID;
 
-// Función para enviar un mensaje de WhatsApp y registrar el mensaje en la base de datos
 async function sendWhatsAppMessage(io, phone, messageText, conversationId) {
   const url = `https://graph.facebook.com/v19.0/${phoneNumberId}/messages`;
   const payload = {
@@ -15,7 +14,6 @@ async function sendWhatsAppMessage(io, phone, messageText, conversationId) {
     text: { body: messageText }
   };
 
-  // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
   const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
   const unreadMessages = unreadRes.rows[0].unread_messages;
   const responsibleUserId = unreadRes.rows[0].id_usuario;
@@ -29,7 +27,6 @@ async function sendWhatsAppMessage(io, phone, messageText, conversationId) {
     });
     console.log('WhatsApp message sent:', response.data);
 
-    // Insertar en la base de datos
     const insertQuery = `
       INSERT INTO replies (
         sender_id,
@@ -53,7 +50,6 @@ async function sendWhatsAppMessage(io, phone, messageText, conversationId) {
     const res = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', res.rows[0]);
     const newMessage = res.rows[0];
-    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     io.emit('newMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
@@ -102,13 +98,12 @@ async function updateContactName(io, phoneNumber, firstName, lastName) {
   try {
     const result = await pool.query(query, [phoneNumber, firstName, lastName]);
     const updatedContact = result.rows[0];
-    io.emit('contactUpdated', updatedContact); // Emitir la actualización
+    io.emit('contactUpdated', updatedContact);
   } catch (err) {
     console.error('Database error in updateContactName:', err);
     throw err;
   }
 }
-
 
 async function updateContactCompany(io, phoneNumber, organization) {
   const query = `
@@ -120,13 +115,12 @@ async function updateContactCompany(io, phoneNumber, organization) {
   try {
     const result = await pool.query(query, [phoneNumber, organization]);
     const updatedContact = result.rows[0];
-    io.emit('contactUpdated', updatedContact); // Emitir la actualización
+    io.emit('contactUpdated', updatedContact);
   } catch (err) {
     console.error('Database error in updateContactCompany:', err);
     throw err;
   }
 }
-
 
 async function createContact(io, phoneNumber, firstName, lastName, organization, label) {
   const query = `
@@ -142,13 +136,12 @@ async function createContact(io, phoneNumber, firstName, lastName, organization,
   try {
     const result = await pool.query(query, [phoneNumber, firstName, lastName, organization, label]);
     const newContact = result.rows[0];
-    io.emit('contactUpdated', newContact); // Emitir la actualización
+    io.emit('contactUpdated', newContact);
   } catch (err) {
     console.error('Database error in createContact:', err);
     throw err;
   }
 }
-
 
 async function obtenerRespuestaGPT(prompt) {
   const apiKey = process.env.OPENAI_API_KEY;
@@ -176,7 +169,7 @@ async function obtenerRespuestaGPT(prompt) {
   }
 }
 
-async function processConversationRouter(io, senderId, message, conversationId, currentState) {
+async function processConversationRouter(io, senderId, message, conversationId, currentState, integrationDetails) {
   let responseText;
   const messageText = message.text ? message.text.toLowerCase() : "";
 
@@ -198,27 +191,25 @@ async function processConversationRouter(io, senderId, message, conversationId, 
       }
       break;
 
-      case 'awaiting_name':
-        const nombreCompleto = await obtenerRespuestaGPT(`Extrae el nombre y apellido de la siguiente respuesta del cliente, responde solo el nombre seguido del apellido ejemplo 'David Muñoz' si solo detectas el nombre solo respondes el nombre 'David': ${messageText}`);
-        const [firstName, lastName] = nombreCompleto.split(' ');
-        if (firstName) {
-          const contactExists = await getContactInfo(senderId);
-          if (contactExists) {
-            // Actualizar contacto existente
-            await updateContactName(io, senderId, firstName, lastName || null);
-          } else {
-            // Crear nuevo contacto
-            await createContact(io, senderId, firstName, lastName || null, null, "Contacto inicial");
-          }
-          const nombreCompletoCliente = lastName ? `${firstName} ${lastName}` : firstName;
-          responseText = `Un gusto ${nombreCompletoCliente}. ¿Perteneces a alguna empresa?`;
-          await sendWhatsAppMessage(io, senderId, responseText, conversationId);
-          await updateConversationState(conversationId, 'awaiting_organization');
+    case 'awaiting_name':
+      const nombreCompleto = await obtenerRespuestaGPT(`Extrae el nombre y apellido de la siguiente respuesta del cliente, responde solo el nombre seguido del apellido ejemplo 'David Muñoz' si solo detectas el nombre solo respondes el nombre 'David': ${messageText}`);
+      const [firstName, lastName] = nombreCompleto.split(' ');
+      if (firstName) {
+        const contactExists = await getContactInfo(senderId);
+        if (contactExists) {
+          await updateContactName(io, senderId, firstName, lastName || null);
         } else {
-          responseText = "No pude entender tu nombre completo. ¿Podrías repetirlo?";
-          await sendWhatsAppMessage(io, senderId, responseText, conversationId);
+          await createContact(io, senderId, firstName, lastName || null, null, "Contacto inicial");
         }
-        break;
+        const nombreCompletoCliente = lastName ? `${firstName} ${lastName}` : firstName;
+        responseText = `Un gusto ${nombreCompletoCliente}. ¿Perteneces a alguna empresa?`;
+        await sendWhatsAppMessage(io, senderId, responseText, conversationId);
+        await updateConversationState(conversationId, 'awaiting_organization');
+      } else {
+        responseText = "No pude entender tu nombre completo. ¿Podrías repetirlo?";
+        await sendWhatsAppMessage(io, senderId, responseText, conversationId);
+      }
+      break;
 
     case 'awaiting_organization':
       const organizationResponse = await obtenerRespuestaGPT(`Extrae el nombre de la empresa de la siguiente respuesta del cliente, responde solo con el nombre de la empresa o compañia por ejemplo 'Fumiplagax' si el cliente responde 'no' o algo similar haciendo referencia a que no pertenece a ninguna organización solo responde 'no': ${messageText}`);
@@ -259,9 +250,8 @@ async function processConversationRouter(io, senderId, message, conversationId, 
       await updateConversationState(conversationId, 'new');
       await assignResponsibleUser(io, conversationId, newResponsibleUserId);
 
-      // Llamar a processMessage para continuar el proceso con cada chatbot
       const messageData = { text: messageText, type: 'text' };
-      await processMessage(io, senderId, messageData, newResponsibleUserId, "yes");
+      await processMessage(io, senderId, messageData, "no", integrationDetails);
 
       break;
 
@@ -271,7 +261,6 @@ async function processConversationRouter(io, senderId, message, conversationId, 
       break;
   }
 }
-
 
 async function updateConversationState(conversationId, newState) {
   const query = 'UPDATE conversations SET state = $2 WHERE conversation_id = $1';
@@ -285,20 +274,18 @@ async function updateConversationState(conversationId, newState) {
 
 async function assignResponsibleUser(io, conversationId, newUserId) {
   const query = 'UPDATE conversations SET id_usuario = $2 WHERE conversation_id = $1 RETURNING *;';
-  const oldUserId = "1011"; // Ajusta esto según tus necesidades
+  const oldUserId = "1011";
 
   try {
     const result = await pool.query(query, [conversationId, newUserId]);
     const updatedConversation = result.rows[0];
 
-    // Emitir el evento para que todos los clientes lo reciban
     io.emit('responsibleChanged', {
       conversationId,
       newUserId,
       updatedConversation
     });
 
-    // Emitir eventos específicos para el nuevo y antiguo responsable
     if (oldUserId && oldUserId !== newUserId) {
       io.to(`user-${newUserId}`).emit('responsibleChanged', {
         conversationId,
@@ -320,7 +307,6 @@ async function assignResponsibleUser(io, conversationId, newUserId) {
     throw error;
   }
 }
-
 
 async function getOrCreateConversation(phoneNumber) {
   const findQuery = 'SELECT conversation_id FROM conversations WHERE phone_number = $1';

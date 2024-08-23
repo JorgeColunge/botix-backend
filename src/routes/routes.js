@@ -1412,14 +1412,32 @@ router.post('/campaigns/:campaignId/responsibles', async (req, res) => {
 
 
 // Actualizar una campaña
-router.put('/campaigns:id', async (req, res) => {
+router.put('/campaigns/:id', async (req, res) => {
   const { id } = req.params;
-  const { name, objective, type, template_id } = req.body;
+  const { name, objective, type, template_id, scheduled_launch, state_conversation, type_responsible } = req.body;
 
   try {
-    const query = 'UPDATE campaigns SET name = $1, objective = $2, type = $3, template_id = $4, updated_at = CURRENT_TIMESTAMP WHERE id = $5 RETURNING *';
-    const values = [name, objective, type, template_id, id];
+    const query = `
+      UPDATE campaigns
+      SET
+        name = $1,
+        objective = $2,
+        type = $3,
+        template_id = $4,
+        scheduled_launch = $5,
+        state_conversation = $6,
+        type_responsible = $7,
+        updated_at = CURRENT_TIMESTAMP
+      WHERE id = $8
+      RETURNING *;
+    `;
+    const values = [name, objective, type, template_id, scheduled_launch, state_conversation, type_responsible, id];
     const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).send({ error: 'Campaign not found' });
+    }
+
     res.status(200).send(result.rows[0]);
   } catch (error) {
     console.error('Error updating campaign:', error.message);
@@ -1427,8 +1445,9 @@ router.put('/campaigns:id', async (req, res) => {
   }
 });
 
+
 // Eliminar una campaña
-router.delete('/campaigns:id', async (req, res) => {
+router.delete('/campaigns/:id', async (req, res) => {
   const { id } = req.params;
 
   try {

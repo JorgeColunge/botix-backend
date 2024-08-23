@@ -901,7 +901,7 @@ app.put('/edit-template', async (req, res) => {
       console.log('Datos a enviar a la API de Facebook:', JSON.stringify(templateData, null, 2));
   
       // Realizar la llamada a la API de Facebook
-      const response = await axios.post(
+      const response = await axios.put(
         `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
         templateData,
         {
@@ -1064,8 +1064,6 @@ app.post('/create-flow', async (req, res) => {
     res.status(500).json({ error: 'Failed to create flow' });
   }
 });
-
-
 
 async function getIntegrationDetails(phoneNumberId) {
   const query = `

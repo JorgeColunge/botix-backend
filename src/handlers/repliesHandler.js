@@ -661,126 +661,131 @@ export async function sendTemplateMessage(io, req, res) {
     const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
 
     for (const contact of contacts) {
-      const responsibleUserId = responsibleUserIds[responsibleIndex];
-      responsibleIndex = (responsibleIndex + 1) % responsibleUserIds.length;
-
-      // Obtener la información del responsable de la campaña
-      const userQuery = 'SELECT * FROM users WHERE id_usuario = $1';
-      const userResult = await pool.query(userQuery, [responsibleUserId]);
-      const responsibleUser = userResult.rows[0];
-
-      // Comprobar si el contacto tiene una conversación
-      const conversationQuery = 'SELECT * FROM conversations WHERE contact_id = $1';
-      const conversationResult = await pool.query(conversationQuery, [contact.id]);
-
-      let conversation;
-      if (conversationResult.rows.length === 0) {
-        // Crear nueva conversación
-        const insertConversationQuery = `
-          INSERT INTO conversations (phone_number, state, last_update, unread_messages, id_usuario, contact_id, integration_id)
-          VALUES ($1, $2, NOW(), $3, $4, $5, $6) RETURNING *;
-        `;
-        const insertConversationValues = [
-          contact.phone_number,
-          campaign.state_conversation || null,
-          0,
-          responsibleUserId,
-          contact.id,
-          whatsappIntegration.id
-        ];
-        const insertConversationResult = await pool.query(insertConversationQuery, insertConversationValues);
-        conversation = insertConversationResult.rows[0];
-        console.log('Nueva conversación creada:', conversation.conversation_id);
-      } else {
-        // Actualizar la conversación existente y obtener la integración
-        conversation = conversationResult.rows[0];
-        const updateConversationQuery = `
-          UPDATE conversations
-          SET state = COALESCE($1, state), last_update = NOW(), id_usuario = $2
-          WHERE contact_id = $3 RETURNING *;
-        `;
-        const updateConversationValues = [
-          campaign.state_conversation || null,
-          responsibleUserId,
-          contact.id
-        ];
-        const updateConversationResult = await pool.query(updateConversationQuery, updateConversationValues);
-        conversation = updateConversationResult.rows[0];
+      try {
+        const responsibleUserId = responsibleUserIds[responsibleIndex];
+        responsibleIndex = (responsibleIndex + 1) % responsibleUserIds.length;
+    
+        // Obtener la información del responsable de la campaña
+        const userQuery = 'SELECT * FROM users WHERE id_usuario = $1';
+        const userResult = await pool.query(userQuery, [responsibleUserId]);
+        const responsibleUser = userResult.rows[0];
+    
+        // Comprobar si el contacto tiene una conversación
+        const conversationQuery = 'SELECT * FROM conversations WHERE contact_id = $1';
+        const conversationResult = await pool.query(conversationQuery, [contact.id]);
+    
+        let conversation;
+        if (conversationResult.rows.length === 0) {
+          // Crear nueva conversación
+          const insertConversationQuery = `
+            INSERT INTO conversations (phone_number, state, last_update, unread_messages, id_usuario, contact_id, integration_id)
+            VALUES ($1, $2, NOW(), $3, $4, $5, $6) RETURNING *;
+          `;
+          const insertConversationValues = [
+            contact.phone_number,
+            campaign.state_conversation || null,
+            0,
+            responsibleUserId,
+            contact.id,
+            whatsappIntegration.id
+          ];
+          const insertConversationResult = await pool.query(insertConversationQuery, insertConversationValues);
+          conversation = insertConversationResult.rows[0];
+          console.log('Nueva conversación creada:', conversation.conversation_id);
+        } else {
+          // Actualizar la conversación existente y obtener la integración
+          conversation = conversationResult.rows[0];
+          const updateConversationQuery = `
+            UPDATE conversations
+            SET state = COALESCE($1, state), last_update = NOW(), id_usuario = $2
+            WHERE contact_id = $3 RETURNING *;
+          `;
+          const updateConversationValues = [
+            campaign.state_conversation || null,
+            responsibleUserId,
+            contact.id
+          ];
+          const updateConversationResult = await pool.query(updateConversationQuery, updateConversationValues);
+          conversation = updateConversationResult.rows[0];
+        }
+    
+        // Reemplazar variables en la plantilla
+        const parameters = [];
+        for (const variable of variables) {
+          const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+          parameters.push(value);
+        }
+    
+        console.log('Parámetros de mensaje:', parameters);
+    
+        // Verificar que los campos necesarios de la plantilla están presentes
+        if (!template.nombre || !template.language) {
+          throw new Error('Template is missing required fields');
+        }
+    
+        let mediaUrl = null;
+        let footer = template.footer || '';
+        let response;
+    
+        if (template.header_type === 'TEXT') {
+          response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    
+          // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+          const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+          const unreadMessages = unreadRes.rows[0].unread_messages;
+    
+          // Almacenar el mensaje con placeholders reemplazados
+          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+        } else if (template.header_type === 'IMAGE') {
+          const imageUrl = `${backendUrl}${template.medio}`;
+          response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          mediaUrl = imageUrl;
+    
+          // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+          const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+          const unreadMessages = unreadRes.rows[0].unread_messages;
+    
+          // Almacenar el mensaje con placeholders reemplazados y la URL de la imagen
+          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+        } else if (template.header_type === 'VIDEO') {
+          const videoUrl = `${backendUrl}${template.medio}`;
+          response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          mediaUrl = videoUrl;
+    
+          // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+          const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+          const unreadMessages = unreadRes.rows[0].unread_messages;
+    
+          // Almacenar el mensaje con placeholders reemplazados y la URL del video
+          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+        } else if (template.header_type === 'DOCUMENT') {
+          const documentUrl = `${backendUrl}${template.medio}`;
+          const mediaId = await uploadDocumentToWhatsApp(documentUrl, whatsapp_api_token, whatsapp_phone_number_id);
+          response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          mediaUrl = documentUrl;
+    
+          // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+          const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+          const unreadMessages = unreadRes.rows[0].unread_messages;
+    
+          // Almacenar el mensaje con placeholders reemplazados y la URL del documento
+          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+        } else {
+          response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    
+          // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+          const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+          const unreadMessages = unreadRes.rows[0].unread_messages;
+    
+          // Almacenar el mensaje con placeholders reemplazados
+          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+        }
+      } catch (error) {
+        console.error(`Error processing contact ${contact.id}:`, error);
+        // Aquí puedes enviar alguna notificación o guardar el error en la base de datos
+        continue; // Salta al siguiente contacto
       }
-
-      // Reemplazar variables en la plantilla
-      const parameters = [];
-      for (const variable of variables) {
-        const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
-        parameters.push(value);
-      }
-
-      console.log('Parámetros de mensaje:', parameters);
-
-      // Verificar que los campos necesarios de la plantilla están presentes
-      if (!template.nombre || !template.language) {
-        console.error('Error: faltan campos necesarios en la plantilla');
-        return res.status(500).send({ error: 'Template is missing required fields' });
-      }
-
-      let mediaUrl = null;
-      let footer = template.footer || '';
-      let response;
-
-      if (template.header_type === 'TEXT') {
-        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-
-        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
-        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
-        const unreadMessages = unreadRes.rows[0].unread_messages;
-
-        // Almacenar el mensaje con placeholders reemplazados
-        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
-      } else if (template.header_type === 'IMAGE') {
-        const imageUrl = `${backendUrl}${template.medio}`
-        response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-        mediaUrl = imageUrl;
-
-        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
-        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
-        const unreadMessages = unreadRes.rows[0].unread_messages;
-
-        // Almacenar el mensaje con placeholders reemplazados y la URL de la imagen
-        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
-      } else if (template.header_type === 'VIDEO') {
-        const videoUrl = `${backendUrl}${template.medio}`
-        response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-        mediaUrl = videoUrl;
-
-        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
-        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
-        const unreadMessages = unreadRes.rows[0].unread_messages;
-
-        // Almacenar el mensaje con placeholders reemplazados y la URL del video
-        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
-      } else if (template.header_type === 'DOCUMENT') {
-        const documentUrl = `${backendUrl}${template.medio}`
-        const mediaId = await uploadDocumentToWhatsApp(documentUrl, whatsapp_api_token, whatsapp_phone_number_id);
-        response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-        mediaUrl = documentUrl;
-
-        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
-        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
-        const unreadMessages = unreadRes.rows[0].unread_messages;
-
-        // Almacenar el mensaje con placeholders reemplazados y la URL del documento
-        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
-      }else{
-        response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-
-        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
-        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
-        const unreadMessages = unreadRes.rows[0].unread_messages;
-
-        // Almacenar el mensaje con placeholders reemplazados
-        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
-      }
-    }
+    } 
 
     res.status(200).send({ message: 'Campaign launched successfully' });
   } catch (error) {

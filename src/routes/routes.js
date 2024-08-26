@@ -8,13 +8,16 @@ import path from 'path';
 import { fileURLToPath } from 'url';
 import { dirname } from 'path';
 import fs from 'fs';
-import ffmpeg from 'fluent-ffmpeg';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+
+import ffmpeg from 'fluent-ffmpeg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-
+// Configurar ffmpeg
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // Definimos la función que acepta 'io' como parámetro y devuelve el router configurado
 export default function createRouter(io) {
   const router = express.Router();
@@ -603,6 +606,9 @@ const documentStorage = multer.diskStorage({
 });
 const uploadDocument = multer({ storage: documentStorage });
 
+ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+
+// Configuración de almacenamiento para multer
 const audioStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const audioDir = path.join(__dirname, '..', '..', 'public', 'media', 'audios');
@@ -617,6 +623,7 @@ const audioStorage = multer.diskStorage({
   }
 });
 
+// Configuración de multer
 const uploadAudio = multer({
   storage: audioStorage,
   fileFilter: function (req, file, cb) {
@@ -628,7 +635,6 @@ const uploadAudio = multer({
     }
   }
 });
-
 
 // Ruta para manejar la subida de imágenes
 router.post('/upload-image', uploadImage.single('image'), (req, res) => {
@@ -663,8 +669,6 @@ const createThumbnail = (videoPath) => new Promise((resolve, reject) => {
   if (!fs.existsSync(thumbnailDir)) {
     fs.mkdirSync(thumbnailDir, { recursive: true });
   }
-
-  const thumbnailPath = path.join(thumbnailDir, thumbnailFilename);
 
   ffmpeg(videoPath)
     .on('end', () => resolve(`/media/thumbnails/${thumbnailFilename}`))
@@ -701,15 +705,35 @@ router.post('/upload-document', uploadDocument.single('document'), (req, res) =>
 // Ruta para manejar la subida de audios
 router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
   try {
-    const audioUrl = '/media/audios/' + req.file.filename;
-    const audioDuration = req.file.size / 1000; // Duración aproximada en segundos
-    res.json({ audioUrl, audioDuration });
+    const tempFilePath = req.file.path;
+    const processedFilePath = path.join('public', 'media', 'audios', req.file.filename + '.ogg');
+
+    // Procesar el archivo de audio para asegurarse de que sea mono (1 canal) y en formato ogg
+    ffmpeg(tempFilePath)
+      .audioChannels(1) // Convertir a mono
+      .toFormat('ogg')
+      .on('end', () => {
+        // El archivo procesado está listo, eliminar el archivo temporal
+        fs.unlink(tempFilePath, (err) => {
+          if (err) {
+            console.error('Error deleting temporary file:', err);
+          }
+        });
+
+        // Devolver la URL del archivo procesado
+        res.json({ audioUrl: '/media/audios/' + req.file.filename + '.ogg' });
+      })
+      .on('error', (err) => {
+        console.error('Error processing audio:', err);
+        res.status(500).json({ error: 'Internal server error' });
+      })
+      .save(processedFilePath);
+
   } catch (error) {
     console.error('Error uploading audio:', error);
     res.status(500).json({ error: 'Internal server error' });
   }
 });
-
 
 router.post('/messages/send-image', (req, res) => {
   sendImageMessage(io, req, res);

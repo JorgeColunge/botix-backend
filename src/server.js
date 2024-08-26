@@ -568,25 +568,47 @@ app.post('/create-template', async (req, res) => {
 
         // Almacenar variables del botón
         const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
+
         if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-          const buttonVariables = buttonComponent.buttons[0]?.example?.url_text || [];
-          const buttonSources = buttonComponent.source || [];
-          const buttonVariableNames = buttonComponent.variable || [];
-          if (buttonVariables.length > 0) {
-            const queryButton = `
-              INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesButton = [
-              `{{1}}`, 
-              buttonVariables.join(''), 
-              templateId,
-              buttonSources[0],
-              buttonVariableNames[0]
-            ];
-            await pool.query(queryButton, valuesButton);
+          // Iterar sobre todos los botones del componente BUTTONS
+          for (const button of buttonComponent.buttons) {
+            let name, example, source, variable;
+        
+            // Condicionales para cada tipo de botón
+            if (button.type === 'QUICK_REPLY') {
+              name = button.text;
+              example = null; // No hay example en QUICK_REPLY
+              source = null; // No hay source en QUICK_REPLY
+              variable = button.type ; // No hay variable en QUICK_REPLY
+            } else if (button.type === 'PHONE_NUMBER') {
+              name = button.text;
+              example = button.phone_number;
+              source = null; // No hay source en PHONE_NUMBER
+              variable = button.type; // No hay variable en PHONE_NUMBER
+            } else if (button.type === 'URL') {
+              name = button.text;
+              example = button.url;
+              source = null; // No hay source en URL
+              variable = button.type; // No hay variable en URL
+            }
+        
+            // Asegurarse de que 'name' tiene valor antes de intentar guardar
+            if (name) {
+              const queryButton = `
+                INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+                VALUES ($1, $2, $3, $4, $5)
+              `;
+              const valuesButton = [
+                name, 
+                example,
+                templateId,
+                source,
+                variable
+              ];
+              await pool.query(queryButton, valuesButton);
+            }
           }
-        }
+        }        
       }
 
       res.status(200).send({ id: templateId, message: 'Template stored successfully without sending to WhatsApp.' });
@@ -684,22 +706,43 @@ app.post('/create-template', async (req, res) => {
       // Almacenar variables del botón
       const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
       if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-        const buttonVariables = buttonComponent.buttons[0]?.example?.url_text || [];
-        const buttonSources = buttonComponent.source || [];
-        const buttonVariableNames = buttonComponent.variable || [];
-        if (buttonVariables.length > 0) {
-          const queryButton = `
-            INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-            VALUES ($1, $2, $3, $4, $5)
-          `;
-          const valuesButton = [
-            `{{1}}`, 
-            buttonVariables.join(''), 
-            templateId,
-            buttonSources[0],
-            buttonVariableNames[0]
-          ];
-          await pool.query(queryButton, valuesButton);
+        // Iterar sobre todos los botones del componente BUTTONS
+        for (const button of buttonComponent.buttons) {
+          let name, example, source, variable;
+      
+          // Condicionales para cada tipo de botón
+          if (button.type === 'QUICK_REPLY') {
+            name = button.text;
+            example = null; // No hay example en QUICK_REPLY
+            source = null; // No hay source en QUICK_REPLY
+            variable = button.type ; // No hay variable en QUICK_REPLY
+          } else if (button.type === 'PHONE_NUMBER') {
+            name = button.text;
+            example = button.phone_number;
+            source = null; // No hay source en PHONE_NUMBER
+            variable = button.type; // No hay variable en PHONE_NUMBER
+          } else if (button.type === 'URL') {
+            name = button.text;
+            example = button.url;
+            source = null; // No hay source en URL
+            variable = button.type; // No hay variable en URL
+          }
+      
+          // Asegurarse de que 'name' tiene valor antes de intentar guardar
+          if (name) {
+            const queryButton = `
+              INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+              VALUES ($1, $2, $3, $4, $5)
+            `;
+            const valuesButton = [
+              name, 
+              example,
+              templateId,
+              source,
+              variable
+            ];
+            await pool.query(queryButton, valuesButton);
+          }
         }
       }
     }
@@ -863,28 +906,50 @@ app.put('/edit-template', async (req, res) => {
 
         const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
         if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-          const buttonVariables = buttonComponent.buttons[0]?.example?.url_text || [];
-          const buttonSources = buttonComponent.source || [];
-          const buttonVariableNames = buttonComponent.variable || [];
           
           // Eliminar variables del botón anteriores
           const deleteButtonVariablesQuery = `DELETE FROM variable_button WHERE template_wa_id = $1`;
           await pool.query(deleteButtonVariablesQuery, [templateId]);
         
-          // Insertar nuevas variables del botón
-          if (buttonVariables.length > 0) {
-            const queryButton = `
-              INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesButton = [
-              `{{1}}`, 
-              buttonVariables.join(''), 
-              id_plantilla,
-              buttonSources[0],
-              buttonVariableNames[0]
-            ];
-            await pool.query(queryButton, valuesButton);
+          if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+            // Iterar sobre todos los botones del componente BUTTONS
+            for (const button of buttonComponent.buttons) {
+              let name, example, source, variable;
+          
+              // Condicionales para cada tipo de botón
+              if (button.type === 'QUICK_REPLY') {
+                name = button.text;
+                example = null; // No hay example en QUICK_REPLY
+                source = null; // No hay source en QUICK_REPLY
+                variable = button.type ; // No hay variable en QUICK_REPLY
+              } else if (button.type === 'PHONE_NUMBER') {
+                name = button.text;
+                example = button.phone_number;
+                source = null; // No hay source en PHONE_NUMBER
+                variable = button.type; // No hay variable en PHONE_NUMBER
+              } else if (button.type === 'URL') {
+                name = button.text;
+                example = button.url;
+                source = null; // No hay source en URL
+                variable = button.type; // No hay variable en URL
+              }
+          
+              // Asegurarse de que 'name' tiene valor antes de intentar guardar
+              if (name) {
+                const queryButton = `
+                  INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesButton = [
+                  name, 
+                  example,
+                  templateId,
+                  source,
+                  variable
+                ];
+                await pool.query(queryButton, valuesButton);
+              }
+            }
           }
         }
         
@@ -997,27 +1062,50 @@ app.put('/edit-template', async (req, res) => {
         // Almacenar variables del botón
         const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
         if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-          const buttonVariables = buttonComponent.buttons[0]?.example?.url_text || [];
-          const buttonSources = buttonComponent.source || [];
-          const buttonVariableNames = buttonComponent.variable || [];
-  
+          
           // Eliminar variables del botón anteriores
           const deleteButtonVariablesQuery = `DELETE FROM variable_button WHERE template_wa_id = $1`;
-          await pool.query(deleteButtonVariablesQuery, [id_plantilla]);
-  
-          if (buttonVariables.length > 0) {
-            const queryButton = `
-              INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesButton = [
-              `{{1}}`, 
-              buttonVariables.join(''), 
-              id_plantilla,
-              buttonSources[0],
-              buttonVariableNames[0]
-            ];
-            await pool.query(queryButton, valuesButton);
+          await pool.query(deleteButtonVariablesQuery, [templateId]);
+        
+          if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+        
+            for (const button of buttonComponent.buttons) {
+              let name, example, source, variable;
+          
+             
+              if (button.type === 'QUICK_REPLY') {
+                name = button.text;
+                example = null; 
+                source = null; 
+                variable = button.type ; 
+              } else if (button.type === 'PHONE_NUMBER') {
+                name = button.text;
+                example = button.phone_number;
+                source = null; 
+                variable = button.type; 
+              } else if (button.type === 'URL') {
+                name = button.text;
+                example = button.url;
+                source = null; 
+                variable = button.type; 
+              }
+          
+              // Asegurarse de que 'name' tiene valor antes de intentar guardar
+              if (name) {
+                const queryButton = `
+                  INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesButton = [
+                  name, 
+                  example,
+                  templateId,
+                  source,
+                  variable
+                ];
+                await pool.query(queryButton, valuesButton);
+              }
+            }
           }
         }
       }

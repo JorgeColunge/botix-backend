@@ -627,11 +627,11 @@ const audioStorage = multer.diskStorage({
 const uploadAudio = multer({
   storage: audioStorage,
   fileFilter: function (req, file, cb) {
-    const mimeTypes = ['audio/ogg', 'audio/opus'];
+    const mimeTypes = ['audio/aac'];
     if (mimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only OGG/OPUS audio is allowed.'));
+      cb(new Error('Invalid file type. Only aac audio is allowed.'));
     }
   }
 });

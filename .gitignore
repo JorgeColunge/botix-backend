@@ -3,14 +3,18 @@
 # dependencies
 
 ./node_modules
+
+./node_modules
 /.pnp
 .pnp.js
 
 # testing
 /coverage
 ./node_modules/axios/** */
+./node_modules/axios/** */
 # production
 /build
+/public
 /public
 # misc
 .DS_Store
@@ -27,3 +31,5 @@ package-lock.json
 .env
 public/media/users/profile
 node_modules
+src.rar
+src.rar

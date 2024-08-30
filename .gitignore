@@ -2,16 +2,16 @@
 
 # dependencies
 
-/node_modules
+./node_modules
 /.pnp
 .pnp.js
 
 # testing
 /coverage
-
+./node_modules/axios/** */
 # production
 /build
-
+/public
 # misc
 .DS_Store
 .env.local
@@ -26,3 +26,4 @@ yarn-error.log*
 package-lock.json
 .env
 public/media/users/profile
+node_modules

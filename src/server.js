@@ -329,6 +329,18 @@ const updateReplyStatus = async (messageId, status) => {
 };
 
 app.post('/upload', upload.single('image'), (req, res) => {
+  console.log("solicitud",req.file)
+  if (req.file) {
+    const imagePath = req.file.path;
+    res.json({ success: true, path: imagePath });
+    console.log(imagePath)
+
+  } else {
+    res.status(400).send('No se pudo subir el archivo');
+  }
+});
+
+app.post('/upload', upload.single('video'), (req, res) => {
   if (req.file) {
     const imagePath = req.file.path;
     res.json({ success: true, path: imagePath });
@@ -337,8 +349,7 @@ app.post('/upload', upload.single('image'), (req, res) => {
   }
 });
 
-
-app.post('/upload', upload.single('image'), (req, res) => {
+app.post('/upload', upload.single('document'), (req, res) => {
   if (req.file) {
     const imagePath = req.file.path;
     res.json({ success: true, path: imagePath });
@@ -367,11 +378,6 @@ app.get('/webhook', (req, res) => {
     res.status(400).send('Request missing required parameters.');
   }
 });
-
-
-
-
-
 
 const templateStorage = multer.diskStorage({
   destination: (req, file, cb) => {
@@ -421,9 +427,9 @@ app.post('/upload-template-media', uploadTemplateMedia.single('media'), async (r
         .jpeg({ quality: 80 })
         .toFile(compressedFilePath);
 
-      res.status(200).send({ mediaUrl: `/media/templates/whatsapp/compressed/${req.file.filename}` });
+      res.status(200).send({ path: `/media/templates/whatsapp/compressed/${req.file.filename}` });
     } else {
-      res.status(200).send({ mediaUrl: `/media/templates/whatsapp/${req.file.filename}` });
+      res.status(200).send({ path: `/media/templates/whatsapp/${req.file.filename}` });
     }
   } catch (error) {
     console.error('Error processing media file:', error);
@@ -454,12 +460,13 @@ app.post('/create-template', async (req, res) => {
   let headerExample = null; // Ejemplo para el HEADER
   let bodyExample = null; // Ejemplo para el BODY
 
-  components.forEach(component => {
+  componentsWithSourceAndVariable.forEach(component => {
     if (component.type === 'HEADER') {
       headerType = component.format;
       if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) {
         typeMedio = component.format;
         medio = component.example?.header_handle[0] || null;
+        headerExample = component.example?.header_handle[0] || null;
       } else if (headerType === 'TEXT') {
         headerText = component.text;
         if (headerText.includes('{{')) {
@@ -484,7 +491,7 @@ app.post('/create-template', async (req, res) => {
     name: validName,
     language,
     category,
-    components: components.map(component => {
+    components: componentsWithSourceAndVariable.map(component => {
       if (component.type === 'HEADER' && headerExample) {
         return { ...component, example: headerExample };
       } else if (component.type === 'BODY' && bodyExample) {
@@ -496,119 +503,206 @@ app.post('/create-template', async (req, res) => {
 
   // Mostrar la estructura que se enviaría a la API
   console.log('Template data to send to API:', JSON.stringify(templateData, null, 2));
-
+ console.log("valor de isMedia:", isMediaTemplate)
   if (isMediaTemplate) {
     try {
-      const query = `
-        INSERT INTO templates_wa (type, nombre, language, header_type, type_medio, medio, body_text, header_text, footer, buttons, state, company_id)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
-        RETURNING id
-      `;
-      const values = [
-        category,
-        validName,
-        language,
-        headerType,
-        typeMedio,
-        medio,
-        bodyText,
-        headerText,
-        footer,
-        JSON.stringify(buttons), // Convertir los botones a JSON
-        'PENDING',
-        company_id
-      ];
-      const result = await pool.query(query, values);
-      const templateId = result.rows[0].id;
-
-      if (Array.isArray(componentsWithSourceAndVariable)) {
-        // Almacenar variables del cuerpo
-        const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
-        if (bodyComponent) {
-          const bodyVariables = bodyComponent.example?.body_text[0] || [];
-          const bodySources = bodyComponent.source || [];
-          const bodyVariableNames = bodyComponent.variable || [];
-          for (let i = 0; i < bodyVariables.length; i++) {
-            const queryBody = `
-              INSERT INTO variable_body (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesBody = [
-              `{{${i + 1}}}`, 
-              bodyVariables[i], 
-              templateId, 
-              bodySources[i], 
-              bodyVariableNames[i]
-            ];
-            await pool.query(queryBody, valuesBody);
-          }
+      let imageUrl = null;
+      let headerHandle = null;
+      let templateId = null
+      if (headerType === 'IMAGE' && headerExample) {
+  
+        const fileName = path.basename(headerExample);
+        const filePath = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+  
+        // Verificar que el archivo existe
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`El archivo no se encontró: ${filePath}`);
         }
-
-        // Almacenar variables del encabezado
-        const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
-        if (headerComponent) {
-          const headerVariables = headerComponent.example?.header_text || [];
-          const headerSources = headerComponent.source || [];
-          const headerVariableNames = headerComponent.variable || [];
-          for (let i = 0; i < headerVariables.length; i++) {
-            const queryHeader = `
-              INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesHeader = [
-              `{{${i + 1}}}`, 
-              headerVariables[i], 
-              templateId, 
-              headerSources[i], 
-              headerVariableNames[i]
-            ];
-            await pool.query(queryHeader, valuesHeader);
+  
+        const fileStats = fs.statSync(filePath);
+  
+        // Paso 1: Iniciar una sesión de subida
+        const uploadResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+          null, // Sin datos en el cuerpo
+          {
+            params: {
+              file_name: fileName,
+              file_length: fileStats.size,
+              file_type: 'image/jpeg',
+              access_token: process.env.WHATSAPP_API_TOKEN,
+            },
           }
-        }
-
-        // Almacenar variables del botón
-        const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
-
-        if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-          // Iterar sobre todos los botones del componente BUTTONS
-          for (const button of buttonComponent.buttons) {
-            let name, example, source, variable;
-        
-            // Condicionales para cada tipo de botón
-            if (button.type === 'QUICK_REPLY') {
-              name = button.text;
-              example = null; // No hay example en QUICK_REPLY
-              source = null; // No hay source en QUICK_REPLY
-              variable = button.type ; // No hay variable en QUICK_REPLY
-            } else if (button.type === 'PHONE_NUMBER') {
-              name = button.text;
-              example = button.phone_number;
-              source = null; // No hay source en PHONE_NUMBER
-              variable = button.type; // No hay variable en PHONE_NUMBER
-            } else if (button.type === 'URL') {
-              name = button.text;
-              example = button.url;
-              source = null; // No hay source en URL
-              variable = button.type; // No hay variable en URL
-            }
-        
-            // Asegurarse de que 'name' tiene valor antes de intentar guardar
-            if (name) {
-              const queryButton = `
-                INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-                VALUES ($1, $2, $3, $4, $5)
-              `;
-              const valuesButton = [
-                name, 
-                example,
-                templateId,
-                source,
-                variable
-              ];
-              await pool.query(queryButton, valuesButton);
-            }
+        );
+  
+        headerHandle = uploadResponse.data.id;
+  
+        // Paso 2: Comenzar la subida del archivo
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(filePath));
+  
+        const uploadFileResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${headerHandle}`,
+          formData,
+          {
+            headers: {
+              'Authorization': `OAuth ${process.env.WHATSAPP_API_TOKEN}`,
+              'file_offset': 0,
+              ...formData.getHeaders(),
+            },
           }
-        }        
+        );
+  
+        imageUrl = uploadFileResponse.data.h;
+  
+        // Paso 3: Actualizar la plantilla en Meta
+        templateData.components = templateData.components.map((component) => {
+          // Desestructura y elimina 'source' y 'variable' del objeto 'example', si existen
+          if (component.type === 'BODY') {
+           const {source, variable, ...rest} = component;
+           return{
+              ...rest
+           }
+          }
+        
+          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+          if (component.type === 'HEADER' && component.format === 'IMAGE') {
+            return {
+              ...component,
+              example: { 
+                header_handle: [imageUrl],
+              },
+            };
+          }
+          return component;
+        });
+        
+
+        console.log("Plantilla con datos a enviar:",JSON.stringify(templateData, null, 2))
+          const response = await axios.post(
+            `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
+            templateData,
+            {
+              headers: {
+                Authorization: `Bearer ${whatsappApiToken}`,
+                'Content-Type': 'application/json'
+              }
+            }
+          );
+
+        console.log("Plantilla multimedia actualizada en Meta", response.data);
+        templateId = response.data.id;
+
+        const query = `
+          INSERT INTO templates_wa (id, type, nombre, language, header_type, type_medio, medio, body_text, header_text, footer, buttons, state, company_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        const values = [
+          templateId,
+          category,
+          validName,
+          language,
+          headerType,
+          typeMedio,
+          medio,
+          bodyText,
+          headerText,
+          footer,
+          JSON.stringify(buttons), // Convertir los botones a JSON
+          'PENDING',
+          company_id
+        ];
+          await pool.query(query, values);
+    
+          if (Array.isArray(componentsWithSourceAndVariable)) {
+            // Almacenar variables del cuerpo
+            const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
+            if (bodyComponent) {
+              const bodyVariables = bodyComponent.example?.body_text[0] || [];
+              const bodySources = bodyComponent.source || [];
+              const bodyVariableNames = bodyComponent.variable || [];
+              for (let i = 0; i < bodyVariables.length; i++) {
+                const queryBody = `
+                  INSERT INTO variable_body (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesBody = [
+                  `{{${i + 1}}}`, 
+                  bodyVariables[i], 
+                  templateId, 
+                  bodySources[i], 
+                  bodyVariableNames[i]
+                ];
+                await pool.query(queryBody, valuesBody);
+              }
+            }
+    
+            // Almacenar variables del encabezado
+            const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
+            if (headerComponent) {
+              const headerVariables = headerComponent.example?.header_text || [];
+              const headerSources = headerComponent.source || [];
+              const headerVariableNames = headerComponent.variable || [];
+              for (let i = 0; i < headerVariables.length; i++) {
+                const queryHeader = `
+                  INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesHeader = [
+                  `{{${i + 1}}}`, 
+                  headerVariables[i], 
+                  templateId, 
+                  headerSources[i], 
+                  headerVariableNames[i]
+                ];
+                await pool.query(queryHeader, valuesHeader);
+              }
+            }
+    
+            // Almacenar variables del botón
+            const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
+    
+            if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+              // Iterar sobre todos los botones del componente BUTTONS
+              for (const button of buttonComponent.buttons) {
+                let name, example, source, variable;
+            
+                // Condicionales para cada tipo de botón
+                if (button.type === 'QUICK_REPLY') {
+                  name = button.text;
+                  example = null; // No hay example en QUICK_REPLY
+                  source = null; // No hay source en QUICK_REPLY
+                  variable = button.type ; // No hay variable en QUICK_REPLY
+                } else if (button.type === 'PHONE_NUMBER') {
+                  name = button.text;
+                  example = button.phone_number;
+                  source = null; // No hay source en PHONE_NUMBER
+                  variable = button.type; // No hay variable en PHONE_NUMBER
+                } else if (button.type === 'URL') {
+                  name = button.text;
+                  example = button.url;
+                  source = null; // No hay source en URL
+                  variable = button.type; // No hay variable en URL
+                }
+            
+                // Asegurarse de que 'name' tiene valor antes de intentar guardar
+                if (name) {
+                  const queryButton = `
+                    INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+                    VALUES ($1, $2, $3, $4, $5)
+                  `;
+                  const valuesButton = [
+                    name, 
+                    example,
+                    templateId,
+                    source,
+                    variable
+                  ];
+                  await pool.query(queryButton, valuesButton);
+                }
+              }
+            }        
+          }
       }
 
       res.status(200).send({ id: templateId, message: 'Template stored successfully without sending to WhatsApp.' });
@@ -778,195 +872,196 @@ app.put('/edit-template', async (req, res) => {
   let headerExample = null; // Ejemplo para el HEADER
   let bodyExample = null; // Ejemplo para el BODY
 
-  components.forEach(component => {
+  componentsWithSourceAndVariable.forEach(component => {
     if (component.type === 'HEADER') {
       headerType = component.format;
       if (['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType)) {
         typeMedio = component.format;
+        headerExample = component.example?.header_handle[0] || null;
         medio = component.example?.header_handle[0] || null;
       } else if (headerType === 'TEXT') {
         headerText = component.text;
         if (headerText.includes('{{')) {
-          headerExample = { "header_text": component.example.header_text }; // Añadir ejemplo para HEADER si contiene variables
+          headerExample = { "header_text": component.example.header_text }; 
         }
       }
     } else if (component.type === 'BODY') {
       bodyText = component.text;
       if (bodyText.includes('{{')) {
-        bodyExample = { "body_text": component.example.body_text }; // Añadir ejemplo para BODY si contiene variables
+        bodyExample = { "body_text": component.example.body_text };
+
+        console.log("informacion del body: ", bodyExample)
       }
     } else if (component.type === 'FOOTER') {
       footer = component.text;
     } else if (component.type === 'BUTTONS') {
-      buttons = component.buttons; // Asignar los botones
+      buttons = component.buttons; 
     }
   });
 
   const isMediaTemplate = ['IMAGE', 'VIDEO', 'DOCUMENT'].includes(headerType);
 
-  const templateData = {
+  var templateData = {
     name: validName,
-    id: id_plantilla,
-    language,
-    category,
-    components: components.map(component => {
+    language, 
+    category: category, 
+    components: componentsWithSourceAndVariable.map(component => {
       if (component.type === 'HEADER' && headerExample) {
-        return { ...component, example: headerExample };
-      } else if (component.type === 'BODY' && bodyExample) {
-        return { ...component, example: bodyExample };
+        return { 
+          ...component, 
+          example: {
+            header_handle: [headerExample] 
+          } 
+        };
+      } else if (component.type === 'BODY' && typeof bodyExample === 'string') {
+        return { 
+          ...component, 
+          example: {
+            body_text: [bodyExample] 
+          }
+        };
       }
       return component;
     })
   };
 
-  // Mostrar la estructura que se enviaría a la API
-  console.log('Template data to send to API:', JSON.stringify(templateData, null, 2));
-
   if (isMediaTemplate) {
     try {
-          const query = `
-          UPDATE templates_wa
-          SET type = $1, nombre = $2, language = $3, header_type = $4, type_medio = $5, medio = $6,
-              body_text = $7, header_text = $8, footer = $9, buttons = $10, state = $11, company_id = $12
-          WHERE id = $13
-          RETURNING id
-        `;
-        const values = [
-          category,
-          validName,
-          language,
-          headerType,
-          typeMedio,
-          medio,
-          bodyText,
-          headerText,
-          footer,
-          JSON.stringify(buttons),
-          'PENDING',
-          company_id,
-          id_plantilla
-        ];
-        const result = await pool.query(query, values);
-        
-      const templateId = result.rows[0].id;
-
-      if (Array.isArray(componentsWithSourceAndVariable)) {
-        // Almacenar variables del cuerpo
-        const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
-        if (bodyComponent) {
-          const bodyVariables = bodyComponent.example?.body_text[0] || [];
-          const bodySources = bodyComponent.source || [];
-          const bodyVariableNames = bodyComponent.variable || [];
-          // Ejemplo para actualizar o insertar variables del cuerpo
-          const deleteBodyVariablesQuery = `DELETE FROM variable_body WHERE template_wa_id = $1`;
-          await pool.query(deleteBodyVariablesQuery, [id_plantilla]);
-
-          for (let i = 0; i < bodyVariables.length; i++) {
-            const queryBody = `
-              INSERT INTO variable_body (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesBody = [
-              `{{${i + 1}}}`, 
-              bodyVariables[i], 
-              id_plantilla, 
-              bodySources[i], 
-              bodyVariableNames[i]
-            ];
-            await pool.query(queryBody, valuesBody);
-          }
-
+      let imageUrl = null;
+      let headerHandle = null;
+  
+      if (headerType === 'IMAGE' && headerExample) {
+  
+        const fileName = path.basename(headerExample);
+        const filePath = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+  
+        // Verificar que el archivo existe
+        if (!fs.existsSync(filePath)) {
+          throw new Error(`El archivo no se encontró: ${filePath}`);
         }
-        const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
-        if (headerComponent) {
-          const headerVariables = headerComponent.example?.header_text || [];
-          const headerSources = headerComponent.source || [];
-          const headerVariableNames = headerComponent.variable || [];
-          
-          // Eliminar variables del encabezado anteriores
-          const deleteHeaderVariablesQuery = `DELETE FROM variable_headers WHERE template_wa_id = $1`;
-          await pool.query(deleteHeaderVariablesQuery, [templateId]);
-        
-          // Insertar nuevas variables del encabezado
-          for (let i = 0; i < headerVariables.length; i++) {
-            const queryHeader = `
-              INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
-              VALUES ($1, $2, $3, $4, $5)
-            `;
-            const valuesHeader = [
-              `{{${i + 1}}}`, 
-              headerVariables[i], 
-              id_plantilla, 
-              headerSources[i], 
-              headerVariableNames[i]
-            ];
-            await pool.query(queryHeader, valuesHeader);
+  
+        const fileStats = fs.statSync(filePath);
+  
+        // Paso 1: Iniciar una sesión de subida
+        const uploadResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+          null, // Sin datos en el cuerpo
+          {
+            params: {
+              file_name: fileName,
+              file_length: fileStats.size,
+              file_type: 'image/jpeg',
+              access_token: process.env.WHATSAPP_API_TOKEN,
+            },
           }
-        }        
+        );
+  
+        headerHandle = uploadResponse.data.id;
+  
+        // Paso 2: Comenzar la subida del archivo
+        const formData = new FormData();
+        formData.append('file', fs.createReadStream(filePath));
+  
+        const uploadFileResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${headerHandle}`,
+          formData,
+          {
+            headers: {
+              'Authorization': `OAuth ${process.env.WHATSAPP_API_TOKEN}`,
+              'file_offset': 0,
+              ...formData.getHeaders(),
+            },
+          }
+        );
+  
+        imageUrl = uploadFileResponse.data.h;
+  
+        // Paso 3: Actualizar la plantilla en Meta
+        templateData.components = templateData.components.map((component) => {
+          // Desestructura y elimina 'source' y 'variable' del objeto 'example', si existen
+          if (component.type === 'BODY') {
+           const {source, variable, ...rest} = component;
+           return{
+              ...rest
+           }
+          }
+        
+          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+          if (component.type === 'HEADER' && component.format === 'IMAGE') {
+            return {
+              ...component,
+              example: {
+                ...component.example, 
+                header_handle: [imageUrl],
+              },
+            };
+          }
+          return component;
+        });
+        
+        const {language, name, category, ...rest} = templateData;
 
-        const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
-        if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-          
-          // Eliminar variables del botón anteriores
-          const deleteButtonVariablesQuery = `DELETE FROM variable_button WHERE template_wa_id = $1`;
-          await pool.query(deleteButtonVariablesQuery, [templateId]);
-        
-          if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
-            // Iterar sobre todos los botones del componente BUTTONS
-            for (const button of buttonComponent.buttons) {
-              let name, example, source, variable;
-          
-              // Condicionales para cada tipo de botón
-              if (button.type === 'QUICK_REPLY') {
-                name = button.text;
-                example = null; // No hay example en QUICK_REPLY
-                source = null; // No hay source en QUICK_REPLY
-                variable = button.type ; // No hay variable en QUICK_REPLY
-              } else if (button.type === 'PHONE_NUMBER') {
-                name = button.text;
-                example = button.phone_number;
-                source = null; // No hay source en PHONE_NUMBER
-                variable = button.type; // No hay variable en PHONE_NUMBER
-              } else if (button.type === 'URL') {
-                name = button.text;
-                example = button.url;
-                source = null; // No hay source en URL
-                variable = button.type; // No hay variable en URL
-              }
-          
-              // Asegurarse de que 'name' tiene valor antes de intentar guardar
-              if (name) {
-                const queryButton = `
-                  INSERT INTO variable_button (name, example, template_wa_id, source, variable)
-                  VALUES ($1, $2, $3, $4, $5)
-                `;
-                const valuesButton = [
-                  name, 
-                  example,
-                  templateId,
-                  source,
-                  variable
-                ];
-                await pool.query(queryButton, valuesButton);
-              }
-            }
+        console.log("Plantilla con datos a enviar:",JSON.stringify(rest, null, 2))
+        console.log("ID de la plantilla:",id_plantilla)
+        const response = await axios.post(
+          `https://graph.facebook.com/v20.0/${id_plantilla}`,
+          rest,
+          {
+            headers: {
+              Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+              'Content-Type': 'application/json',
+            },
           }
-        }
-        
+        );
+        console.log("Plantilla multimedia actualizada en Meta", response.data);
       }
-
-      res.status(200).send({ id: templateId, message: 'Template stored successfully without sending to WhatsApp.' });
+  
+      // Actualizar los datos en la base de datos
+      const query = `
+        UPDATE templates_wa
+        SET type = $1, nombre = $2, language = $3, header_type = $4, type_medio = $5, medio = $6,
+            body_text = $7, header_text = $8, footer = $9, buttons = $10, state = $11, company_id = $12
+        WHERE id = $13
+        RETURNING id
+      `;
+      const values = [
+        category,
+        validName,
+        language,
+        headerType,
+        typeMedio,
+        medio,
+        bodyText,
+        headerText,
+        footer,
+        JSON.stringify(buttons),
+        'PENDING',
+        company_id,
+        id_plantilla,
+      ];
+      const result = await pool.query(query, values);
+      console.log("Actualizando datos en la base de datos", result);
+  
+      const templateId = result.rows[0].id;
+  
+      if (!res.headersSent) {
+        return res.send({ message: 'Template updated successfully', templateId });
+      }
     } catch (error) {
-      console.error('Error storing template:', error.message);
-      res.status(500).send({ error: error.message });
+      console.error('Error al procesar la plantilla:', error.response?.data || error.message);
+      if (!res.headersSent) {
+        return res.status(500).send({ error: 'Error al procesar la plantilla' });
+      }
     }
-  } else {
+  }
+  
+   else {
     try {
       // Mostrar los datos que se enviarían a la API de Facebook
       console.log('Datos a enviar a la API de Facebook:', JSON.stringify(templateData, null, 2));
   
       // Realizar la llamada a la API de Facebook
-      const response = await axios.put(
+      const response = await axios.post(
         `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
         templateData,
         {
@@ -1115,20 +1210,55 @@ app.put('/edit-template', async (req, res) => {
       console.error('Error creating template:', error.response ? error.response.data : error.message);
       res.status(500).send(error.response ? error.response.data : error.message);
     }
-  }
-  
+  } 
 });
-// Eliminar una plantilla
-app.delete('/api/templates/:id', async (req, res) => {
-  const { id } = req.params;
 
+app.delete('/api/templates/:id/:templateName/:company_id', async (req, res) => {
+  const { id, company_id, templateName } = req.params;
+  const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
+  const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
+  const whatsappApiToken = whatsapp_api_token;
+  const whatsappBusinessAccountId = whatsapp_business_account_id;
+
+  const client = await pool.connect();
   try {
-    const query = 'DELETE FROM templates_wa WHERE id = $1 RETURNING *';
-    const result = await pool.query(query, [id]);
-    res.status(200).send(result.rows[0]);
+    await client.query('BEGIN');
+
+    // Actualizar registros en campaigns
+    await client.query('UPDATE campaigns SET template_id = NULL WHERE template_id = $1', [id]);
+
+    // Actualizar registros en variable_body
+    await client.query('UPDATE variable_body SET template_wa_id = NULL WHERE template_wa_id = $1', [id]);
+
+       // Actualizar registros en variable_body
+     await client.query('DELETE FROM variable_headers WHERE template_wa_id = $1', [id]);
+
+    // Eliminar la plantilla
+    const result = await client.query('DELETE FROM templates_wa WHERE id = $1 RETURNING *', [id]);
+
+    if (result.rows.length === 0) {
+      await client.query('ROLLBACK');
+      return res.status(404).send({ error: 'Template not found' });
+    }
+
+    // Llamada a la API de Meta
+    const response = await axios.delete(`https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates?hsm_id=${id}&name=${templateName}`, {
+      headers: { Authorization: `Bearer ${whatsappApiToken}` }
+    });
+
+    if (response.data.success) {
+      await client.query('COMMIT');
+      return res.status(200).send({ message: 'Template deleted successfully' });
+    } else {
+      await client.query('ROLLBACK');
+      return res.status(500).send({ error: 'Failed to delete template from WhatsApp Business' });
+    }
   } catch (error) {
+    await client.query('ROLLBACK');
     console.error('Error deleting template:', error.message);
     res.status(500).send({ error: error.message });
+  } finally {
+    client.release();
   }
 });
 

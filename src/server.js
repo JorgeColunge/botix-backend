@@ -1327,8 +1327,6 @@ app.use((req, res, next) => {
   next();
 });
 
-
-
 // Ejemplo de uso en una ruta
 app.get('/calculate-time', (req, res) => {
   const clientTimezone = req.clientTimezone || 'America/Bogota';
@@ -1417,8 +1415,6 @@ app.post('/bot', async (req, res) => {
     res.status(500).json({ error: 'Error interno del servidor' });
   }
 });
-
-
 
 // Iniciar el servidor HTTP y WebSocket
 server.listen(PORT, () => {

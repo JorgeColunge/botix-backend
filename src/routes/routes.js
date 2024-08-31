@@ -20,7 +20,8 @@ const __dirname = dirname(__filename);
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 // Definimos la función que acepta 'io' como parámetro y devuelve el router configurado
 export default function createRouter(io) {
-  const router = express.Router();
+const router = express.Router();
+
 
   router.post('/new-message', async (req, res) => {
   const { senderId, messageData } = req.body;
@@ -257,7 +258,6 @@ router.get('/conversations', async (req, res) => {
   }
 });
 
-
 router.get('/privileges-role/:roleId', async (req, res) => {
   const { roleId } = req.params;
   try {
@@ -274,7 +274,6 @@ router.get('/privileges-role/:roleId', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
-
 
 router.get('/messages/:id', async (req, res) => {
   const { id } = req.params;
@@ -345,8 +344,6 @@ router.get('/messages/:id', async (req, res) => {
   }
 });
 
-
-
 function getMediaUrl(type, mediaUrl, latitude, longitude) {
   if (!mediaUrl) return null; // Manejar mediaUrl nulo o indefinido
   const host = process.env.BACKEND_URL || 'https://botix.axiomarobotics.com:10000'; 
@@ -361,8 +358,7 @@ function getMediaUrl(type, mediaUrl, latitude, longitude) {
       return `https://maps.google.com/?q=${latitude},${longitude}`; 
     default:
       return null; 
-  }
-}
+  }}
 
 function getThumbnailUrl(type, thumbnailUrl) {
   if (!thumbnailUrl) return null; // Manejar thumbnailUrl nulo o indefinido
@@ -461,7 +457,6 @@ router.post('/api/users', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
-
 
 router.put('/users/:id', async (req, res) => {
   const { id } = req.params;
@@ -589,6 +584,7 @@ const videoStorage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
+
 const uploadVideo = multer({ storage: videoStorage });
 
 const documentStorage = multer.diskStorage({
@@ -704,6 +700,8 @@ router.post('/upload-document', uploadDocument.single('document'), (req, res) =>
 
 // Ruta para manejar la subida de audios
 router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
   try {
     const tempFilePath = req.file.path;
     const processedFilePath = path.join('public', 'media', 'audios', req.file.filename + '.ogg');
@@ -1336,7 +1334,6 @@ router.get('/contacts', async (req, res) => {
   }
 });
 
-
 router.get('/templates', async (req, res) => {
   const companyId = req.query.company_id;
   if (!companyId) {
@@ -1374,7 +1371,6 @@ router.get('/templates', async (req, res) => {
   }
 });
 
-
 router.get('/campaigns', async (req, res) => {
   const companyId = req.query.company_id; // Usar query param en lugar de params
   if (!companyId) {
@@ -1396,7 +1392,6 @@ router.get('/campaigns', async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 
 // Crear una nueva campaña
 router.post('/campaigns', async (req, res) => {
@@ -1434,7 +1429,6 @@ router.post('/campaigns/:campaignId/responsibles', async (req, res) => {
   }
 });
 
-
 // Actualizar una campaña
 router.put('/campaigns/:id', async (req, res) => {
   const { id } = req.params;
@@ -1469,17 +1463,29 @@ router.put('/campaigns/:id', async (req, res) => {
   }
 });
 
-
 // Eliminar una campaña
 router.delete('/campaigns/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
-    const query = 'DELETE FROM campaigns WHERE id = $1 RETURNING *';
-    const result = await pool.query(query, [id]);
+    await pool.query('BEGIN');
+
+    const deleteContactsQuery = 'DELETE FROM campaign_contacts WHERE campaign_id = $1';
+    await pool.query(deleteContactsQuery, [id]);
+
+    // Eliminar la campaña
+    const deleteCampaignQuery = 'DELETE FROM campaigns WHERE id = $1 RETURNING *';
+    const result = await pool.query(deleteCampaignQuery, [id]);
+
+    await pool.query('COMMIT');
+
     res.status(200).send(result.rows[0]);
   } catch (error) {
-    console.error('Error deleting campaign:', error.message);
+    console.error('Error deleting campaign and associated contacts:', error.message);
+
+    // Revertir la transacción en caso de error
+    await pool.query('ROLLBACK');
+
     res.status(500).send({ error: error.message });
   }
 });
@@ -1497,6 +1503,100 @@ router.post('/campaigns/:campaignId/contacts', async (req, res) => {
     res.status(200).send({ message: 'Contacts associated with campaign successfully.' });
   } catch (error) {
     console.error('Error associating contacts with campaign:', error.message);
+    res.status(500).send({ error: error.message });
+  }
+});
+
+router.put('/campaigns/:campaignId/contacts', async (req, res) => {
+  const { campaignId } = req.params;
+  const { contact_ids } = req.body;
+
+  try {
+    // Iniciar una transacción
+    await pool.query('BEGIN');
+
+    // Verificar qué contact_ids existen en la tabla contacts
+    const checkContactsQuery = 'SELECT id FROM contacts WHERE id = ANY($1::int[])';
+    const result = await pool.query(checkContactsQuery, [contact_ids]);
+
+    // Obtener solo los contactos válidos que existen
+    const existingContacts = result.rows.map(row => row.id);
+     
+    // Si no hay contactos válidos, cancelar la operación
+    if (existingContacts.length === 0) {
+      throw new Error('No valid contacts found to update.');
+    }
+
+    // Eliminar los contactos existentes para la campaña que están en la lista de contactos válidos
+    const deleteContactsQuery = `
+      DELETE FROM campaign_contacts 
+      WHERE campaign_id = $1 
+      AND contact_id = ANY($2::int[])
+    `;
+    await pool.query(deleteContactsQuery, [campaignId, existingContacts]);
+
+    // Insertar los contactos válidos
+    const insertContactsQuery = 'INSERT INTO campaign_contacts (campaign_id, contact_id) VALUES ($1, $2)';
+    for (let contactId of existingContacts) {
+      await pool.query(insertContactsQuery, [campaignId, contactId]);
+    }
+
+    // Confirmar la transacción
+    await pool.query('COMMIT');
+
+    res.status(200).send({ message: 'Contacts updated successfully.' });
+  } catch (error) {
+    console.error('Error updating contacts for campaign:', error.message);
+
+    // Revertir la transacción en caso de error
+    await pool.query('ROLLBACK');
+
+    res.status(500).send({ error: error.message });
+  }
+});
+
+
+router.put('/campaigns/:campaignId/responsibles', async (req, res) => {
+  const { campaignId } = req.params;
+  const { responsible_ids } = req.body;
+
+  try {
+    // Iniciar una transacción
+    await pool.query('BEGIN');
+
+    // Eliminar los responsables actuales asociados con la campaña
+    await pool.query('DELETE FROM campaign_responsibles WHERE campaign_id = $1', [campaignId]);
+
+    // Insertar los nuevos responsables
+    const query = 'INSERT INTO campaign_responsibles (campaign_id, user_id) VALUES ($1, $2)';
+    for (let userId of responsible_ids) {
+      await pool.query(query, [campaignId, userId]);
+    }
+
+    // Confirmar la transacción
+    await pool.query('COMMIT');
+    res.status(200).send({ message: 'Responsibles updated successfully.' });
+  } catch (error) {
+    // Revertir la transacción en caso de error
+    await pool.query('ROLLBACK');
+    console.error('Error updating responsibles:', error.message);
+    res.status(500).send({ error: error.message });
+  }
+});
+
+// Obtener todos los contactos de la tabla campaign_contacts
+router.get('/contactsCampaign', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM campaign_contacts';
+    const result = await pool.query(query);
+
+    if (result.rows.length === 0) {
+      return res.status(200).send({ message: 'No contacts found.', contacts: [] });
+    }
+
+    res.status(200).send(result.rows);
+  } catch (error) {
+    console.error('Error fetching all contacts:', error.message);
     res.status(500).send({ error: error.message });
   }
 });
@@ -1519,16 +1619,13 @@ router.get('/phases/:companyId', async (req, res) => {
   }
 });
 
-
 router.post('/launch-campaign/:campaignId', async (req, res) => {
   sendTemplateMessage(io, req, res);
 });
 
-
 router.post('/send-template', async (req, res) => {
   sendTemplateToSingleContact(io, req, res);
 });
-
 
 const getDateValue = (type) => {
   const now = new Date();

@@ -782,8 +782,7 @@ export async function sendTemplateMessage(io, req, res) {
         }
       } catch (error) {
         console.error(`Error processing contact ${contact.id}:`, error);
-        // Aquí puedes enviar alguna notificación o guardar el error en la base de datos
-        continue; // Salta al siguiente contacto
+        continue; 
       }
     } 
 
@@ -793,8 +792,6 @@ export async function sendTemplateMessage(io, req, res) {
     res.status(500).send({ error: error.message });
   }
 }
-
-
 
 
 const sendWhatsAppMessage = async (phone, templateName, language, parameters, token, phoneNumberId, whatsappBusinessId) => {

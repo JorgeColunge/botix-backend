@@ -576,7 +576,7 @@ async function getReverseGeocoding(latitude, longitude) {
     const country = addressComponents.find(comp => comp.types.includes('country'))?.long_name;
 
     // Construye la dirección en el formato deseado
-    let formattedAddress = `${road || ''} #${house_number || ''} ${city || ''}, ${country || ''}`;
+    let formattedAddress = `${road || ''} #${house_number || ''}, ${city || ''}, ${country || ''}`;
     formattedAddress = formattedAddress.replace(/\s{2,}/g, ' ').replace(/^,\s*|,\s*$/g, '');
 
     return formattedAddress;

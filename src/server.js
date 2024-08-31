@@ -189,6 +189,8 @@ function respondToWhatsApp(req, res) {
 // Endpoint del webhook
 app.post('/webhook', async (req, res) => {
   console.log(`Webhook received at ${new Date().toISOString()}: ${JSON.stringify(req.body, null, 2)}`);
+  
+  respondToWhatsApp(req, res);
 
   try {
     if (!req.body || !req.body.entry) {

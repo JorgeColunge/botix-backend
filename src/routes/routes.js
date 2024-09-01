@@ -615,19 +615,18 @@ const audioStorage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + path.extname(file.originalname));
+    cb(null, uniqueSuffix + '.wav');  // Guardar como archivo WAV
   }
 });
 
-// Configuración de multer
 const uploadAudio = multer({
   storage: audioStorage,
   fileFilter: function (req, file, cb) {
-    const mimeTypes = ['audio/aac'];
+    const mimeTypes = ['audio/wav'];
     if (mimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
-      cb(new Error('Invalid file type. Only aac audio is allowed.'));
+      cb(new Error('Invalid file type. Only WAV audio is allowed.'));
     }
   }
 });
@@ -700,37 +699,34 @@ router.post('/upload-document', uploadDocument.single('document'), (req, res) =>
 
 // Ruta para manejar la subida de audios
 router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
-  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin');
-  res.setHeader('Cross-Origin-Embedder-Policy', 'require-corp');
-  try {
-    const tempFilePath = req.file.path;
-    const processedFilePath = path.join('public', 'media', 'audios', req.file.filename + '.ogg');
+  const tempFilePath = req.file.path;
+  const processedFilePath = path.join('public', 'media', 'audios', req.file.filename.replace('.wav', '.ogg'));
 
-    // Procesar el archivo de audio para asegurarse de que sea mono (1 canal) y en formato ogg
-    ffmpeg(tempFilePath)
-      .audioChannels(1) // Convertir a mono
-      .toFormat('ogg')
-      .on('end', () => {
-        // El archivo procesado está listo, eliminar el archivo temporal
-        fs.unlink(tempFilePath, (err) => {
-          if (err) {
-            console.error('Error deleting temporary file:', err);
-          }
-        });
+  ffmpeg(tempFilePath)
+    .audioChannels(1) // Convertir a mono
+    .toFormat('ogg')
+    .on('end', () => {
+      // El archivo procesado está listo, eliminar el archivo temporal WAV
+      fs.unlink(tempFilePath, (err) => {
+        if (err) {
+          console.error('Error deleting temporary file:', err);
+        }
+      });
 
-        // Devolver la URL del archivo procesado
-        res.json({ audioUrl: '/media/audios/' + req.file.filename + '.ogg' });
-      })
-      .on('error', (err) => {
-        console.error('Error processing audio:', err);
+      // Devolver la URL del archivo procesado OGG
+      res.json({ audioUrl: '/media/audios/' + req.file.filename.replace('.wav', '.ogg') });
+    })
+    .on('error', (err) => {
+      console.error('Error processing audio:', err);
+      // Asegurarse de eliminar el archivo temporal en caso de error
+      fs.unlink(tempFilePath, (unlinkErr) => {
+        if (unlinkErr) {
+          console.error('Error deleting temporary file:', unlinkErr);
+        }
         res.status(500).json({ error: 'Internal server error' });
-      })
-      .save(processedFilePath);
-
-  } catch (error) {
-    console.error('Error uploading audio:', error);
-    res.status(500).json({ error: 'Internal server error' });
-  }
+      });
+    })
+    .save(processedFilePath);
 });
 
 router.post('/messages/send-image', (req, res) => {

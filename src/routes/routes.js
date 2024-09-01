@@ -615,7 +615,7 @@ const audioStorage = multer.diskStorage({
   },
   filename: function (req, file, cb) {
     const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
-    cb(null, uniqueSuffix + '.wav');  // Guardar como archivo WAV
+    cb(null, uniqueSuffix + '.wav');  
   }
 });
 
@@ -1540,7 +1540,7 @@ router.put('/campaigns/:campaignId/contacts', async (req, res) => {
     // Confirmar la transacción
     await pool.query('COMMIT');
 
-    res.status(200).send({ message: 'Contacts updated successfully.' });
+    res.status(200).send(existingContacts);
   } catch (error) {
     console.error('Error updating contacts for campaign:', error.message);
 
@@ -1550,7 +1550,6 @@ router.put('/campaigns/:campaignId/contacts', async (req, res) => {
     res.status(500).send({ error: error.message });
   }
 });
-
 
 router.put('/campaigns/:campaignId/responsibles', async (req, res) => {
   const { campaignId } = req.params;

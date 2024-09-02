@@ -178,8 +178,6 @@ export async function sendImageMessage(io, req, res) {
   }
 }
 
-
-
 export async function sendVideoMessage(io, req, res) {
   const { phone, videoUrl, videoThumbnail, videoDuration, conversationId } = req.body;
   const fullVideoUrl = `${backendUrl}${videoUrl}`;
@@ -268,8 +266,6 @@ export async function sendVideoMessage(io, req, res) {
     res.status(500).json({ error: error.message });
   }
 }
-
-
 
 // Función para enviar un documento por WhatsApp
 export async function sendDocumentMessage(io, req, res) {
@@ -360,7 +356,6 @@ export async function sendDocumentMessage(io, req, res) {
   }
 }
 
-
 export async function sendAudioMessage(io, req, res) {
   const { phone, audioUrl, audioDuration, conversationId } = req.body;
   const fullAudioUrl = `${backendUrl}${audioUrl}`;
@@ -445,8 +440,6 @@ export async function sendAudioMessage(io, req, res) {
     res.status(500).json({ error: error.message });
   }
 }
-
-
 
 export async function sendLocationMessage(io, req, res) {
   const { phone, latitude, longitude, streetName, conversationId } = req.body;
@@ -533,11 +526,7 @@ export async function sendLocationMessage(io, req, res) {
   }
 }
 
-
-
-
- 
-  const getDateValue = (type) => {
+const getDateValue = (type) => {
     const now = new Date();
     switch (type) {
         case 'today':

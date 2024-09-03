@@ -1059,18 +1059,19 @@ app.put('/edit-template', async (req, res) => {
   
    else {
     try {
-      // Mostrar los datos que se enviarían a la API de Facebook
-      console.log('Datos a enviar a la API de Facebook:', JSON.stringify(templateData, null, 2));
+
+      const {language, name, category, ...rest} = templateData;
+      console.log('Datos a enviar a la API de Facebook:', JSON.stringify(rest, null, 2));
   
       // Realizar la llamada a la API de Facebook
       const response = await axios.post(
-        `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
-        templateData,
+        `https://graph.facebook.com/v20.0/${id_plantilla}`,
+        rest,
         {
           headers: {
-            Authorization: `Bearer ${whatsappApiToken}`,
-            'Content-Type': 'application/json'
-          }
+            Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+            'Content-Type': 'application/json',
+          },
         }
       );
   

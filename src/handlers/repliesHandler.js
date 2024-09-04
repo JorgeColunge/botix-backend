@@ -369,8 +369,9 @@ export async function sendAudioMessage(io, req, res) {
     const audioBuffer = Buffer.from(audioResponse.data, 'binary');
 
     // Paso 2: Subir el archivo multimedia a los servidores de WhatsApp
+    console.log("probanto autorizacion")
     const mediaUploadResponse = await axios.post(
-      `https://${process.env.BACKEND_URL}/v1/media`,
+      `${process.env.BACKEND_URL}/v1/media`,
       audioBuffer,
       {
         headers: {
@@ -382,7 +383,7 @@ export async function sendAudioMessage(io, req, res) {
 
     // Obtener el media_id de la respuesta
     const mediaId = mediaUploadResponse.data.media_id;
-
+console.log("respuesta de solicitud", mediaId)
     // Paso 3: Enviar el mensaje usando el media_id
     const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
     const payload = {

@@ -363,29 +363,44 @@ export async function sendAudioMessage(io, req, res) {
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
-  const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
-  const payload = {
-    messaging_product: "whatsapp",
-    to: phone,
-    type: "audio",
-    audio: {
-      link: fullAudioUrl
-    }
-  };
-
-  // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
-  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
-  const unreadMessages = unreadRes.rows[0].unread_messages;
-  const responsibleUserId = unreadRes.rows[0].id_usuario;
-
   try {
+    // Paso 1: Descargar el archivo de audio desde la URL
+    const audioResponse = await axios.get(fullAudioUrl, { responseType: 'arraybuffer' });
+    const audioBuffer = Buffer.from(audioResponse.data, 'binary');
+
+    // Paso 2: Subir el archivo multimedia a los servidores de WhatsApp
+    const mediaUploadResponse = await axios.post(
+      `https://${process.env.BACKEND_URL}/v1/media`,
+      audioBuffer,
+      {
+        headers: {
+          'Authorization': `Bearer ${whatsapp_api_token}`,
+          'Content-Type': 'audio/ogg; codecs=opus',
+        },
+      }
+    );
+
+    // Obtener el media_id de la respuesta
+    const mediaId = mediaUploadResponse.data.media_id;
+
+    // Paso 3: Enviar el mensaje usando el media_id
+    const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
+    const payload = {
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'audio',
+      audio: {
+        id: mediaId, // Usar el media_id en lugar del link
+      },
+    };
+
     const response = await axios.post(url, payload, {
       headers: {
         'Authorization': `Bearer ${whatsapp_api_token}`,
-        'Content-Type': 'audio/ogg; codecs=opus'
-      }
+        'Content-Type': 'application/json',
+      },
     });
-    console.log(response.data);
+    console.log('Mensaje enviado correctamente:', response.data);
 
     // Intenta insertar en la base de datos
     const insertQuery = `
@@ -410,11 +425,12 @@ export async function sendAudioMessage(io, req, res) {
       audioUrl,
       null,
       null,
-      audioDuration
+      audioDuration,
     ];
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
     const newMessage = result.rows[0];
+
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     io.emit('newMessage', {
       id: newMessage.replies_id,
@@ -430,10 +446,11 @@ export async function sendAudioMessage(io, req, res) {
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
-      company_id: integrationDetails.company_id // Añadir company_id aquí
+      company_id: integrationDetails.company_id, // Añadir company_id aquí
     });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
+    res.status(200).json({ message: 'Audio message sent successfully', data: response.data });
   } catch (error) {
     console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
     res.status(500).json({ error: error.message });

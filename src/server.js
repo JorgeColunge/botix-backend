@@ -514,38 +514,70 @@ app.post('/create-template', async (req, res) => {
       if (headerType === 'IMAGE' && headerExample) {
   
         const fileName = path.basename(headerExample);
-        const filePath = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+        const fileExtension = path?.extname(fileName)?.toLowerCase();
+
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
   
-        // Verificar que el archivo existe
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`El archivo no se encontró: ${filePath}`);
-        }
   
-        const fileStats = fs.statSync(filePath);
+        const fileStats = fs.statSync(dd);
   
         // Paso 1: Iniciar una sesión de subida
-        const uploadResponse = await axios.post(
-          `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
-          null, // Sin datos en el cuerpo
-          {
-            params: {
-              file_name: fileName,
-              file_length: fileStats.size,
-              file_type: 'image/jpeg',
-              access_token: process.env.WHATSAPP_API_TOKEN,
-            },
-          }
-        );
+        let uploadResponse = null;
+        switch (fileExtension) {
+          case '.png':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'image/png',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          case '.jpeg':
+          case '.jpg':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'image/jpeg',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`);
+        }
   
         headerHandle = uploadResponse.data.id;
   
         // Paso 2: Comenzar la subida del archivo
+        const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        if (imageBuffer.length === 0) {
+          throw new Error('El archivo descargado está vacío.');
+        }
+
+        // Crear FormData y añadir el archivo
         const formData = new FormData();
-        formData.append('file', fs.createReadStream(filePath));
+        formData.append('file', imageBuffer, { filename: fileName, contentType: 'image/jpeg' });
   
+         
         const uploadFileResponse = await axios.post(
           `https://graph.facebook.com/v20.0/${headerHandle}`,
-          formData,
+          imageBuffer,
           {
             headers: {
               'Authorization': `OAuth ${process.env.WHATSAPP_API_TOKEN}`,
@@ -934,32 +966,53 @@ app.put('/edit-template', async (req, res) => {
       if (headerType === 'IMAGE' && headerExample) {
   
         const fileName = path.basename(headerExample);
-        console.log("nombre del archivo:", fileName)
+        const fileExtension = path?.extname(fileName)?.toLowerCase();
+    
         const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
         const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
-        // Verificar que el archivo existe
-        if (!fs.existsSync(filePath)) {
-          throw new Error(`El archivo no se encontró: ${filePath}`);
-        }
   
-        const fileStats = fs.statSync(filePath);
-  
+        const fileStats = fs.statSync(dd);
+     
         // Paso 1: Iniciar una sesión de subida
-        const uploadResponse = await axios.post(
-          `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
-          null, // Sin datos en el cuerpo
-          {
-            params: {
-              file_name: fileName,
-              file_length: fileStats.size,
-              file_type: 'image/jpeg',
-              access_token: whatsapp_api_token,
-            },
-          }
-        );
+        let uploadResponse = null;
+        switch (fileExtension) {
+          case '.png':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'image/png',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          case '.jpeg':
+          case '.jpg':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'image/jpeg',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`);
+        }
+        
         headerHandle = uploadResponse.data.id;
   
-        console.log("url de imagen:", filePath)
         // Paso 2: Comenzar la subida del archivo
         const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
         const imageBuffer = Buffer.from(imageResponse.data, 'binary');
@@ -974,7 +1027,7 @@ app.put('/edit-template', async (req, res) => {
   
         const uploadFileResponse = await axios.post(
           `https://graph.facebook.com/v20.0/${headerHandle}`,
-          formData,
+          imageBuffer,
           {
             headers: {
               'Authorization': `OAuth ${whatsapp_api_token}`,
@@ -1012,7 +1065,6 @@ app.put('/edit-template', async (req, res) => {
         const {language, name, category, ...rest} = templateData;
 
         console.log("Plantilla con datos a enviar:",JSON.stringify(rest, null, 2))
-        console.log("ID de la plantilla:",id_plantilla)
         const response = await axios.post(
           `https://graph.facebook.com/v20.0/${id_plantilla}`,
           rest,

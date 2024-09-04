@@ -855,7 +855,6 @@ app.put('/edit-template', async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id, id_plantilla } = req.body;
   const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
   const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
-  const whatsappApiToken = whatsapp_api_token;
   const whatsappBusinessAccountId = whatsapp_business_account_id;
 
   const validName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
@@ -935,8 +934,9 @@ app.put('/edit-template', async (req, res) => {
       if (headerType === 'IMAGE' && headerExample) {
   
         const fileName = path.basename(headerExample);
-        const filePath = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-  
+        console.log("nombre del archivo:", fileName)
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
         // Verificar que el archivo existe
         if (!fs.existsSync(filePath)) {
           throw new Error(`El archivo no se encontró: ${filePath}`);
@@ -953,23 +953,31 @@ app.put('/edit-template', async (req, res) => {
               file_name: fileName,
               file_length: fileStats.size,
               file_type: 'image/jpeg',
-              access_token: process.env.WHATSAPP_API_TOKEN,
+              access_token: whatsapp_api_token,
             },
           }
         );
-  
         headerHandle = uploadResponse.data.id;
   
+        console.log("url de imagen:", filePath)
         // Paso 2: Comenzar la subida del archivo
+        const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        if (imageBuffer.length === 0) {
+          throw new Error('El archivo descargado está vacío.');
+        }
+        // Crear FormData y añadir el archivo
         const formData = new FormData();
-        formData.append('file', fs.createReadStream(filePath));
+        formData.append('file', imageBuffer, { filename: fileName, contentType: 'image/jpeg' });
+  
   
         const uploadFileResponse = await axios.post(
           `https://graph.facebook.com/v20.0/${headerHandle}`,
           formData,
           {
             headers: {
-              'Authorization': `OAuth ${process.env.WHATSAPP_API_TOKEN}`,
+              'Authorization': `OAuth ${whatsapp_api_token}`,
               'file_offset': 0,
               ...formData.getHeaders(),
             },
@@ -1010,7 +1018,7 @@ app.put('/edit-template', async (req, res) => {
           rest,
           {
             headers: {
-              Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+              Authorization: `Bearer ${whatsapp_api_token}`,
               'Content-Type': 'application/json',
             },
           }

@@ -704,6 +704,7 @@ router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
 
   ffmpeg(tempFilePath)
     .audioChannels(1) // Convertir a mono
+    .audioCodec('libopus')
     .toFormat('ogg')
     .on('end', () => {
       // El archivo procesado está listo, eliminar el archivo temporal WAV

@@ -90,7 +90,6 @@ export async function sendTextMessage(io, req, res) {
   }
 }
 
-
 export async function sendImageMessage(io, req, res) {
   const { phone, imageUrl, conversationId } = req.body;
   const fullImageUrl = `${backendUrl}${imageUrl}`; // Agregar el prefijo a la URL de la imagen
@@ -383,7 +382,7 @@ export async function sendAudioMessage(io, req, res) {
     const response = await axios.post(url, payload, {
       headers: {
         'Authorization': `Bearer ${whatsapp_api_token}`,
-        'Content-Type': 'application/json'
+        'Content-Type': 'audio/ogg; codecs=opus'
       }
     });
     console.log(response.data);
@@ -579,11 +578,6 @@ const replacePlaceholders = (text, parameters) => {
   if (!text) return ''; // Manejar caso donde text sea null o undefined
   return text.replace(/\{\{(\d+)\}\}/g, (_, index) => parameters[index - 1] || '');
 };
-
-
-
-
-
 
 export async function sendTemplateMessage(io, req, res) {
   const { campaignId } = req.params;
@@ -781,7 +775,6 @@ export async function sendTemplateMessage(io, req, res) {
     res.status(500).send({ error: error.message });
   }
 }
-
 
 const sendWhatsAppMessage = async (phone, templateName, language, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {

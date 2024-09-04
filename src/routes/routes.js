@@ -102,35 +102,40 @@ router.get('/conversations/:conversationId', async (req, res) => {
       dp.color as phase_color,
       last_message_info.last_message,
       last_message_info.last_message_time,
-      last_message_info.message_type
+      last_message_info.message_type,
+      last_message_info.duration
     FROM 
       conversations c
     LEFT JOIN users u ON c.id_usuario = u.id_usuario
     LEFT JOIN contacts ct ON c.contact_id = ct.id
     LEFT JOIN department_phases dp ON ct.label = dp.id
     LEFT JOIN LATERAL (
+    SELECT
+      sub.last_message,
+      sub.last_message_time,
+      sub.message_type,
+      sub.duration
+    FROM (
       SELECT
-        sub.last_message,
-        sub.last_message_time,
-        sub.message_type
-      FROM (
-        SELECT
-          message_text AS last_message,
-          received_at AS last_message_time,
-          message_type
-        FROM messages
-        WHERE conversation_fk = c.conversation_id
-        UNION
-        SELECT
-          reply_text AS last_message,
-          created_at AS last_message_time,
-          reply_type AS message_type
-        FROM replies
-        WHERE conversation_fk = c.conversation_id
-      ) sub
-      ORDER BY sub.last_message_time DESC
-      LIMIT 1
-    ) last_message_info ON true
+        message_text AS last_message,
+        received_at AS last_message_time,
+        message_type,
+        duration
+      FROM messages
+      WHERE conversation_fk = c.conversation_id
+      UNION
+      SELECT
+        reply_text AS last_message,
+        created_at AS last_message_time,
+        reply_type AS message_type,
+        duration
+      FROM replies
+      WHERE conversation_fk = c.conversation_id
+    ) sub
+    ORDER BY sub.last_message_time DESC
+    LIMIT 1
+     ) last_message_info ON true
+
     WHERE c.conversation_id = $1;
     `;
     const { rows } = await pool.query(query, [conversationId]);
@@ -211,7 +216,8 @@ router.get('/conversations', async (req, res) => {
         u.apellido as responsable_apellido,
         last_message_info.last_message,
         last_message_info.last_message_time,
-        last_message_info.message_type
+        last_message_info.message_type,
+        last_message_info.duration
       FROM 
         conversations c
       LEFT JOIN users u ON c.id_usuario = u.id_usuario
@@ -220,19 +226,22 @@ router.get('/conversations', async (req, res) => {
         SELECT
           sub.last_message,
           sub.last_message_time,
-          sub.message_type
+          sub.message_type,
+          sub.duration
         FROM (
           SELECT
             message_text AS last_message,
             received_at AS last_message_time,
-            message_type
+            message_type,
+            duration  -- Asegúrate de que duration esté presente aquí
           FROM messages
           WHERE conversation_fk = c.conversation_id
           UNION
           SELECT
             reply_text AS last_message,
             created_at AS last_message_time,
-            reply_type AS message_type
+            reply_type AS message_type,
+            duration  -- Y también aquí
           FROM replies
           WHERE conversation_fk = c.conversation_id
         ) sub

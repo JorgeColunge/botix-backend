@@ -1022,7 +1022,7 @@ app.put('/edit-template', async (req, res) => {
         }
         // Crear FormData y añadir el archivo
         const formData = new FormData();
-        formData.append('file', imageBuffer, { filename: fileName, contentType: 'image/jpeg' });
+        formData.append('file', imageBuffer, { filename: fileName, contentType: `image/${fileExtension.slice(1)}` });
   
   
         const uploadFileResponse = await axios.post(
@@ -1051,6 +1051,215 @@ app.put('/edit-template', async (req, res) => {
         
           // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
           if (component.type === 'HEADER' && component.format === 'IMAGE') {
+            return {
+              ...component,
+              example: {
+                ...component.example, 
+                header_handle: [imageUrl],
+              },
+            };
+          }
+          return component;
+        });
+        
+        const {language, name, category, ...rest} = templateData;
+
+        console.log("Plantilla con datos a enviar:",JSON.stringify(rest, null, 2))
+        const response = await axios.post(
+          `https://graph.facebook.com/v20.0/${id_plantilla}`,
+          rest,
+          {
+            headers: {
+              Authorization: `Bearer ${whatsapp_api_token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        console.log("Plantilla multimedia actualizada en Meta", response.data);
+      }else if(headerType === 'VIDEO' && headerExample){
+
+        const fileName = path.basename(headerExample);
+        const fileExtension = path?.extname(fileName)?.toLowerCase();
+    
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
+  
+        const fileStats = fs.statSync(dd);
+     
+        // Paso 1: Iniciar una sesión de subida
+        let uploadResponse = null;
+        switch (fileExtension) {
+          case '.mp4':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'video/mp4',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          case '.3gpp':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'video/3gpp',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`);
+        }
+        
+        headerHandle = uploadResponse.data.id;
+  
+        // Paso 2: Comenzar la subida del archivo
+        const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        if (imageBuffer.length === 0) {
+          throw new Error('El archivo descargado está vacío.');
+        }
+        // Crear FormData y añadir el archivo
+        const formData = new FormData();
+        formData.append('file', imageBuffer, { filename: fileName, contentType: `image/${fileExtension.slice(1)}` });
+  
+  
+        const uploadFileResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${headerHandle}`,
+          imageBuffer,
+          {
+            headers: {
+              'Authorization': `OAuth ${whatsapp_api_token}`,
+              'file_offset': 0,
+              ...formData.getHeaders(),
+            },
+          }
+        );
+  
+        imageUrl = uploadFileResponse.data.h;
+  
+        // Paso 3: Actualizar la plantilla en Meta
+        templateData.components = templateData.components.map((component) => {
+          // Desestructura y elimina 'source' y 'variable' del objeto 'example', si existen
+          if (component.type === 'BODY') {
+           const {source, variable, ...rest} = component;
+           return{
+              ...rest
+           }
+          }
+        
+          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+          if (component.type === 'HEADER' && component.format === 'VIDEO') {
+            return {
+              ...component,
+              example: {
+                ...component.example, 
+                header_handle: [imageUrl],
+              },
+            };
+          }
+          return component;
+        });
+        
+        const {language, name, category, ...rest} = templateData;
+
+        console.log("Plantilla con datos a enviar:",JSON.stringify(rest, null, 2))
+        const response = await axios.post(
+          `https://graph.facebook.com/v20.0/${id_plantilla}`,
+          rest,
+          {
+            headers: {
+              Authorization: `Bearer ${whatsapp_api_token}`,
+              'Content-Type': 'application/json',
+            },
+          }
+        );
+        console.log("Plantilla multimedia actualizada en Meta", response.data);
+      }else if(headerType === 'DOCUMENT' && headerExample){
+
+        const fileName = path.basename(headerExample);
+        const fileExtension = path?.extname(fileName)?.toLowerCase();
+    
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
+  
+        const fileStats = fs.statSync(dd);
+     
+        // Paso 1: Iniciar una sesión de subida
+        let uploadResponse = null;
+        switch (fileExtension) {
+          case '.pdf':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'application/pdf',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`);
+        }
+        
+        headerHandle = uploadResponse.data.id;
+  
+        // Paso 2: Comenzar la subida del archivo
+        const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        if (imageBuffer.length === 0) {
+          throw new Error('El archivo descargado está vacío.');
+        }
+        // Crear FormData y añadir el archivo
+        const formData = new FormData();
+        formData.append('file', imageBuffer, { filename: fileName, contentType: `application/pdf` });
+  
+  
+        const uploadFileResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${headerHandle}`,
+          imageBuffer,
+          {
+            headers: {
+              'Authorization': `OAuth ${whatsapp_api_token}`,
+              'file_offset': 0,
+              ...formData.getHeaders(),
+            },
+          }
+        );
+  
+        imageUrl = uploadFileResponse.data.h;
+  
+        // Paso 3: Actualizar la plantilla en Meta
+        templateData.components = templateData.components.map((component) => {
+          // Desestructura y elimina 'source' y 'variable' del objeto 'example', si existen
+          if (component.type === 'BODY') {
+           const {source, variable, ...rest} = component;
+           return{
+              ...rest
+           }
+          }
+        
+          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+          if (component.type === 'HEADER' && component.format === 'VIDEO') {
             return {
               ...component,
               example: {

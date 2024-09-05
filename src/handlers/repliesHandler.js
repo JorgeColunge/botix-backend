@@ -360,6 +360,7 @@ export async function sendDocumentMessage(io, req, res) {
 export async function sendAudioMessage(io, req, res) {
   const { phone, audioUrl, audioDuration, conversationId } = req.body;
   const fullAudioUrl = `${backendUrl}${audioUrl}`;
+  const fileName = audioUrl.split('/media/audios/')[1]; 
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
@@ -377,7 +378,7 @@ export async function sendAudioMessage(io, req, res) {
      // Paso 2: Crear un FormData para subir el archivo
        const formData = new FormData();
        formData.append('file', audioStream, {
-        filename: 'audio.ogg',
+        filename: `${fileName}`,
         contentType: 'audio/ogg; codecs=opus' // Incluye el tipo de contenido con el codec
       });
        formData.append('messaging_product', 'whatsapp');

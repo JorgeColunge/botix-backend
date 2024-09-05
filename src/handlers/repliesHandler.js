@@ -2,6 +2,8 @@ import axios from 'axios';
 import pool from '../config/dbConfig.js';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { PassThrough } from 'stream';
+import FormData from 'form-data';
 
 const backendUrl = process.env.BACKEND_URL;
 
@@ -364,44 +366,59 @@ export async function sendAudioMessage(io, req, res) {
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
   try {
-    // Paso 1: Descargar el archivo de audio desde la URL
-    const audioResponse = await axios.get(fullAudioUrl, { responseType: 'arraybuffer' });
-    const audioBuffer = Buffer.from(audioResponse.data, 'binary');
+     // Paso 1: Descargar el archivo de audio desde la URL
+     const audioResponse = await axios.get(fullAudioUrl, { responseType: 'arraybuffer' });
+     const audioBuffer = Buffer.from(audioResponse.data, 'binary');
+ 
+     // Convertir el buffer a un stream
+     const audioStream = new PassThrough();
+     audioStream.end(audioBuffer); // Pasa el buffer directamente al stream
+ 
+     // Paso 2: Crear un FormData para subir el archivo
+       const formData = new FormData();
+       formData.append('file', audioStream, {
+        filename: 'audio.ogg',
+        contentType: 'audio/ogg; codecs=opus' // Incluye el tipo de contenido con el codec
+      });
+       formData.append('messaging_product', 'whatsapp');
+       formData.append('type', 'audio/ogg')
+ 
+     // Subir archivo multimedia
+     const mediaUploadResponse = await axios(
+      {url: `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/media`,
+        method: 'post',
+       data: formData,
+         headers: {
+           'Authorization': `Bearer ${whatsapp_api_token}`,
+           ...formData.getHeaders(),  // Obtener los headers necesarios para multipart/form-data
+         },
+       }
+     );
 
-    // Paso 2: Subir el archivo multimedia a los servidores de WhatsApp
-    console.log("probanto autorizacion")
-    const mediaUploadResponse = await axios.post(
-      `${process.env.BACKEND_URL}/v1/media`,
-      audioBuffer,
-      {
-        headers: {
-          'Authorization': `Bearer ${whatsapp_api_token}`,
-          'Content-Type': 'audio/ogg; codecs=opus',
-        },
-      }
-    );
-
-    // Obtener el media_id de la respuesta
-    const mediaId = mediaUploadResponse.data.media_id;
-console.log("respuesta de solicitud", mediaId)
-    // Paso 3: Enviar el mensaje usando el media_id
-    const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
-    const payload = {
+     const mediaId = mediaUploadResponse.data.id;
+     console.log("ID del medio:", mediaId);
+ 
+    const messagePayload = {
       messaging_product: 'whatsapp',
       to: phone,
       type: 'audio',
       audio: {
-        id: mediaId, // Usar el media_id en lugar del link
+        id: mediaId, // Usa el media_id en lugar del link
       },
     };
 
-    const response = await axios.post(url, payload, {
-      headers: {
-        'Authorization': `Bearer ${whatsapp_api_token}`,
-        'Content-Type': 'application/json',
-      },
-    });
-    console.log('Mensaje enviado correctamente:', response.data);
+    const sendMessageResponse = await axios.post(
+      `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/messages`,
+      messagePayload,
+      {
+        headers: {
+          'Authorization': `Bearer ${whatsapp_api_token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('Mensaje enviado correctamente:', sendMessageResponse.data);
 
     // Intenta insertar en la base de datos
     const insertQuery = `
@@ -418,8 +435,8 @@ console.log("respuesta de solicitud", mediaId)
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
     `;
     const messageValues = [
-      response.data.messages[0].id,
-      phone,           
+      sendMessageResponse.data.messages[0].id,
+      phone,
       conversationId,
       'audio',
       null,
@@ -431,6 +448,8 @@ console.log("respuesta de solicitud", mediaId)
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
     const newMessage = result.rows[0];
+    const unreadMessages = result.rows[0].unread_messages;
+    const responsibleUserId = result.rows[0].id_usuario;
 
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     io.emit('newMessage', {
@@ -451,13 +470,12 @@ console.log("respuesta de solicitud", mediaId)
     });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
-    res.status(200).json({ message: 'Audio message sent successfully', data: response.data });
+    res.status(200).json({ message: 'Audio message sent successfully', data: sendMessageResponse.data });
   } catch (error) {
     console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
     res.status(500).json({ error: error.message });
   }
 }
-
 export async function sendLocationMessage(io, req, res) {
   const { phone, latitude, longitude, streetName, conversationId } = req.body;
 

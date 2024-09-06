@@ -826,23 +826,35 @@ const sendWhatsAppMessage = async (phone, templateName, language, parameters, to
           code: language,
           policy: "deterministic"
         },
-        components: [
-          {
-            type: "header",
-            parameters: parameters.filter((_, index) => index === 0).map(value => ({ type: "text", text: value }))
-          },
-          {
-            type: "body",
-            parameters: parameters.filter((_, index) => index !== 0).map(value => ({ type: "text", text: value }))
-          }
-        ]
+        components: []
       }
     };
+
+    // Si hay un valor válido para el header, agrégalo.
+    if (parameters[0] && parameters[0].trim() !== "") {
+      payload.template.components.push({
+        type: "header",
+        parameters: [
+          {
+            type: "text",
+            text: parameters[0]  // Solo el primer parámetro para el header
+          }
+        ]
+      });
+    }
+
+    // Si hay parámetros para el body, agrégalos.
+    if (parameters.length > 1) {
+      payload.template.components.push({
+        type: "body",
+        parameters: parameters.slice(1).map(value => ({ type: "text", text: value }))
+      });
+    }
 
     console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
 
     const response = await axios.post(
-      `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
       payload,
       {
         headers: {
@@ -853,7 +865,7 @@ const sendWhatsAppMessage = async (phone, templateName, language, parameters, to
     );
     return response.data;
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error);
+    console.error('Error sending WhatsApp message:', error.response?.data || error.message);
     throw error;
   }
 };
@@ -1108,7 +1120,6 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
 
 
 export async function sendTemplateToSingleContact(io, req, res) {
-  console.log('Request Body:', req.body);
   const { conversation, template, parameters, company_id } = req.body;
 
 if (!company_id) {
@@ -1163,7 +1174,7 @@ const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_
 
     return res.status(200).json({ message: 'Plantilla enviada exitosamente' });
   } catch (error) {
-    console.error('Error sending template:', error);
+    console.error('Error sending template:', error.data);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 };

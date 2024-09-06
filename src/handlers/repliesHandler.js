@@ -830,24 +830,40 @@ const sendWhatsAppMessage = async (phone, templateName, language, parameters, to
       }
     };
 
-    // Si hay un valor válido para el header, agrégalo.
+    // Verifica si hay un parámetro válido para el header (primer parámetro) antes de agregarlo
     if (parameters[0] && parameters[0].trim() !== "") {
       payload.template.components.push({
         type: "header",
         parameters: [
           {
             type: "text",
-            text: parameters[0]  // Solo el primer parámetro para el header
+            text: parameters[0]
           }
         ]
       });
     }
 
-    // Si hay parámetros para el body, agrégalos.
-    if (parameters.length > 1) {
+    // Verifica si hay parámetros válidos para el body
+    const bodyParameters = parameters.slice(1).filter(param => param && param.trim() !== "");
+    if (bodyParameters.length > 0) {
       payload.template.components.push({
         type: "body",
-        parameters: parameters.slice(1).map(value => ({ type: "text", text: value }))
+        parameters: bodyParameters.map(value => ({
+          type: "text",
+          text: value
+        }))
+      });
+    }
+
+    // Si tienes botones en el template, agrégalos de manera correcta
+    if (parameters.buttons && parameters.buttons.length > 0) {
+      payload.template.components.push({
+        type: "button",
+        sub_type: "quick_reply",  // Puede ser 'quick_reply' o 'url' dependiendo de tu botón
+        parameters: parameters.buttons.map(button => ({
+          type: "text",
+          text: button.text
+        }))
       });
     }
 

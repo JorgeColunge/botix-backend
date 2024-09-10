@@ -615,7 +615,8 @@ const replacePlaceholders = (text, parameters) => {
   if (!text) return ''; // Manejar caso donde text sea null o undefined
   return text.replace(/\{\{(\d+)\}\}/g, (_, index) => parameters[index - 1] || '');
 };
-const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) => {
+
+const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUserId, res, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id, whatsappIntegrationID) => {
 
   let response;
  // Obtener la plantilla utilizada en la campaña
@@ -626,7 +627,6 @@ const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) 
  const contactQuery = 'SELECT * FROM contacts WHERE id = $1';
  const contactsResult = await pool.query(contactQuery, [contactID])
  const contact = contactsResult.rows[0]
-
  if (!template) {
    return res.status(404).send({ error: 'Template not found' });
  }
@@ -667,11 +667,11 @@ const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) 
        `;
        const insertConversationValues = [
          contact.phone_number,
-         campaign.state_conversation || null,
+        'new',
          0,
          responsibleUserId,
-         contact.id,
-         whatsappIntegration.id
+         contact?.id,
+         whatsappIntegrationID
        ];
        const insertConversationResult = await pool.query(insertConversationQuery, insertConversationValues);
        conversation = insertConversationResult.rows[0];
@@ -686,7 +686,7 @@ const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) 
          WHERE contact_id = $3 RETURNING *;
        `;
        const updateConversationValues = [
-         campaign.state_conversation || null,
+         null,
          responsibleUserId,
          contact.id
        ];
@@ -697,7 +697,7 @@ const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) 
      // Reemplazar variables en la plantilla
      const parameters = [];
      for (const variable of variables) {
-       const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+       const value = await getVariableValue(variable, contact, responsibleUser, null);
        parameters.push(value);
      }
  
@@ -718,7 +718,7 @@ const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) 
        // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
        const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
        const unreadMessages = unreadRes.rows[0].unread_messages;
- 
+   
        // Almacenar el mensaje con placeholders reemplazados
        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
      } else if (template.header_type === 'IMAGE') {
@@ -766,11 +766,11 @@ const sendNewMenssageTemplate = async(templateID, contactID, responsibleUserId) 
        await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
      }
    } catch (error) {
-     console.error(`Error processing contact ${contact.id}:`, error);
+     console.error(`Error processing contact ${contact.id}:`, error || error.data);
    }
  
 
- res.status(200).send({ message: 'Campaign launched successfully', response: response.data });
+ res.status(200).send({ message: 'Campaign launched successfully', response: response });
 
 }
 
@@ -1351,14 +1351,18 @@ if (conversation.conversation_id) {
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 }else{
-  try {
-
-    response = await sendNewMenssageTemplate(io, template.id, conversation.id, conversation.id, conversation.id_usuario)
-    return res.status(200).json({ message: 'Plantilla enviada exitosamente', res: response.data });
-    
+  let response;
+   console.log("ingresando para enviar platilla")
+   try {
+    if (!res.headersSent) {
+      response = await sendNewMenssageTemplate(io, template.id, conversation.id, conversation.id_usuario, res, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id, whatsappIntegration.id);
+      return res.status(200).json({ message: 'Plantilla enviada exitosamente', res: response });
+    }
   } catch (error) {
-    console.error('Error sending template:', error.data);
-    return res.status(500).json({ error: 'Error interno del servidor' });
+    if (!res.headersSent) {
+      console.error('Error sending template:', error.data || error);
+      return res.status(500).json({ error: 'Error interno del servidor' });
+    }
   }
 }
 };

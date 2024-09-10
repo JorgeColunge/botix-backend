@@ -1861,5 +1861,37 @@ router.post('/end-conversation', async (req, res) => {
   }
 });
 
+router.post('/api/consumptions', async (req, res) => {
+  const { company_id, user_id, api_name, query_details, query_cost, sales_value } = req.body;
+
+  // Validar que los campos obligatorios estén presentes
+  if (!company_id || !api_name || !query_cost || !sales_value) {
+    return res.status(400).send('Company ID, API Name, Query Cost, and Sales Value are required');
+  }
+
+  try {
+    const insertQuery = `
+      INSERT INTO api_consumptions (company_id, user_id, api_name, query_details, query_cost, sales_value)
+      VALUES ($1, $2, $3, $4, $5, $6)
+      RETURNING *;
+    `;
+    const insertResult = await pool.query(insertQuery, [
+      company_id,
+      user_id || null,
+      api_name,
+      query_details || null,
+      query_cost,
+      sales_value
+    ]);
+
+    // Enviar la respuesta con el registro insertado
+    res.status(201).json({ message: 'API consumption recorded successfully', consumption: insertResult.rows[0] });
+  } catch (error) {
+    console.error('Error recording API consumption:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
 return router;
 }

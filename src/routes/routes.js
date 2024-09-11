@@ -1377,6 +1377,49 @@ router.get('/templates', async (req, res) => {
   }
 });
 
+router.get('/template/:id', async (req, res) => {
+  const templateId = req.params.id; // Obteniendo el ID del template desde los parámetros de la URL
+  if (!templateId) {
+    console.error('template_id is required');
+    return res.status(400).send({ error: 'template_id is required' });
+  }
+
+  try {
+    console.log('Fetching template for template ID:', templateId);
+    
+    // Consulta para obtener un solo template por su ID
+    const query = 'SELECT * FROM templates_wa WHERE id = $1';
+    const values = [templateId];
+    const result = await pool.query(query, values);
+
+    if (result.rows.length === 0) {
+      return res.status(404).send({ error: 'Template not found' });
+    }
+
+    const template = result.rows[0];
+
+    // Fetch variables for the template
+    const headerVariablesQuery = 'SELECT * FROM variable_headers WHERE template_wa_id = $1';
+    const bodyVariablesQuery = 'SELECT * FROM variable_body WHERE template_wa_id = $1';
+    const buttonVariablesQuery = 'SELECT * FROM variable_button WHERE template_wa_id = $1';
+
+    const headerVariablesResult = await pool.query(headerVariablesQuery, [template.id]);
+    const bodyVariablesResult = await pool.query(bodyVariablesQuery, [template.id]);
+    const buttonVariablesResult = await pool.query(buttonVariablesQuery, [template.id]);
+
+    // Agregando las variables al template
+    template.headerVariables = headerVariablesResult.rows;
+    template.bodyVariables = bodyVariablesResult.rows;
+    template.buttonVariables = buttonVariablesResult.rows;
+
+    // Enviar el template con sus variables
+    res.status(200).send(template);
+  } catch (error) {
+    console.error('Error fetching template:', error.message);
+    res.status(500).send({ error: error.message });
+  }
+});
+
 router.get('/campaigns', async (req, res) => {
   const companyId = req.query.company_id; // Usar query param en lugar de params
   if (!companyId) {

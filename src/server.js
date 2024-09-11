@@ -784,7 +784,7 @@ app.post('/create-template', async (req, res) => {
       'PENDING',
       company_id
     ];
-    await pool.query(query, values);
+    const plantilla = await pool.query(query, values);
 
     if (Array.isArray(componentsWithSourceAndVariable)) {
       // Almacenar variables del cuerpo
@@ -1324,13 +1324,18 @@ app.put('/edit-template', async (req, res) => {
         return res.status(500).send({ error: 'Error al procesar la plantilla' });
       }
     }
-  }
-  
-   else {
+  } else {
     try {
 
       const {language, name, category, ...rest} = templateData;
-      console.log('Datos a enviar a la API de Facebook:', JSON.stringify(rest, null, 2));
+
+      rest.components = rest.components.map((component) => {
+        // Verifica si el componente tiene una clave no válida y elimínala
+        const { source, variable, ...cleanedComponent } = component;
+        return cleanedComponent;
+      });
+
+      console.log('Datos a enviar a la API de Facebookdddd:', JSON.stringify(rest, null, 2));
   
       // Realizar la llamada a la API de Facebook
       const response = await axios.post(

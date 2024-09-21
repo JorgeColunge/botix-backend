@@ -1904,34 +1904,57 @@ router.post('/end-conversation', async (req, res) => {
   }
 });
 
-router.post('/api/consumptions', async (req, res) => {
-  const { company_id, user_id, api_name, query_details, query_cost, sales_value } = req.body;
+router.post('/consumptions', async (req, res) => {
+  console.log("Calculando costos");
+  const { api_name, model, unit_type, unit_count, query_details, company_id, user_id, conversationId } = req.body;
 
-  // Validar que los campos obligatorios estén presentes
-  if (!company_id || !api_name || !query_cost || !sales_value) {
-    return res.status(400).send('Company ID, API Name, Query Cost, and Sales Value are required');
+  if (!api_name || !model || !unit_type || !unit_count || !query_details) {
+    return res.status(400).send('Campos obligatorios faltantes');
   }
 
   try {
-    const insertQuery = `
-      INSERT INTO api_consumptions (company_id, user_id, api_name, query_details, query_cost, sales_value)
-      VALUES ($1, $2, $3, $4, $5, $6)
-      RETURNING *;
+    // Obtener el precio unitario de la tabla api_pricing_models
+    const pricingQuery = `
+      SELECT cost_per_unit 
+      FROM api_pricing_models 
+      WHERE api_name = $1 AND model = $2 AND unit_type = $3
     `;
+    const pricingResult = await pool.query(pricingQuery, [api_name, model, unit_type]);
+
+    if (pricingResult.rows.length === 0) {
+      return res.status(404).send('No se encontró el precio unitario para esta API, modelo y tipo de unidad');
+    }
+
+    const cost_per_unit = pricingResult.rows[0].cost_per_unit;
+
+    // Calcular el costo total basado en los tokens usados (unit_count)
+    const query_cost = cost_per_unit * unit_count;
+    const sales_value = query_cost * 1.2;
+
+    // Insertar el consumo en la tabla api_consumptions
+    const insertQuery = `
+      INSERT INTO api_consumptions (company_id, user_id, api_name, query_details, query_cost, sales_value, model, unit_count, conversation, query_date)
+      VALUES ($1, $2, $3, $4, $5, $7, $6, $8, $9, NOW()) RETURNING *;
+    `;
+    
     const insertResult = await pool.query(insertQuery, [
-      company_id,
-      user_id || null,
-      api_name,
-      query_details || null,
-      query_cost,
-      sales_value
+      company_id, 
+      user_id || null, 
+      api_name, 
+      query_details, 
+      query_cost, 
+      model,
+      sales_value,
+      unit_count,
+      conversationId
     ]);
 
     // Enviar la respuesta con el registro insertado
-    res.status(201).json({ message: 'API consumption recorded successfully', consumption: insertResult.rows[0] });
+    res.status(201).json({ message: 'Consumo de API registrado exitosamente', consumption: insertResult.rows[0] });
+
   } catch (error) {
-    console.error('Error recording API consumption:', error);
-    res.status(500).send('Internal Server Error');
+    console.error('Error al registrar el consumo de API:', error);
+    res.status(500).send('Error interno del servidor');
   }
 });
 

@@ -746,13 +746,21 @@ app.post('/create-template', async (req, res) => {
     }
   } else {
     try {
-      // Mostrar los datos que se enviarían a la API de Facebook
-      console.log('Datos a enviar a la API de Facebook:', JSON.stringify(templateData, null, 2));
+
+      const {...rest} = templateData;
+
+      rest.components = rest.components.map((component) => {
+        // Verifica si el componente tiene una clave no válida y elimínala
+        const { source, variable, ...cleanedComponent } = component;
+        return cleanedComponent;
+      });
+
+      console.log('Datos a enviar a la API de Facebook:', JSON.stringify(rest, null, 2));
 
       // Realizar la llamada a la API de Facebook
     const response = await axios.post(
       `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
-      templateData,
+      rest,
       {
         headers: {
           Authorization: `Bearer ${whatsappApiToken}`,

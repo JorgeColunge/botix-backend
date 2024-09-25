@@ -428,6 +428,31 @@ router.get('/users', async (req, res) => {
   }
 });
 
+router.get('/colaboradores', async (req, res) => {
+  const { company_id } = req.query;
+  try {
+    const query = 'SELECT * FROM colaboradores WHERE company_id = $1';
+    const result = await pool.query(query, [company_id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching colaboradores:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.get('/instalaciones', async (req, res) => {
+  const { company_id } = req.query;
+  try {
+    const query = 'SELECT * FROM instalaciones WHERE company_id = $1';
+    const result = await pool.query(query, [company_id]);
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching instalaciones:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
 router.get('/roles/:companyId', async (req, res) => {
   const { companyId } = req.params;
   try {
@@ -1931,12 +1956,12 @@ router.post('/consumptions', async (req, res) => {
     const query_cost = cost_per_unit * unit_count;
     const sales_value = query_cost * 1.2;
 
-    // Insertar el consumo en la tabla api_consumptions
+    // Insertar el consumo en la tabla api_consumptions con query_date y query_time separados
     const insertQuery = `
-      INSERT INTO api_consumptions (company_id, user_id, api_name, query_details, query_cost, sales_value, model, unit_count, conversation, query_date)
-      VALUES ($1, $2, $3, $4, $5, $7, $6, $8, $9, NOW()) RETURNING *;
+      INSERT INTO api_consumptions (company_id, user_id, api_name, query_details, query_cost, sales_value, model, unit_count, conversation, query_date, query_time)
+      VALUES ($1, $2, $3, $4, $5, $7, $6, $8, $9, CURRENT_DATE, CURRENT_TIME) RETURNING *;
     `;
-    
+
     const insertResult = await pool.query(insertQuery, [
       company_id, 
       user_id || null, 
@@ -1955,6 +1980,185 @@ router.post('/consumptions', async (req, res) => {
   } catch (error) {
     console.error('Error al registrar el consumo de API:', error);
     res.status(500).send('Error interno del servidor');
+  }
+});
+
+
+router.put('/consumptionsCompany', async (req, res) => {
+  const { company_id, month, year } = req.body;
+
+  if (!company_id || !month || !year) {
+      return res.status(400).json({ error: 'company_id, month y year son requeridos' });
+  }
+
+  try {
+      const startDate = new Date(year, month - 1, 1);  // Primer día del mes
+      const endDate = new Date(year, month, 0, 23, 59, 59, 999); // Último día del mes con hora máxima
+
+      const query = `
+          SELECT 
+              query_date AS query_day,
+              model,
+              SUM(sales_value) AS total_sales_value
+          FROM api_consumptions
+          WHERE company_id = $1
+            AND query_date BETWEEN $2 AND $3
+          GROUP BY query_day, model
+          ORDER BY query_day;
+      `;
+
+      const result = await pool.query(query, [company_id, startDate, endDate]);
+
+      if (result.rows.length === 0) {
+          // Responder con un objeto vacío que tenga la misma estructura que los datos válidos
+          return res.status(200).json({
+              message: 'No se encontraron consumos para este mes', 
+              data: [
+                {
+                  query_day: null,
+                  model: null,
+                  total_sales_value: 0
+                }
+              ]
+          });
+      }
+
+      res.status(200).json(result.rows);
+  } catch (error) {
+      console.error('Error al obtener los consumos:', error);
+      res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+
+// Ruta para obtener la tasa de cambio de una moneda
+router.get('/currency/:currencyCode', async (req, res) => {
+  const { currencyCode } = req.params;
+
+  try {
+    const query = `
+      SELECT exchange_rate 
+      FROM currencies 
+      WHERE currency_code = $1
+    `;
+    const result = await pool.query(query, [currencyCode.toUpperCase()]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).json({ error: 'Moneda no encontrada' });
+    }
+
+    res.status(200).json({ exchangeRate: result.rows[0].exchange_rate });
+  } catch (error) {
+    console.error('Error al obtener la tasa de cambio:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
+
+// Ruta para obtener eventos por tipo de asignación e ID de asignación
+router.get('/events', async (req, res) => {
+  const { tipo_asignacion, id_asignacion, company_id } = req.query;
+
+  console.log('Received parameters:', { tipo_asignacion, id_asignacion, company_id }); // Log de los parámetros recibidos
+
+  if (!tipo_asignacion || !id_asignacion || !company_id) {
+    console.error('Missing parameters:', { tipo_asignacion, id_asignacion, company_id }); // Log de parámetros faltantes
+    return res.status(400).send('Faltan parámetros necesarios.');
+  }
+
+  try {
+    const query = `
+      SELECT * FROM eventos 
+      WHERE tipo_asignacion = $1 AND id_asignacion = $2 AND company_id = $3
+    `;
+    console.log('Executing query:', query, [tipo_asignacion, id_asignacion, company_id]); // Log de la consulta y parámetros
+
+    const result = await pool.query(query, [tipo_asignacion, id_asignacion, company_id]);
+    console.log('Query result:', result.rows); // Log de los resultados obtenidos
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching events:', error); // Log del error
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Ruta para crear un nuevo evento
+router.post('/events', async (req, res) => {
+  const { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id } = req.body;
+
+  console.log('Received body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id }); // Log del cuerpo recibido
+
+  if (!titulo || !fecha_inicio || !fecha_fin || !tipo_asignacion || !id_asignacion || !company_id) {
+    console.error('Missing parameters in body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id }); // Log de parámetros faltantes
+    return res.status(400).send('Faltan parámetros necesarios.');
+  }
+
+  try {
+    const query = `
+      INSERT INTO eventos (titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
+    `;
+    console.log('Executing query:', query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]); // Log de la consulta y parámetros
+
+    const result = await pool.query(query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]);
+    console.log('Created event:', result.rows[0]); // Log del evento creado
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating event:', error); // Log del error
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Ruta para obtener horarios por tipo de asignación e ID de asignación
+router.get('/schedules', async (req, res) => {
+  const { tipo_asignacion, id_asignacion, company_id } = req.query;
+
+  console.log('Received parameters:', { tipo_asignacion, id_asignacion, company_id }); // Log de los parámetros recibidos
+
+  if (!tipo_asignacion || !id_asignacion || !company_id) {
+    console.error('Missing parameters:', { tipo_asignacion, id_asignacion, company_id }); // Log de parámetros faltantes
+    return res.status(400).send('Faltan parámetros necesarios.');
+  }
+
+  try {
+    const query = `
+      SELECT * FROM horarios 
+      WHERE tipo_asignacion = $1 AND id_asignacion = $2 AND company_id = $3
+    `;
+    console.log('Executing query:', query, [tipo_asignacion, id_asignacion, company_id]); // Log de la consulta y parámetros
+
+    const result = await pool.query(query, [tipo_asignacion, id_asignacion, company_id]);
+    console.log('Query result:', result.rows); // Log de los resultados obtenidos
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching schedules:', error); // Log del error
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Ruta para crear un nuevo horario
+router.post('/schedules', async (req, res) => {
+  const { dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id } = req.body;
+
+  console.log('Received body:', { dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id }); // Log del cuerpo recibido
+
+  if (!dia || !hora_inicio || !hora_fin || !tipo_asignacion || !id_asignacion || !company_id) {
+    console.error('Missing parameters in body:', { dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id }); // Log de parámetros faltantes
+    return res.status(400).send('Faltan parámetros necesarios.');
+  }
+
+  try {
+    const query = `
+      INSERT INTO horarios (dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id) 
+      VALUES ($1, $2, $3, $4, $5, $6) RETURNING *
+    `;
+    console.log('Executing query:', query, [dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id]); // Log de la consulta y parámetros
+
+    const result = await pool.query(query, [dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id]);
+    console.log('Created schedule:', result.rows[0]); // Log del horario creado
+    res.status(201).json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating schedule:', error); // Log del error
+    res.status(500).send('Internal Server Error');
   }
 });
 

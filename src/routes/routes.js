@@ -492,6 +492,22 @@ router.post('/api/users', async (req, res) => {
   }
 });
 
+router.post('/colaboradores', async (req, res) => {
+  const { nombre, apellido, telefono, email, link_foto, rol, department_id, company_id } = req.body;
+
+  try {
+    const result = await pool.query(
+      'INSERT INTO colaboradores (nombre, apellido, telefono, email, link_foto, rol, department_id, company_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *',
+      [nombre, apellido, telefono, email, link_foto, rol, department_id, company_id]
+    );
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error creating new collaborator:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+
 router.put('/users/:id', async (req, res) => {
   const { id } = req.params;
   const { nombre, apellido, telefono, email, link_foto, rol, department_id } = req.body;

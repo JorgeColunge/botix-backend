@@ -507,6 +507,53 @@ router.post('/colaboradores', async (req, res) => {
   }
 });
 
+router.delete('/colaboradores/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Comenzar una transacción
+    await pool.query('BEGIN');
+
+    // Eliminar el colaborador
+    const deleteColaboradorQuery = 'DELETE FROM colaboradores WHERE id_colaborador = $1';
+    await pool.query(deleteColaboradorQuery, [id]);
+
+    // Finalizar la transacción
+    await pool.query('COMMIT');
+
+    res.send('Collaborator deleted successfully');
+  } catch (error) {
+    // En caso de error, revertir la transacción
+    await pool.query('ROLLBACK');
+    console.error('Error deleting collaborator:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.put('/colaboradores/:id', async (req, res) => {
+  const { id } = req.params;
+  const { nombre, apellido, telefono, email, link_foto, rol, department_id, company_id } = req.body;
+
+  try {
+    const updateColaboradorQuery = `
+      UPDATE colaboradores 
+      SET nombre = $1, apellido = $2, telefono = $3, email = $4, link_foto = $5, rol = $6, department_id = $7, company_id = $8 
+      WHERE id_colaborador = $9
+      RETURNING *
+    `;
+    const result = await pool.query(updateColaboradorQuery, [nombre, apellido, telefono, email, link_foto, rol, department_id, company_id, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).send('Collaborator not found');
+    }
+
+    res.json(result.rows[0]);
+  } catch (error) {
+    console.error('Error updating collaborator:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
 
 router.put('/users/:id', async (req, res) => {
   const { id } = req.params;

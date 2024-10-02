@@ -60,6 +60,7 @@ router.get('/conversations/:conversationId', async (req, res) => {
       c.last_update,
       c.unread_messages,
       c.id_usuario,
+      c.integration_id,
       ct.id,
       ct.phone_number,
       ct.first_name,
@@ -177,6 +178,7 @@ router.get('/conversations', async (req, res) => {
         c.last_update,
         c.unread_messages,
         c.id_usuario,
+        c.integration_id,
         ct.id,
         ct.phone_number,
         ct.first_name,
@@ -981,8 +983,13 @@ router.get('/license/:companyId', async (req, res) => {
 router.get('/integrations/:licenseId', async (req, res) => {
   const { licenseId } = req.params;
   try {
-    const query = 'SELECT * FROM integrations WHERE license_id = $1';
-    const result = await pool.query(query, [licenseId]);
+    // Consulta para obtener integraciones con licenseId y aquellas de tipo "Interno"
+    const query = 'SELECT * FROM integrations WHERE license_id = $1 OR type = $2';
+    
+    // Ejecutar la consulta con licenseId y el tipo 'Interno'
+    const result = await pool.query(query, [licenseId, 'Interno']);
+    
+    // Devolver los resultados
     res.json(result.rows);
   } catch (error) {
     console.error('Error fetching integrations:', error);

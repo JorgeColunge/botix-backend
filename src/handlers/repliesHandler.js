@@ -7,37 +7,69 @@ import FormData from 'form-data';
 
 const backendUrl = process.env.BACKEND_URL;
 
-export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversationId } = req.body;
+//Funciones de tipos de mensaje:
+const InternalMessageSend = async (messageText, conversationId, usuario_send, id_usuario, integration_id) => {
 
-  // Obtén los detalles de la integración
-  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { whatsapp_api_token, whatsapp_phone_number_id} = integrationDetails;
+  if (!conversationId) {
+    let isUnique = false;
+  
+    // Intentar generar un ID numérico único
+    while (!isUnique) {
+      const generatedId = Math.floor(Math.random() * 1000000000); // Genera un número aleatorio grande
+      const checkQuery = await pool.query('SELECT conversation_id FROM conversations WHERE conversation_id = $1', [generatedId]);
+      
+      if (checkQuery.rowCount === 0) {
+        conversationId = generatedId;
+        isUnique = true; // Si no existe, podemos usar este ID
+      }
+    }
+  } 
 
-  // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
-  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+  // Verificar si la conversación existe
+  const conversationCheck = await pool.query('SELECT * FROM conversations WHERE conversation_id = $1', [conversationId]);
+
+  let newConversationId = conversationId;
+
+  if (conversationCheck.rowCount === 0) {
+    // Si la conversación no existe, crear una nueva
+    const insertConversationQuery = `
+      INSERT INTO conversations (
+        conversation_id, 
+        phone_number, 
+        state, 
+        last_update, 
+        unread_messages, 
+        id_usuario, 
+        contact_id, 
+        integration_id
+      ) VALUES ($1, $2, 'active', $3, 0, $4, $5, $6) RETURNING conversation_id;
+    `;
+    const currentTimestamp = new Date();
+    const newConversationRes = await pool.query(insertConversationQuery, [
+      newConversationId, 
+      null,
+      'new', 
+      currentTimestamp,
+      0, 
+      id_usuario,
+      usuario_send, 
+      integration_id
+    ]);
+
+    newConversationId = newConversationRes.rows[0].conversation_id;
+    console.log('Nueva conversación creada:', newConversationId);
+  }
+
+  // Obtener detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(newConversationId);
+
+  // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
+  const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [newConversationId]);
   const unreadMessages = unreadRes.rows[0].unread_messages;
   const responsibleUserId = unreadRes.rows[0].id_usuario;
 
   try {
-    // Enviar mensaje via WhatsApp
-    const response = await axios.post(
-      `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
-      {
-        messaging_product: "whatsapp",
-        to: phone,
-        type: "text",
-        text: { body: messageText }
-      },
-      {
-        headers: {
-          'Authorization': `Bearer ${whatsapp_api_token}`,
-          'Content-Type': 'application/json'
-        }
-      }
-    );
-
-    // Intenta insertar en la base de datos
+    // Intentar insertar en la base de datos el mensaje
     const insertQuery = `
       INSERT INTO replies (
         sender_id,
@@ -52,26 +84,25 @@ export async function sendTextMessage(io, req, res) {
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
     `;
     const messageValues = [
-      phone,
-      conversationId,
+      null,
+      newConversationId,
       'text',
       messageText,
       null,
       null,
       null,
-      response.data.messages[0].id, // ID del mensaje de WhatsApp
+      Math.floor(Math.random() * 1000000000), // Genera un número aleatorio grande
       new Date() // Timestamp actual
     ];
     const res = await pool.query(insertQuery, messageValues);
-    console.log('Inserted reply ID:', res.rows[0]);
     const newMessage = res.rows[0];
-    
+
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     io.emit('newMessage', {
       id: newMessage.id,
-      conversationId: conversationId,
-      timestamp: newMessage.received_at,
-      senderId: phone,
+      conversationId: newConversationId,
+      timestamp: newMessage.created_at,
+      senderId: usuario_send,
       message_type: 'text',
       text: messageText || null,
       mediaUrl: null,
@@ -83,13 +114,112 @@ export async function sendTextMessage(io, req, res) {
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
       reply_from: newMessage.reply_from,
-      company_id: integrationDetails.company_id // Añadir company_id aquí
+      company_id: integrationDetails.company_id
     });
+
     console.log('Mensaje emitido:', newMessage.id);
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('Error enviando mensaje:', error);
     res.status(500).json({ error: error.message });
   }
+};
+
+const WhatsAppMessageSend = async(phone, messageText, conversationId) => {
+ 
+   // Obtén los detalles de la integración
+   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+   const { whatsapp_api_token, whatsapp_phone_number_id} = integrationDetails;
+ 
+   // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
+   const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversationId]);
+   const unreadMessages = unreadRes.rows[0].unread_messages;
+   const responsibleUserId = unreadRes.rows[0].id_usuario;
+ 
+   try {
+     // Enviar mensaje via WhatsApp
+     const response = await axios.post(
+       `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
+       {
+         messaging_product: "whatsapp",
+         to: phone,
+         type: "text",
+         text: { body: messageText }
+       },
+       {
+         headers: {
+           'Authorization': `Bearer ${whatsapp_api_token}`,
+           'Content-Type': 'application/json'
+         }
+       }
+     );
+ 
+     // Intenta insertar en la base de datos
+     const insertQuery = `
+       INSERT INTO replies (
+         sender_id,
+         conversation_fk,
+         reply_type,
+         reply_text,
+         reply_media_url,
+         latitude,
+         longitude,
+         replies_id,
+         created_at
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+     `;
+     const messageValues = [
+       phone,
+       conversationId,
+       'text',
+       messageText,
+       null,
+       null,
+       null,
+       response.data.messages[0].id, // ID del mensaje de WhatsApp
+       new Date() // Timestamp actual
+     ];
+     const res = await pool.query(insertQuery, messageValues);
+     console.log('Inserted reply ID:', res.rows[0]);
+     const newMessage = res.rows[0];
+     
+     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+     io.emit('newMessage', {
+       id: newMessage.id,
+       conversationId: conversationId,
+       timestamp: newMessage.received_at,
+       senderId: phone,
+       message_type: 'text',
+       text: messageText || null,
+       mediaUrl: null,
+       thumbnailUrl: null,
+       duration: null,
+       latitude: null,
+       longitude: null,
+       type: 'reply',
+       unread_messages: unreadMessages,
+       responsibleUserId: responsibleUserId,
+       reply_from: newMessage.reply_from,
+       company_id: integrationDetails.company_id // Añadir company_id aquí
+     });
+     console.log('Mensaje emitido:', newMessage.id);
+   } catch (error) {
+     console.error('Error sending message:', error);
+     res.status(500).json({ error: error.message });
+   }
+}
+export async function sendTextMessage(io, req, res) {
+  const { phone, messageText, conversationId, integration_name, usuario_send, id_usuario, integration_id } = req.body;
+
+  switch (integration_name) {
+    case 'Interno':
+        await InternalMessageSend(messageText, conversationId, usuario_send, id_usuario, integration_id)
+      break;
+  
+    default:
+       await WhatsAppMessageSend(phone, messageText, conversationId)
+      break;
+  }
+ 
 }
 
 export async function sendImageMessage(io, req, res) {

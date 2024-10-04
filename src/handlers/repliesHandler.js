@@ -8,7 +8,7 @@ import FormData from 'form-data';
 const backendUrl = process.env.BACKEND_URL;
 
 //Funciones de tipos de mensaje:
-const InternalMessageSend = async (messageText, conversationId, usuario_send, id_usuario, integration_id) => {
+const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId) => {
 
   if (!conversationId) {
     let isUnique = false;
@@ -33,28 +33,28 @@ const InternalMessageSend = async (messageText, conversationId, usuario_send, id
   if (conversationCheck.rowCount === 0) {
     // Si la conversación no existe, crear una nueva
     const insertConversationQuery = `
-      INSERT INTO conversations (
-        conversation_id, 
-        phone_number, 
-        state, 
-        last_update, 
-        unread_messages, 
-        id_usuario, 
-        contact_id, 
-        integration_id
-      ) VALUES ($1, $2, 'active', $3, 0, $4, $5, $6) RETURNING conversation_id;
-    `;
-    const currentTimestamp = new Date();
-    const newConversationRes = await pool.query(insertConversationQuery, [
-      newConversationId, 
-      null,
-      'new', 
-      currentTimestamp,
-      0, 
-      id_usuario,
-      usuario_send, 
+    INSERT INTO conversations (
+      conversation_id, 
+      phone_number, 
+      state, 
+      last_update, 
+      unread_messages, 
+      id_usuario, 
+      contact_user_id, 
       integration_id
-    ]);
+    ) VALUES ($1, $2, 'active', $3, $4, $5, $6, $7) RETURNING conversation_id;
+  `;
+  const currentTimestamp = new Date();
+  const newConversationRes = await pool.query(insertConversationQuery, [
+    newConversationId,  // conversation_id
+    phone,               // phone_number (asumiendo que es null)
+    currentTimestamp,   // last_update
+    0,                  // unread_messages
+    id_usuario,         // id_usuario
+    usuario_send,       // contact_id
+    integration_id      // integration_id
+  ]);
+  
 
     newConversationId = newConversationRes.rows[0].conversation_id;
     console.log('Nueva conversación creada:', newConversationId);
@@ -98,7 +98,7 @@ const InternalMessageSend = async (messageText, conversationId, usuario_send, id
     const newMessage = res.rows[0];
 
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    io.emit('newMessage', {
+    io.emit('internalMessage', {
       id: newMessage.id,
       conversationId: newConversationId,
       timestamp: newMessage.created_at,
@@ -114,7 +114,7 @@ const InternalMessageSend = async (messageText, conversationId, usuario_send, id
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
       reply_from: newMessage.reply_from,
-      company_id: integrationDetails.company_id
+      company_id: companyId
     });
 
     console.log('Mensaje emitido:', newMessage.id);
@@ -124,7 +124,7 @@ const InternalMessageSend = async (messageText, conversationId, usuario_send, id
   }
 };
 
-const WhatsAppMessageSend = async(phone, messageText, conversationId) => {
+const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) => {
  
    // Obtén los detalles de la integración
    const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
@@ -208,18 +208,17 @@ const WhatsAppMessageSend = async(phone, messageText, conversationId) => {
    }
 }
 export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversationId, integration_name, usuario_send, id_usuario, integration_id } = req.body;
-
+  const { phone, messageText, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId } = req.body;
+  console.log("datos del cuerpo del msj:", req.body)
   switch (integration_name) {
     case 'Interno':
-        await InternalMessageSend(messageText, conversationId, usuario_send, id_usuario, integration_id)
+        await InternalMessageSend(io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId)
       break;
   
     default:
-       await WhatsAppMessageSend(phone, messageText, conversationId)
+       await WhatsAppMessageSend(io, res, phone, messageText, conversationId)
       break;
   }
- 
 }
 
 export async function sendImageMessage(io, req, res) {

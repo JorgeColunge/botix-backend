@@ -61,6 +61,7 @@ router.get('/conversations/:conversationId', async (req, res) => {
       c.unread_messages,
       c.id_usuario,
       c.integration_id,
+      c.contact_user_id,
       ct.id,
       ct.phone_number,
       ct.first_name,
@@ -156,6 +157,12 @@ router.get('/conversations', async (req, res) => {
   const userRole = req.query.rol;
   const companyId = req.query.company_id;
 
+  const query = 'SELECT * FROM integrations WHERE type = $1 LIMIT 1';
+
+  const result = await pool.query(query, ['Interno']);
+  
+  const integracion = result.rows[0];
+
   const getUserPrivileges = async (roleId) => {
     const query = `
       SELECT pr.name
@@ -169,6 +176,7 @@ router.get('/conversations', async (req, res) => {
 
   try {
     const privileges = await getUserPrivileges(userRole);
+  
     let query = `
       SELECT
         c.conversation_id,
@@ -179,6 +187,7 @@ router.get('/conversations', async (req, res) => {
         c.unread_messages,
         c.id_usuario,
         c.integration_id,
+        c.contact_user_id,
         ct.id,
         ct.phone_number,
         ct.first_name,
@@ -235,7 +244,7 @@ router.get('/conversations', async (req, res) => {
             message_text AS last_message,
             received_at AS last_message_time,
             message_type,
-            duration  -- Asegúrate de que duration esté presente aquí
+            duration
           FROM messages
           WHERE conversation_fk = c.conversation_id
           UNION
@@ -243,7 +252,7 @@ router.get('/conversations', async (req, res) => {
             reply_text AS last_message,
             created_at AS last_message_time,
             reply_type AS message_type,
-            duration  -- Y también aquí
+            duration
           FROM replies
           WHERE conversation_fk = c.conversation_id
         ) sub
@@ -251,15 +260,33 @@ router.get('/conversations', async (req, res) => {
         LIMIT 1
       ) last_message_info ON true
     `;
-
+  
     if (privileges.includes('SuperAdmin')) {
-      // No additional filtering needed for SuperAdmin
+      // No se necesita filtro adicional para SuperAdmin
     } else if (privileges.includes('Admin') || privileges.includes('Show All Conversations')) {
       query += ` WHERE u.company_id = $1`;
       const { rows } = await pool.query(query, [companyId]);
       res.json(rows);
     } else {
-      query += ` WHERE c.id_usuario = $1`;
+      // Aquí verificamos si el `integration_id` de la conversación coincide con el de una integración de tipo 'Interno'
+      query += `
+        WHERE (
+          c.integration_id = (
+            SELECT i.id
+            FROM integrations i
+            WHERE i.type = 'Interno'
+            LIMIT 1
+          ) AND c.contact_user_id = $1
+        ) OR (
+          c.integration_id != (
+            SELECT i.id
+            FROM integrations i
+            WHERE i.type = 'Interno'
+            LIMIT 1
+          ) AND c.id_usuario = $1
+        )
+      `;
+  
       const { rows } = await pool.query(query, [userId]);
       res.json(rows);
     }
@@ -267,6 +294,7 @@ router.get('/conversations', async (req, res) => {
     console.error('Error fetching conversations:', error);
     res.status(500).send('Internal Server Error');
   }
+  
 });
 
 router.get('/privileges-role/:roleId', async (req, res) => {

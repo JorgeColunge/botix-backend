@@ -8,7 +8,7 @@ import FormData from 'form-data';
 const backendUrl = process.env.BACKEND_URL;
 
 //Funciones de tipos de mensaje:
-const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId) => {
+const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent) => {
 
   if (!conversationId) {
     let isUnique = false;
@@ -84,7 +84,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
     `;
     const messageValues = [
-      null,
+      remitent,
       newConversationId,
       'text',
       messageText,
@@ -102,7 +102,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       id: newMessage.id,
       conversationId: newConversationId,
       timestamp: newMessage.created_at,
-      senderId: usuario_send,
+      senderId: remitent,
       message_type: 'text',
       text: messageText || null,
       mediaUrl: null,
@@ -208,11 +208,11 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
    }
 }
 export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId } = req.body;
+  const { phone, messageText, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
   console.log("datos del cuerpo del msj:", req.body)
   switch (integration_name) {
     case 'Interno':
-        await InternalMessageSend(io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId)
+        await InternalMessageSend(io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent)
       break;
   
     default:

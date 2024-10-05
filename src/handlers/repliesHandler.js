@@ -44,17 +44,19 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       integration_id
     ) VALUES ($1, $2, 'active', $3, $4, $5, $6, $7) RETURNING conversation_id;
   `;
+
+  console.log("numero de tel", phone)
   const currentTimestamp = new Date();
   const newConversationRes = await pool.query(insertConversationQuery, [
     newConversationId,  // conversation_id
-    phone,               // phone_number (asumiendo que es null)
+    phone,             // phone_number (asumiendo que es null)
     currentTimestamp,   // last_update
     0,                  // unread_messages
     id_usuario,         // id_usuario
     usuario_send,       // contact_id
     integration_id      // integration_id
   ]);
-  
+  console.log("npasa la creacion")
 
     newConversationId = newConversationRes.rows[0].conversation_id;
     console.log('Nueva conversación creada:', newConversationId);
@@ -91,7 +93,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       null,
       null,
       null,
-      Math.floor(Math.random() * 1000000000), // Genera un número aleatorio grande
+      Math.floor(Math.random() * 100000), // Genera un número aleatorio grande
       new Date() // Timestamp actual
     ];
     const res = await pool.query(insertQuery, messageValues);
@@ -208,11 +210,11 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
    }
 }
 export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
+  const { phone, messageText, conversation_id, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
   console.log("datos del cuerpo del msj:", req.body)
   switch (integration_name) {
     case 'Interno':
-        await InternalMessageSend(io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent)
+        await InternalMessageSend(io, res, messageText, conversation_id, usuario_send, id_usuario, integration_id, phone, companyId, remitent)
       break;
   
     default:

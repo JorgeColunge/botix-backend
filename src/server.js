@@ -33,7 +33,7 @@ const PORT = process.env.PORT || 3001;
 
 // Configuración de CORS y otros middleware
 app.use(cors({
-  origin: process.env.FRONTEND_URL, // Ajusta según sea necesario para tu ambiente de producción
+  origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
@@ -48,7 +48,7 @@ app.use((req, res, next) => {
 const server = createServer(app);
 const io = new SocketIOServer(server, {
   cors: {
-    origin: process.env.FRONTEND_URL, // Asegúrate de que coincide con el puerto y host del cliente
+    origin: [process.env.FRONTEND_URL, 'https://localhost'], // Asegúrate de que coincide con el puerto y host del cliente
     methods: ['GET', 'POST'],
     credentials: true
   }

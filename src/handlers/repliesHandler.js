@@ -210,7 +210,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
    }
 }
 export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversation_id, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
+  const { phone, messageText, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
   console.log("datos del cuerpo del msj:", req.body)
   switch (integration_name) {
     case 'Interno':
@@ -218,7 +218,7 @@ export async function sendTextMessage(io, req, res) {
       break;
   
     default:
-       await WhatsAppMessageSend(io, res, phone, messageText, conversationId)
+       await WhatsAppMessageSend(io, res, phone, messageText, conversationId || conversation_id)
       break;
   }
 }

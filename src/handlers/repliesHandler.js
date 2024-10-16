@@ -218,7 +218,7 @@ export async function sendTextMessage(io, req, res) {
       break;
   
     default:
-       await WhatsAppMessageSend(io, res, phone, messageText, conversationId)
+       await WhatsAppMessageSend(io, res, phone, messageText, conversation_id)
       break;
   }
 }

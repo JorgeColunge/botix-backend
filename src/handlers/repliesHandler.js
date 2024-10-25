@@ -38,7 +38,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
     },
     data: {
       text: messageText,
-      senderId: phone,
+      senderId: phone || id_usuario,
     }
   };
 

@@ -2188,8 +2188,8 @@ router.post('/events', async (req, res) => {
   if (!req.body.fecha_inicio || !req.body.fecha_fin) {
     return res.status(400).send('Faltan fechas de inicio o fin.');
   }
-  const fecha_inicio = moment(req.body.fecha_inicio).tz(clientTimezone).format(); // Fecha de inicio con zona horaria
-  const fecha_fin = moment(req.body.fecha_fin).tz(clientTimezone).format(); // Fecha de fin con zona horaria
+  const fecha_inicio = moment.tz(req.body.fecha_inicio, clientTimezone).format();
+  const fecha_fin = moment.tz(req.body.fecha_fin, clientTimezone).format();
 
   console.log('Received body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id });
 

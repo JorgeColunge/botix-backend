@@ -11,7 +11,7 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
   // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
   // o donde sea que estés almacenando los tokens de los usuarios
   if (phone) {
-    const res = await pool.query('SELECT token_firebase FROM users WHERE phone_number = $1', [phone]);
+    const res = await pool.query('SELECT token_firebase FROM contacts WHERE phone_number = $1', [phone]);
     return res.rows[0] ? res.rows[0].device_token : null;   
   } else if (id_usuario) {
     

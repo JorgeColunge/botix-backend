@@ -11,7 +11,7 @@ import fs from 'fs';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
-
+import moment from 'moment-timezone';
 import ffmpeg from 'fluent-ffmpeg';
 
 const __filename = fileURLToPath(import.meta.url);
@@ -2181,12 +2181,21 @@ router.get('/events', async (req, res) => {
 
 // Ruta para crear un nuevo evento
 router.post('/events', async (req, res) => {
-  const { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id } = req.body;
+  const { titulo, descripcion, all_day, tipo_asignacion, id_asignacion, company_id } = req.body;
+  const clientTimezone = req.body.timezone || 'America/Bogota'; // Usa la zona horaria proporcionada o una predeterminada
 
-  console.log('Received body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id }); // Log del cuerpo recibido
+  // Validar y formatear las fechas con la zona horaria
+  if (!req.body.fecha_inicio || !req.body.fecha_fin) {
+    return res.status(400).send('Faltan fechas de inicio o fin.');
+  }
+  const fecha_inicio = moment(req.body.fecha_inicio).tz(clientTimezone).format(); // Fecha de inicio con zona horaria
+  const fecha_fin = moment(req.body.fecha_fin).tz(clientTimezone).format(); // Fecha de fin con zona horaria
 
-  if (!titulo || !fecha_inicio || !fecha_fin || !tipo_asignacion || !id_asignacion || !company_id) {
-    console.error('Missing parameters in body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id }); // Log de parámetros faltantes
+  console.log('Received body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id });
+
+  // Validar parámetros requeridos
+  if (!titulo || !tipo_asignacion || !id_asignacion || !company_id) {
+    console.error('Missing parameters in body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id });
     return res.status(400).send('Faltan parámetros necesarios.');
   }
 
@@ -2195,13 +2204,13 @@ router.post('/events', async (req, res) => {
       INSERT INTO eventos (titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id) 
       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *
     `;
-    console.log('Executing query:', query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]); // Log de la consulta y parámetros
+    console.log('Executing query:', query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]);
 
     const result = await pool.query(query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]);
-    console.log('Created event:', result.rows[0]); // Log del evento creado
+    console.log('Created event:', result.rows[0]);
     res.status(201).json(result.rows[0]);
   } catch (error) {
-    console.error('Error creating event:', error); // Log del error
+    console.error('Error creating event:', error);
     res.status(500).send('Internal Server Error');
   }
 });

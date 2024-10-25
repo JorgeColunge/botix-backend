@@ -7,6 +7,44 @@ import FormData from 'form-data';
 
 const backendUrl = process.env.BACKEND_URL;
 
+const getDeviceTokenForUser = async (phone) => {
+  // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
+  // o donde sea que estés almacenando los tokens de los usuarios
+  const res = await pool.query('SELECT device_token FROM users WHERE phone = $1', [phone]);
+  return res.rows[0] ? res.rows[0].device_token : null;
+}
+
+const sendNotificationToFCM = async (phone, messageText, companyId) => {
+  // Aquí debes obtener el token del dispositivo del usuario
+  const deviceToken = 'ckYDwnM9Qi21UeNR6RDLF3:APA91bEnT8bt63FACtQusGhayek7sN972KE0k8AAqdHGZ6BsHuUl89YYbogOiA9_TtrXtbgdEB-uYT73iRg5ckTPZZmjAAxDnnuk2FUsBmY5iA2erV1vs1aXT2FRFLzVO2dkbIEoJmhs'
+  // const deviceToken = await getDeviceTokenForUser(phone);
+  if (!deviceToken) {
+    console.log('No se encontró el token del dispositivo para:', phone);
+    return;
+  }
+
+  const notificationPayload = {
+    to: deviceToken, // Token del dispositivo
+    notification: {
+      title: 'Nuevo mensaje',
+      body: `Tienes un nuevo mensaje de ${phone}: ${messageText}`,
+    },
+    data: {
+      text: messageText,
+      senderId: phone,
+    }
+  };
+
+  const response = await axios.post('https://fcm.googleapis.com/fcm/send', notificationPayload, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': 'key=YyZJH-PMr2pP22Ki0qyHFWivrf8Gaxl23jJbtqdRymg' // Reemplaza con tu Server Key de Firebase
+    }
+  });
+
+  return response;
+}
+
 //Funciones de tipos de mensaje:
 const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent) => {
 
@@ -120,6 +158,10 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     });
 
     console.log('Mensaje emitido:', newMessage.id);
+
+    const fcmResponse = await sendNotificationToFCM(phone, messageText, integrationDetails.company_id);
+    console.log('Notificación enviada:', fcmResponse.data);
+    
   } catch (error) {
     console.error('Error enviando mensaje:', error);
     res.status(500).json({ error: error.message });
@@ -204,13 +246,17 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
        company_id: integrationDetails.company_id // Añadir company_id aquí
      });
      console.log('Mensaje emitido:', newMessage.id);
+
+     const fcmResponse = await sendNotificationToFCM(phone, messageText, integrationDetails.company_id);
+     console.log('Notificación enviada:', fcmResponse.data);
+
    } catch (error) {
      console.error('Error sending message:', error);
      res.status(500).json({ error: error.message });
    }
 }
 export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversation_id, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
+  const { phone, messageText, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
   console.log("datos del cuerpo del msj:", req.body)
   switch (integration_name) {
     case 'Interno':
@@ -218,7 +264,7 @@ export async function sendTextMessage(io, req, res) {
       break;
   
     default:
-       await WhatsAppMessageSend(io, res, phone, messageText, conversation_id)
+       await WhatsAppMessageSend(io, res, phone, messageText, conversationId || conversation_id)
       break;
   }
 }

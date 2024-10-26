@@ -146,7 +146,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       'SELECT * FROM users WHERE id_usuario = $1', 
       [remitent]
     );
-    
+    console.log("remitente: ", usuario_send)
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     io.emit('internalMessage', {
       id: newMessage.id,
@@ -165,8 +165,8 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       responsibleUserId: responsibleUserId,
       reply_from: newMessage.reply_from,
       company_id: companyId,
-      destino_nombre: usuario_send.nombre,
-      destino_apellido: usuario_send.apellido,
+      destino_nombre: usuario_send.rows[0].nombre || '',
+      destino_apellido: usuario_send.rows[0].apellido || '',
       destino_foto: usuario_send.link_foto
     });
 
@@ -248,7 +248,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
       'SELECT * FROM contacts WHERE phone_number = $1', 
       [phone]
     );
-
+    console.log("remitente: ", usuario_send)
      io.emit('newMessage', {
        id: newMessage.id,
        conversationId: conversationId,
@@ -266,8 +266,8 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
        responsibleUserId: responsibleUserId,
        reply_from: newMessage.reply_from,
        company_id: integrationDetails.company_id, // Añadir company_id aquí
-       destino_nombre: usuario_send.first_name,
-       destino_apellido: usuario_send.last_name,
+       destino_nombre: usuario_send.rows[0].first_name || '',
+       destino_apellido: usuario_send.rows[0].last_name || '',
        destino_foto: usuario_send.profile_url
      });
      console.log('Mensaje emitido:', newMessage.id);

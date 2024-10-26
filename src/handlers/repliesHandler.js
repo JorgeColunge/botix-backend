@@ -248,6 +248,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
       'SELECT * FROM contacts WHERE phone_number = $1', 
       [phone]
     );
+    
     console.log("remitente: ", usuario_send)
      io.emit('newMessage', {
        id: newMessage.id,

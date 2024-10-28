@@ -22,6 +22,51 @@ const axiosInstance = axios.create({
 
 const externalData = '';
 
+const getDeviceTokenForUser = async (phone, id_usuario) => {
+  // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
+  // o donde sea que estés almacenando los tokens de los usuarios
+  if (phone) {
+    const res = await pool.query('SELECT token_firebase FROM contacts WHERE phone_number = $1', [phone]);
+    return res.rows[0] ? res.rows[0].device_token : null;   
+  } else if (id_usuario) {
+    
+    const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
+    return res.rows[0] ? res.rows[0].device_token : null;
+  }
+}
+
+const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
+  // Aquí debes obtener el token del dispositivo del usuario
+  // const deviceToken = 'ckYDwnM9Qi21UeNR6RDLF3:APA91bEnT8bt63FACtQusGhayek7sN972KE0k8AAqdHGZ6BsHuUl89YYbogOiA9_TtrXtbgdEB-uYT73iRg5ckTPZZmjAAxDnnuk2FUsBmY5iA2erV1vs1aXT2FRFLzVO2dkbIEoJmhs'
+  const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
+  if (!deviceToken) {
+    console.log('No se encontró el token del dispositivo para:', phone || id_usuario);
+    return;
+  }
+
+  const notificationPayload = {
+    to: deviceToken, // Token del dispositivo
+    notification: {
+      title: `${nombre} ${apellido}`,
+      body: ` ${messageText}`,
+      imagen: `${backendUrl}${foto}`
+    },
+    data: {
+      text: messageText,
+      senderId: phone || id_usuario,
+    }
+  };
+
+  const response = await axios.post('https://fcm.googleapis.com/fcm/send', notificationPayload, {
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `key=${process.env.FIREBSE_SERVER_KEY}` // Reemplaza con tu Server Key de Firebase
+    }
+  });
+
+  return response;
+}
+
 async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
   console.log('Procesando mensaje del remitente:', senderId);
   console.log('Datos del mensaje:', messageData);
@@ -115,6 +160,11 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       console.log('Mensaje insertado con ID de conversación:', conversationId, 'Detalles del mensaje:', res.rows[0]);
       const newMessage = res.rows[0];
 
+      const usuario_send = await pool.query(
+        'SELECT * FROM contacts WHERE phone_number = $1', 
+        [senderId]
+      );
+
       io.emit('newMessage', {
         id: newMessage.id,
         conversationId: conversationId,
@@ -133,10 +183,21 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         file_name: messageData.file_name,
         reply_from: newMessage.reply_from,
         state: newMessage.state,
-        company_id: integrationDetails.company_id // Añadir company_id aquí
+        company_id: integrationDetails.company_id,
+        destino_nombre: usuario_send.rows[0].first_name || '',
+        destino_apellido: usuario_send.rows[0].last_name || '',
+        destino_foto: usuario_send.profile_url || '',
       });
 
+
       console.log('Mensaje emitido:', newMessage.id);
+
+      try {
+        const fcmResponse = await sendNotificationToFCM(senderId,  newMessage.message_text, null,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
+        console.log('Notificación enviada:', fcmResponse.data);
+     } catch (error) {
+       console.error('Error sending notificaion:', error);
+     }
 
       // Obtener el rol del usuario responsable y procesar según su tipo
       const roleQuery = 'SELECT rol FROM users WHERE id_usuario = $1';

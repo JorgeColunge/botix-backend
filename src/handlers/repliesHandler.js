@@ -147,7 +147,12 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       [remitent]
     );
     console.log("remitente: ", usuario_send.rows[0])
-    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+
+    const integracionSelect = await pool.query(
+      'SELECT * FROM integrations WHERE id = $1', 
+      [integration_id]
+    );
+
     io.emit('internalMessage', {
       id: newMessage.id,
       conversationId: newConversationId,
@@ -167,7 +172,8 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       company_id: companyId,
       destino_nombre: usuario_send.rows[0].nombre || '',
       destino_apellido: usuario_send.rows[0].apellido || '',
-      destino_foto: usuario_send.link_foto || ''
+      destino_foto: usuario_send.link_foto || '',
+      integracion: integracionSelect.rows[0].name || '',
     });
 
     console.log('Mensaje emitido:', newMessage.id);
@@ -186,7 +192,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
   }
 };
 
-const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) => {
+const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, integration_id) => {
  
    // Obtén los detalles de la integración
    const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
@@ -248,7 +254,11 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
       'SELECT * FROM contacts WHERE phone_number = $1', 
       [phone]
     );
-    
+    const integracionSelect = await pool.query(
+      'SELECT * FROM integrations WHERE id = $1', 
+      [integration_id]
+    );
+
     console.log("remitente: ", usuario_send.rows[0])
      io.emit('newMessage', {
        id: newMessage.id,
@@ -269,7 +279,8 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
        company_id: integrationDetails.company_id, // Añadir company_id aquí
        destino_nombre: usuario_send.rows[0].first_name || '',
        destino_apellido: usuario_send.rows[0].last_name || '',
-       destino_foto: usuario_send.profile_url || ''
+       destino_foto: usuario_send.profile_url || '',
+       integracion: integracionSelect.rows[0].name || '',
      });
      console.log('Mensaje emitido:', newMessage.id);
 
@@ -295,7 +306,7 @@ export async function sendTextMessage(io, req, res) {
       break;
   
     default:
-       await WhatsAppMessageSend(io, res, phone, messageText, conversationId || conversation_id)
+       await WhatsAppMessageSend(io, res, phone, messageText, conversationId || conversation_id, integration_id)
       break;
   }
 }

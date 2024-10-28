@@ -165,6 +165,11 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         [senderId]
       );
 
+      const integracionSelect = await pool.query(
+        'SELECT * FROM integrations WHERE id = $1', 
+        [integration_id]
+      );
+      
       io.emit('newMessage', {
         id: newMessage.id,
         conversationId: conversationId,
@@ -187,6 +192,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         destino_nombre: usuario_send.rows[0].first_name || '',
         destino_apellido: usuario_send.rows[0].last_name || '',
         destino_foto: usuario_send.profile_url || '',
+        integracion: integracionSelect.rows[0].name || '',
       });
 
 

@@ -11,18 +11,17 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
   // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
   // o donde sea que estés almacenando los tokens de los usuarios
   if (phone) {
-    const res = await pool.query('SELECT token_firebase FROM contacts WHERE phone_number = $1', [phone]);
-    return res.rows[0] ? res.rows[0].device_token : null;   
+    const res = await pool.query('SELECT token_firebase FROM users WHERE phone_number = $1', [id_usuario]);
+    return res.rows[0] ? res.rows[0].token_firebase : null;   
   } else if (id_usuario) {
     
     const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
-    return res.rows[0] ? res.rows[0].device_token : null;
+    return res.rows[0] ? res.rows[0].token_firebase : null;
   }
 }
 
 const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
   // Aquí debes obtener el token del dispositivo del usuario
-  // const deviceToken = 'ckYDwnM9Qi21UeNR6RDLF3:APA91bEnT8bt63FACtQusGhayek7sN972KE0k8AAqdHGZ6BsHuUl89YYbogOiA9_TtrXtbgdEB-uYT73iRg5ckTPZZmjAAxDnnuk2FUsBmY5iA2erV1vs1aXT2FRFLzVO2dkbIEoJmhs'
   const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
   if (!deviceToken) {
     console.log('No se encontró el token del dispositivo para:', phone || id_usuario);
@@ -276,7 +275,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
        unread_messages: unreadMessages,
        responsibleUserId: responsibleUserId,
        reply_from: newMessage.reply_from,
-       company_id: integrationDetails.company_id, // Añadir company_id aquí
+       company_id: integrationDetails.company_id, 
        destino_nombre: usuario_send.rows[0].first_name || '',
        destino_apellido: usuario_send.rows[0].last_name || '',
        destino_foto: usuario_send.profile_url || '',
@@ -285,7 +284,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
      console.log('Mensaje emitido:', newMessage.id);
 
     try {
-       const fcmResponse = await sendNotificationToFCM(phone, messageText, null,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
+       const fcmResponse = await sendNotificationToFCM(phone, messageText, responsibleUserId,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
        console.log('Notificación enviada:', fcmResponse.data);
     } catch (error) {
       console.error('Error sending notificaion:', error);

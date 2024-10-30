@@ -26,7 +26,7 @@ router.get('/get_token_firebase', async (req, res) => {
   try {
       const result = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
       if (result.rows.length > 0) {
-          res.json(result.rows[0]);
+          res.json(result.rows[0].token_firebase);
       } else {
           res.status(400).send('Usuario no encontrado');
       }

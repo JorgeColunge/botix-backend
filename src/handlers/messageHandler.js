@@ -26,12 +26,12 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
   // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
   // o donde sea que estés almacenando los tokens de los usuarios
   if (phone) {
-    const res = await pool.query('SELECT token_firebase FROM contacts WHERE phone_number = $1', [phone]);
-    return res.rows[0] ? res.rows[0].device_token : null;   
+    const res = await pool.query('SELECT token_firebase FROM users WHERE phone_number = $1', [id_usuario]);
+    return res.rows[0] ? res.rows[0].token_firebase : null;   
   } else if (id_usuario) {
     
     const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
-    return res.rows[0] ? res.rows[0].device_token : null;
+    return res.rows[0] ? res.rows[0].token_firebase : null;
   }
 }
 
@@ -199,7 +199,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       console.log('Mensaje emitido:', newMessage.id);
 
       try {
-        const fcmResponse = await sendNotificationToFCM(senderId,  newMessage.message_text, null,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
+        const fcmResponse = await sendNotificationToFCM(senderId,  newMessage.message_text, responsibleUserId,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
         console.log('Notificación enviada:', fcmResponse.data);
      } catch (error) {
        console.error('Error sending notificaion:', error);

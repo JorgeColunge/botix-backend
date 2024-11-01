@@ -45,38 +45,52 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
 }
 
 const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
-  // Aquí debes obtener el token del dispositivo del usuario
-  // const deviceToken = 'ckYDwnM9Qi21UeNR6RDLF3:APA91bEnT8bt63FACtQusGhayek7sN972KE0k8AAqdHGZ6BsHuUl89YYbogOiA9_TtrXtbgdEB-uYT73iRg5ckTPZZmjAAxDnnuk2FUsBmY5iA2erV1vs1aXT2FRFLzVO2dkbIEoJmhs'
+  // Obtener el token del dispositivo del usuario
   const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
   if (!deviceToken) {
     console.log('No se encontró el token del dispositivo para:', id_usuario);
     return;
   }
-console.log("token de usuario", deviceToken)
+
+  console.log("Token del usuario:", deviceToken);
+
   const notificationPayload = {
-    to: deviceToken, // Token del dispositivo
-    notification: {
-      title: `${nombre} ${apellido}`,
-      body: ` ${messageText}`,
-      imagen: `${process.env.BACKEND_URL}${foto}`
+    message: {
+      token: deviceToken,
+      notification: {
+        title: `${nombre} ${apellido}`,
+        body: messageText,
+        image: `${process.env.BACKEND_URL}${foto}`,
+      },
+      data: {
+        text: messageText,
+        senderId: phone || id_usuario,
+      },
     },
-    data: {
-      text: messageText,
-      senderId: phone || id_usuario,
-    }
   };
 
-  const accessToken = await authClient.getAccessToken();
-  const response = await axios.post(`https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROYECT_ID}/messages:send
-`, notificationPayload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${accessToken}`, // Reemplaza con tu Server Key de Firebase
-    }
-  });
+  try {
+    // Obtener el token de acceso OAuth
+    const accessToken = await authClient.getAccessToken();
 
-  return response;
-}
+    // Enviar la notificación usando el token de acceso
+    const response = await axios.post(
+      `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`,
+      notificationPayload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`, // Aquí va el token de acceso OAuth
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Error enviando la notificación:', error.response ? error.response.data : error.message);
+    throw error;
+  }
+};
 
 async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
   console.log('Procesando mensaje del remitente:', senderId);

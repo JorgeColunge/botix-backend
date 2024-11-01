@@ -43,7 +43,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
     console.log('No se encontró el token del dispositivo para:', phone || id_usuario);
     return;
   }
-
+console.log("token de usuario", deviceToken)
   const notificationPayload = {
     to: deviceToken, // Token del dispositivo
     notification: {
@@ -56,6 +56,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
       senderId: phone || id_usuario,
     }
   };
+
 
   const response = await axios.post('https://fcm.googleapis.com/fcm/send', notificationPayload, {
     headers: {

@@ -22,6 +22,15 @@ const axiosInstance = axios.create({
 
 const externalData = '';
 
+const serviceAccount = require('../../crm-android-system.json');
+
+// Crear cliente de autenticación
+const authClient = new google.auth.GoogleAuth({
+  credentials: serviceAccount,
+  scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+});
+
+
 const getDeviceTokenForUser = async (phone, id_usuario) => {
   // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
   // o donde sea que estés almacenando los tokens de los usuarios
@@ -57,11 +66,12 @@ console.log("token de usuario", deviceToken)
     }
   };
 
-
-  const response = await axios.post('https://fcm.googleapis.com/fcm/send', notificationPayload, {
+  const accessToken = await authClient.getAccessToken();
+  const response = await axios.post(`https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROYECT_ID}/messages:send
+`, notificationPayload, {
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `key=${process.env.FIREBASE_SERVER_KEY}` // Reemplaza con tu Server Key de Firebase
+      'Authorization': `Bearer ${accessToken}`, // Reemplaza con tu Server Key de Firebase
     }
   });
 

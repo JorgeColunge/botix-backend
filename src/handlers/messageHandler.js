@@ -40,7 +40,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
   // const deviceToken = 'ckYDwnM9Qi21UeNR6RDLF3:APA91bEnT8bt63FACtQusGhayek7sN972KE0k8AAqdHGZ6BsHuUl89YYbogOiA9_TtrXtbgdEB-uYT73iRg5ckTPZZmjAAxDnnuk2FUsBmY5iA2erV1vs1aXT2FRFLzVO2dkbIEoJmhs'
   const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
   if (!deviceToken) {
-    console.log('No se encontró el token del dispositivo para:', phone || id_usuario);
+    console.log('No se encontró el token del dispositivo para:', id_usuario);
     return;
   }
 console.log("token de usuario", deviceToken)

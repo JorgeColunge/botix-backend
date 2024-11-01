@@ -49,7 +49,7 @@ console.log("token de usuario", deviceToken)
     notification: {
       title: `${nombre} ${apellido}`,
       body: ` ${messageText}`,
-      imagen: `${backendUrl}${foto}`
+      imagen: `${process.env.BACKEND_URL}${foto}`
     },
     data: {
       text: messageText,

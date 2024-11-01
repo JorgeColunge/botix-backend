@@ -22,7 +22,7 @@ const axiosInstance = axios.create({
 
 const externalData = '';
 
-const serviceAccount = require('../../crm-android-system.json');
+import serviceAccount from '../../crm-android-system.json';
 
 // Crear cliente de autenticación
 const authClient = new google.auth.GoogleAuth({

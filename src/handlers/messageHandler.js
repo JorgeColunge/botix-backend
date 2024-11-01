@@ -60,7 +60,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
   const response = await axios.post('https://fcm.googleapis.com/fcm/send', notificationPayload, {
     headers: {
       'Content-Type': 'application/json',
-      'Authorization': `key=${process.env.FIREBSE_SERVER_KEY}` // Reemplaza con tu Server Key de Firebase
+      'Authorization': `key=${process.env.FIREBASE_SERVER_KEY}` // Reemplaza con tu Server Key de Firebase
     }
   });
 

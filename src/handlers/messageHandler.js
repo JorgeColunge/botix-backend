@@ -201,7 +201,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
 
       try {
         const fcmResponse = await sendNotificationToFCM(senderId,  newMessage.message_text, responsibleUserId,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
-        console.log('Notificación enviada:', fcmResponse.data);
+        console.log('Notificación enviada:', fcmResponse);
      } catch (error) {
        console.error('Error sending notificaion:', error);
      }

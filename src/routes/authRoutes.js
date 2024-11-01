@@ -41,7 +41,8 @@ router.post('/set_token_firebase', async (req, res) => {
 
   console.log("id de usuario", id_usuario);
   console.log("token", token); // Opcional: Para depuración
-
+ 
+  console.log("informacion del body", req.body)
   try {
       // Verificar si el usuario existe
       const userResult = await pool.query('SELECT * FROM users WHERE id_usuario = $1', [id_usuario]);

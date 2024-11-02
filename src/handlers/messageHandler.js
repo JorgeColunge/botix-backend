@@ -8,7 +8,7 @@ import { dirname } from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import moment from 'moment-timezone';
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from '../handlers/repliesHandler.js';
-// import { google } from 'googleapis'; 
+import { GoogleAuth } from 'google-auth-library';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -24,12 +24,26 @@ const externalData = '';
 
 import serviceAccount from '../../crm-android-system.json' assert { type: 'json' };
 
-// Crear cliente de autenticación
-// const authClient = new google.auth.GoogleAuth({
-//   credentials: serviceAccount,
-//   scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
-// });
+function getAccessToken() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const auth = new GoogleAuth({
+        credentials: serviceAccount,
+        scopes: 'https://www.googleapis.com/auth/firebase.messaging',
+      });
 
+      const client = await auth.getClient();
+      const accessToken = await client.getAccessToken();
+      if (accessToken && accessToken.token) {
+        resolve(accessToken.token);
+      } else {
+        reject(new Error('No se pudo obtener el token de acceso.'));
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 const getDeviceTokenForUser = async (phone, id_usuario) => {
   // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
@@ -71,7 +85,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
 
   try {
     // Obtener el token de acceso OAuth
-    const accessToken = await authClient.getAccessToken();
+    const accessToken = await getAccessToken();
 
     // Enviar la notificación usando el token de acceso
     const response = await axios.post(

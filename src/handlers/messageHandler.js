@@ -8,7 +8,7 @@ import { dirname } from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import moment from 'moment-timezone';
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from '../handlers/repliesHandler.js';
-
+// import { google } from 'googleapis'; 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -21,6 +21,76 @@ const axiosInstance = axios.create({
 });
 
 const externalData = '';
+
+import serviceAccount from '../../crm-android-system.json' assert { type: 'json' };
+
+// Crear cliente de autenticación
+// const authClient = new google.auth.GoogleAuth({
+//   credentials: serviceAccount,
+//   scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+// });
+
+
+const getDeviceTokenForUser = async (phone, id_usuario) => {
+  // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
+  // o donde sea que estés almacenando los tokens de los usuarios
+  if (phone) {
+    const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
+    return res.rows[0] ? res.rows[0].token_firebase : null;   
+  } else if (id_usuario) {
+    
+    const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
+    return res.rows[0] ? res.rows[0].token_firebase : null;
+  }
+}
+
+const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
+  // Obtener el token del dispositivo del usuario
+  const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
+  if (!deviceToken) {
+    console.log('No se encontró el token del dispositivo para:', id_usuario);
+    return;
+  }
+
+  console.log("Token del usuario:", deviceToken);
+
+  const notificationPayload = {
+    message: {
+      token: deviceToken,
+      notification: {
+        title: `${nombre} ${apellido}`,
+        body: messageText,
+        image: `${process.env.BACKEND_URL}${foto}`,
+      },
+      data: {
+        text: messageText,
+        senderId: phone || id_usuario,
+      },
+    },
+  };
+
+  try {
+    // Obtener el token de acceso OAuth
+    const accessToken = await authClient.getAccessToken();
+
+    // Enviar la notificación usando el token de acceso
+    const response = await axios.post(
+      `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`,
+      notificationPayload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`, // Aquí va el token de acceso OAuth
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Error enviando la notificación:', error.response ? error.response.data : error.message);
+    throw error;
+  }
+};
 
 async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
   console.log('Procesando mensaje del remitente:', senderId);
@@ -115,6 +185,16 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       console.log('Mensaje insertado con ID de conversación:', conversationId, 'Detalles del mensaje:', res.rows[0]);
       const newMessage = res.rows[0];
 
+      const usuario_send = await pool.query(
+        'SELECT * FROM contacts WHERE phone_number = $1', 
+        [senderId]
+      );
+
+      const integracionSelect = await pool.query(
+        'SELECT * FROM integrations WHERE id = $1', 
+        [integration_id]
+      );
+      
       // Consulta para obtener los administradores
       const adminQuery = `
         SELECT id_usuario FROM users 
@@ -147,11 +227,16 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
           file_name: messageData.file_name,
           reply_from: newMessage.reply_from,
           state: newMessage.state,
-          company_id: integrationDetails.company_id // Añadir company_id aquí
+          company_id: integrationDetails.company_id,
+        destino_nombre: usuario_send.rows[0].first_name || '',
+        destino_apellido: usuario_send.rows[0].last_name || '',
+        destino_foto: usuario_send.profile_url || '',
+        integracion: integracionSelect.rows[0].name || '',
         });
       });
 
-      console.log('Mensaje emitido a los usuarios:', recipients);
+
+      console.log('Mensaje emitido:', newMessage.id);
 
       // Obtener el rol del usuario responsable y procesar según su tipo
       const roleQuery = 'SELECT rol FROM users WHERE id_usuario = $1';

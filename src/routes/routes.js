@@ -633,7 +633,6 @@ router.delete('/users/:id', async (req, res) => {
   }
 });
 
-
 const profileStorage = multer.diskStorage({
   destination: function (req, file, cb) {
     const profileDir = path.join(__dirname, '..', '..', 'public', 'media', 'users', 'profile');

@@ -294,6 +294,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
        destino_apellido: usuario_send.last_name,
        destino_foto: usuario_send.profile_url
      });
+    });
      console.log('Mensaje emitido:', newMessage.id);
 
     try {

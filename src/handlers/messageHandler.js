@@ -115,28 +115,43 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       console.log('Mensaje insertado con ID de conversación:', conversationId, 'Detalles del mensaje:', res.rows[0]);
       const newMessage = res.rows[0];
 
-      io.emit('newMessage', {
-        id: newMessage.id,
-        conversationId: conversationId,
-        timestamp: newMessage.received_at,
-        senderId: senderId,
-        message_type: messageData.type,
-        text: newMessage.message_text,
-        url: newMessage.message_media_url,
-        thumbnail_url: newMessage.thumbnail_url,
-        duration: mediaDuration,
-        latitude: messageData.latitude || null,
-        longitude: messageData.longitude || null,
-        type: 'message',
-        unread_messages: unreadMessages,
-        responsibleUserId: responsibleUserId,
-        file_name: messageData.file_name,
-        reply_from: newMessage.reply_from,
-        state: newMessage.state,
-        company_id: integrationDetails.company_id // Añadir company_id aquí
+      // Consulta para obtener los administradores
+      const adminQuery = `
+        SELECT id_usuario FROM users 
+        WHERE company_id = $1 
+          AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+      `;
+      const adminResult = await pool.query(adminQuery, [company_id]);
+
+
+      const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+      // Emitir el mensaje al usuario responsable y a los administradores
+      const recipients = [responsibleUserId, ...adminIds];
+      recipients.forEach(userId => {
+        io.to(`user-${userId}`).emit('newMessage', {
+          id: newMessage.id,
+          conversationId: conversationId,
+          timestamp: newMessage.received_at,
+          senderId: senderId,
+          message_type: messageData.type,
+          text: newMessage.message_text,
+          url: newMessage.message_media_url,
+          thumbnail_url: newMessage.thumbnail_url,
+          duration: mediaDuration,
+          latitude: messageData.latitude || null,
+          longitude: messageData.longitude || null,
+          type: 'message',
+          unread_messages: unreadMessages,
+          responsibleUserId: responsibleUserId,
+          file_name: messageData.file_name,
+          reply_from: newMessage.reply_from,
+          state: newMessage.state,
+          company_id: integrationDetails.company_id // Añadir company_id aquí
+        });
       });
 
-      console.log('Mensaje emitido:', newMessage.id);
+      console.log('Mensaje emitido a los usuarios:', recipients);
 
       // Obtener el rol del usuario responsable y procesar según su tipo
       const roleQuery = 'SELECT rol FROM users WHERE id_usuario = $1';

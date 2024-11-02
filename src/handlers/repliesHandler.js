@@ -249,7 +249,21 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
       [phone]
     );
 
-     io.emit('newMessage', {
+     // Consulta para obtener los administradores
+     const adminQuery = `
+     SELECT id_usuario FROM users 
+     WHERE company_id = $1 
+       AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+   `;
+   const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+   const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+   // Emitir el mensaje al usuario responsable y a los administradores
+   const recipients = [responsibleUserId, ...adminIds];
+   recipients.forEach(userId => {
+     io.to(`user-${userId}`).emit('newMessage', {
        id: newMessage.id,
        conversationId: conversationId,
        timestamp: newMessage.received_at,
@@ -269,7 +283,8 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId) =
        destino_nombre: usuario_send.first_name,
        destino_apellido: usuario_send.last_name,
        destino_foto: usuario_send.profile_url
-     });
+     }); 
+    });
      console.log('Mensaje emitido:', newMessage.id);
 
     try {
@@ -360,8 +375,21 @@ export async function sendImageMessage(io, req, res) {
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
     const newMessage = result.rows[0];
-    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    io.emit('newMessage', {
+    // Consulta para obtener los administradores
+    const adminQuery = `
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = [responsibleUserId, ...adminIds];
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,
@@ -378,6 +406,7 @@ export async function sendImageMessage(io, req, res) {
       responsibleUserId: responsibleUserId,
       company_id: integrationDetails.company_id // Añadir company_id aquí
     });
+  });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
   } catch (error) {
@@ -450,7 +479,21 @@ export async function sendVideoMessage(io, req, res) {
     console.log('Inserted reply ID:', result.rows[0]);
     const newMessage = result.rows[0];
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    io.emit('newMessage', {
+    // Consulta para obtener los administradores
+    const adminQuery = `
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = [responsibleUserId, ...adminIds];
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,
@@ -467,6 +510,7 @@ export async function sendVideoMessage(io, req, res) {
       responsibleUserId: responsibleUserId,
       company_id: integrationDetails.company_id // Añadir company_id aquí
     });
+  });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
   } catch (error) {
@@ -538,7 +582,21 @@ export async function sendDocumentMessage(io, req, res) {
     console.log('Inserted reply ID:', result.rows[0]);
     const newMessage = result.rows[0];
     // Emit the processed message to clients subscribed to that conversation
-    io.emit('newMessage', {
+    // Consulta para obtener los administradores
+    const adminQuery = `
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = [responsibleUserId, ...adminIds];
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,
@@ -556,6 +614,7 @@ export async function sendDocumentMessage(io, req, res) {
       file_name: documentName,
       company_id: integrationDetails.company_id // Añadir company_id aquí
     });
+  });
     console.log('Message emitted:', newMessage.replies_id);
 
   } catch (error) {
@@ -660,7 +719,21 @@ export async function sendAudioMessage(io, req, res) {
     const responsibleUserId = result.rows[0].id_usuario;
 
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    io.emit('newMessage', {
+    // Consulta para obtener los administradores
+    const adminQuery = `
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = [responsibleUserId, ...adminIds];
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,
@@ -676,6 +749,7 @@ export async function sendAudioMessage(io, req, res) {
       responsibleUserId: responsibleUserId,
       company_id: integrationDetails.company_id, // Añadir company_id aquí
     });
+  });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
     res.status(200).json({ message: 'Audio message sent successfully', data: sendMessageResponse.data });
@@ -744,7 +818,21 @@ export async function sendLocationMessage(io, req, res) {
     console.log('Inserted reply ID:', result.rows[0]);
     const newMessage = result.rows[0];
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    io.emit('newMessage', {
+    // Consulta para obtener los administradores
+    const adminQuery = `
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = [responsibleUserId, ...adminIds];
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,
@@ -761,6 +849,7 @@ export async function sendLocationMessage(io, req, res) {
       responsibleUserId: responsibleUserId,
       company_id: integrationDetails.company_id // Añadir company_id aquí
     });
+  });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
   } catch (error) {
@@ -1472,7 +1561,21 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
       const newMessage = messageRes.rows[0];
 
       // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-      io.emit('newMessage', {
+      // Consulta para obtener los administradores
+     const adminQuery = `
+     SELECT id_usuario FROM users 
+     WHERE company_id = $1 
+       AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+   `;
+   const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+   const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+   // Emitir el mensaje al usuario responsable y a los administradores
+   const recipients = [responsibleUserId, ...adminIds];
+   recipients.forEach(userId => {
+     io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.replies_id,
           conversationId: conversation.conversation_id,
           timestamp: newMessage.created_at,
@@ -1491,6 +1594,7 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
           footer: footerTextReplaced,
           company_id: integrationDetails.company_id // Añadir company_id aquí
       });
+    });
       console.log('Mensaje emitido:', newMessage.replies_id);
   } catch (error) {
       console.error('Error storing message:', error.message);

@@ -207,7 +207,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       const adminIds = adminResult.rows.map(row => row.id_usuario);
 
       // Emitir el mensaje al usuario responsable y a los administradores
-      const recipients = [responsibleUserId, ...adminIds];
+      const recipients = adminIds.includes(responsibleUserId) 
+      ? adminIds 
+      : [responsibleUserId, ...adminIds];
+
       recipients.forEach(userId => {
         io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.id,

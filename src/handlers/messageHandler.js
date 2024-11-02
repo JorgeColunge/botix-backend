@@ -8,7 +8,7 @@ import { dirname } from 'path';
 import ffmpeg from 'fluent-ffmpeg';
 import moment from 'moment-timezone';
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from '../handlers/repliesHandler.js';
-
+// import { google } from 'googleapis'; 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
@@ -22,13 +22,13 @@ const axiosInstance = axios.create({
 
 const externalData = '';
 
-import serviceAccount from '../../crm-android-system.json';
+import serviceAccount from '../../crm-android-system.json' assert { type: 'json' };
 
 // Crear cliente de autenticación
-const authClient = new google.auth.GoogleAuth({
-  credentials: serviceAccount,
-  scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
-});
+// const authClient = new google.auth.GoogleAuth({
+//   credentials: serviceAccount,
+//   scopes: ['https://www.googleapis.com/auth/firebase.messaging'],
+// });
 
 
 const getDeviceTokenForUser = async (phone, id_usuario) => {

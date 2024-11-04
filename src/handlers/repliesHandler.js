@@ -4,14 +4,37 @@ import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { PassThrough } from 'stream';
 import FormData from 'form-data';
+import serviceAccount from '../../crm-android-system.json' assert { type: 'json' };
+import { GoogleAuth } from 'google-auth-library';
 
 const backendUrl = process.env.BACKEND_URL;
+
+function getAccessToken() {
+  return new Promise(async (resolve, reject) => {
+    try {
+      const auth = new GoogleAuth({
+        credentials: serviceAccount,
+        scopes: 'https://www.googleapis.com/auth/firebase.messaging',
+      });
+
+      const client = await auth.getClient();
+      const accessToken = await client.getAccessToken();
+      if (accessToken && accessToken.token) {
+        resolve(accessToken.token);
+      } else {
+        reject(new Error('No se pudo obtener el token de acceso.'));
+      }
+    } catch (error) {
+      reject(error);
+    }
+  });
+}
 
 const getDeviceTokenForUser = async (phone, id_usuario) => {
   // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
   // o donde sea que estés almacenando los tokens de los usuarios
   if (phone) {
-    const res = await pool.query('SELECT token_firebase FROM users WHERE phone_number = $1', [id_usuario]);
+    const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
     return res.rows[0] ? res.rows[0].token_firebase : null;   
   } else if (id_usuario) {
     
@@ -21,35 +44,52 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
 }
 
 const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
-  // Aquí debes obtener el token del dispositivo del usuario
+  // Obtener el token del dispositivo del usuario
   const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
   if (!deviceToken) {
-    console.log('No se encontró el token del dispositivo para:', phone || id_usuario);
+    console.log('No se encontró el token del dispositivo para:', id_usuario);
     return;
   }
 
+  console.log("Token del usuario:", deviceToken);
+
   const notificationPayload = {
-    to: deviceToken, // Token del dispositivo
-    notification: {
-      title: `${nombre} ${apellido}`,
-      body: ` ${messageText}`,
-      imagen: `${backendUrl}${foto}`
+    message: {
+      token: deviceToken,
+      notification: {
+        title: `${nombre} ${apellido}`,
+        body: messageText,
+        image: `${process.env.BACKEND_URL}${foto}`,
+      },
+      data: {
+        text: String(messageText),
+        senderId: String(phone || id_usuario), 
+      },
     },
-    data: {
-      text: messageText,
-      senderId: phone || id_usuario,
-    }
   };
 
-  const response = await axios.post('https://fcm.googleapis.com/fcm/send', notificationPayload, {
-    headers: {
-      'Content-Type': 'application/json',
-      'Authorization': `key=${process.env.FIREBSE_SERVER_KEY}` // Reemplaza con tu Server Key de Firebase
-    }
-  });
+  try {
+    // Obtener el token de acceso OAuth
+    const accessToken = await getAccessToken();
 
-  return response;
-}
+    // Enviar la notificación usando el token de acceso
+    const response = await axios.post(
+      `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`,
+      notificationPayload,
+      {
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`, // Aquí va el token de acceso OAuth
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error('Error enviando la notificación:', error.response ? error.response.data : error.message);
+    throw error;
+  }
+};
 
 //Funciones de tipos de mensaje:
 const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent) => {
@@ -179,9 +219,9 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
    
    try {
      const fcmResponse = await sendNotificationToFCM(null, messageText, remitent, usuario_send.nombre, usuario_send.apellido, usuario_send.link_foto);
-     console.log('Notificación enviada:', fcmResponse.data);
+     console.log('Notificación enviada:', fcmResponse);
    } catch (error) {
-    console.error('Error enviando notificaion:', error);
+    console.error('Error enviando notificacion a usuario interno:', error.error);
     
    }
     
@@ -302,9 +342,9 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
 
     try {
        const fcmResponse = await sendNotificationToFCM(phone, messageText, responsibleUserId,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
-       console.log('Notificación enviada:', fcmResponse.data);
+       console.log('Notificación enviada:', fcmResponse);
     } catch (error) {
-      console.error('Error sending notificaion:', error);
+      console.error('Error sending notificaion whatsapps:', error.error);
     }
 
    } catch (error) {

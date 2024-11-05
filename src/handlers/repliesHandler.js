@@ -74,7 +74,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
 
     // Enviar la notificación usando el token de acceso
     const response = await axios.post(
-      `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROJECT_ID}/messages:send`,
+      `https://fcm.googleapis.com/v1/projects/${process.env.FIREBASE_PROYECT_ID}/messages:send`,
       notificationPayload,
       {
         headers: {

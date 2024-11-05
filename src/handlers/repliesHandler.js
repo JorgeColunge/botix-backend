@@ -218,7 +218,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     console.log('Mensaje emitido:', newMessage.id);
    
    try {
-     const fcmResponse = await sendNotificationToFCM(null, messageText, remitent, usuario_send.nombre, usuario_send.apellido, usuario_send.link_foto);
+     const fcmResponse = await sendNotificationToFCM(null, messageText, remitent, usuario_send.rows[0].nombre, usuario_send.rows[0].apellido, usuario_send.rows[0].link_foto);
      console.log('Notificación enviada:', fcmResponse);
    } catch (error) {
     console.error('Error enviando notificacion a usuario interno:', error.error);
@@ -333,15 +333,15 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
        responsibleUserId: responsibleUserId,
        reply_from: newMessage.reply_from,
        company_id: integrationDetails.company_id, // Añadir company_id aquí
-       destino_nombre: usuario_send.first_name,
-       destino_apellido: usuario_send.last_name,
-       destino_foto: usuario_send.profile_url
+       destino_nombre: usuario_send.rows[0].first_name,
+       destino_apellido: usuario_send.rows[0].last_name,
+       destino_foto: usuario_send.rows[0].profile_url
      });
     });
      console.log('Mensaje emitido:', newMessage.id);
 
     try {
-       const fcmResponse = await sendNotificationToFCM(phone, messageText, responsibleUserId,  usuario_send.first_name, usuario_send.last_name, usuario_send.profile_url);
+       const fcmResponse = await sendNotificationToFCM(phone, messageText, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
        console.log('Notificación enviada:', fcmResponse);
     } catch (error) {
       console.error('Error sending notificaion whatsapps:', error.error);

@@ -318,9 +318,9 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
       console.log("mensaje de whatapps", newMessage)
    recipients.forEach(userId => {
      io.to(`user-${userId}`).emit('newMessage', {
-       id: newMessage.id,
+       id: newMessage.replies_id,
        conversationId: conversationId,
-       timestamp: newMessage.received_at,
+       timestamp: newMessage.created_at,
        senderId: phone,
        message_type: 'text',
        text: messageText || null,

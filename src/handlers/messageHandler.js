@@ -80,7 +80,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
   var notificationPayload = {};
   switch (typeMessage) {
     case 'audio':
-       const formattedDuration = formatVideoDuration(audioDuration);
+       const formattedDuration = formatVideoDuration(messageText);
        notificationPayload = {
         message: {
           token: deviceToken,
@@ -91,7 +91,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           data: {
             text: "audio",
-            duration: String(audioDuration),
+            duration: String(messageText),
             senderId: String(phone || id_usuario),
           },
         },
@@ -148,7 +148,25 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               },
             },
           };
-          break;         
+          break; 
+      case 'video':
+        const formattedDuration2 = formatVideoDuration(messageText);
+        notificationPayload = {
+          message: {
+            token: deviceToken,
+            notification: {
+              title: `${nombre} ${apellido}`,
+              body: `🎥 Video: ${formattedDuration2}`,
+            },
+            data: {
+              text: "video",
+              duration: String(messageText),
+              senderId: String(phone || id_usuario),
+            },
+          },
+        };
+        
+        break;           
     default:
       break;
   }
@@ -420,7 +438,6 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     console.log('Mensaje redirigido, no se almacena ni se emite');
   }
 }
-
 
 async function getOrCreateConversation(contactId, phoneNumber, integrationId, companyId) {
   const findQuery = 'SELECT conversation_id, id_usuario FROM conversations WHERE contact_id = $1';

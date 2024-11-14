@@ -680,7 +680,6 @@ router.post('/upload-profileContact', uploadProfileContact.single('profile'), (r
   res.json({ profileUrl: `/media/contacts/profile/${req.file.filename}` });
 });
 
-
 router.post('/messages/send-text', (req, res) => {
   sendTextMessage(io, req, res);
 });

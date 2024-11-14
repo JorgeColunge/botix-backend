@@ -43,7 +43,7 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
   }
 }
 
-const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
+const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario, nombre, apellido, foto) => {
   // Obtener el token del dispositivo del usuario
   const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
   if (!deviceToken) {
@@ -51,22 +51,57 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
     return;
   }
 
+  const formatVideoDuration = (duration) => {
+    if (isNaN(duration)) {
+      return '';
+    }
+    const minutes = Math.floor(duration / 60);
+    const seconds = Math.floor(duration % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
+  };
+
   console.log("Token del usuario:", deviceToken);
 
-  const notificationPayload = {
-    message: {
-      token: deviceToken,
-      notification: {
-        title: `${nombre} ${apellido}`,
-        body: messageText,
-        image: `${process.env.BACKEND_URL}${foto}`,
-      },
-      data: {
-        text: String(messageText),
-        senderId: String(phone || id_usuario), 
-      },
-    },
-  };
+  var notificationPayload = {};
+  switch (typeMessage) {
+    case 'audio':
+       const formattedDuration = formatVideoDuration(audioDuration);
+       notificationPayload = {
+        message: {
+          token: deviceToken,
+          notification: {
+            title: `${nombre} ${apellido}`,
+            body: `🎙️ Mensaje de audio: ${formattedDuration}`,
+            image: `${process.env.BACKEND_URL}${foto}`,
+          },
+          data: {
+            text: "audio",
+            duration: String(audioDuration),
+            senderId: String(phone || id_usuario),
+          },
+        },
+      };
+      
+      break;
+    case 'text':
+      notificationPayload = {
+        message: {
+          token: deviceToken,
+          notification: {
+            title: `${nombre} ${apellido}`,
+            body: messageText,
+            image: `${process.env.BACKEND_URL}${foto}`,
+          },
+          data: {
+            text: String(messageText),
+            senderId: String(phone || id_usuario), 
+          },
+        },
+      }; 
+      break;
+    default:
+      break;
+  }
 
   try {
     // Obtener el token de acceso OAuth
@@ -92,7 +127,7 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
 };
 
 //Funciones de tipos de mensaje:
-const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent) => {
+const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
 
   if (!conversationId) {
     let isUnique = false;
@@ -164,11 +199,12 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
         latitude,
         longitude,
         replies_id,
-        created_at
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+        created_at,
+         reply_from
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
     `;
     const messageValues = [
-      remitent,
+      usuario_send,
       newConversationId,
       'text',
       messageText,
@@ -176,16 +212,17 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       null,
       null,
       Math.floor(Math.random() * 100000), // Genera un número aleatorio grande
-      new Date() // Timestamp actual
+      new Date(), // Timestamp actual
+      reply_from
     ];
     const res = await pool.query(insertQuery, messageValues);
     const newMessage = res.rows[0];
 
-    const usuario_send = await pool.query(
+    const usuario_sending = await pool.query(
       'SELECT * FROM users WHERE id_usuario = $1', 
-      [remitent]
+      [usuario_send]
     );
-    console.log("remitente: ", usuario_send.rows[0])
+    console.log("remitente: ", usuario_sending.rows[0])
 
     const integracionSelect = await pool.query(
       'SELECT * FROM integrations WHERE id = $1', 
@@ -196,7 +233,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       id: newMessage.id,
       conversationId: newConversationId,
       timestamp: newMessage.created_at,
-      senderId: remitent,
+      senderId: usuario_send,
       message_type: 'text',
       text: messageText || null,
       mediaUrl: null,
@@ -209,20 +246,19 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       responsibleUserId: responsibleUserId,
       reply_from: newMessage.reply_from,
       company_id: companyId,
-      destino_nombre: usuario_send.rows[0].nombre || '',
-      destino_apellido: usuario_send.rows[0].apellido || '',
-      destino_foto: usuario_send.link_foto || '',
+      destino_nombre: usuario_sending.rows[0].nombre || '',
+      destino_apellido: usuario_sending.rows[0].apellido || '',
+      destino_foto: usuario_sending.link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
 
     console.log('Mensaje emitido:', newMessage.id);
    
    try {
-     const fcmResponse = await sendNotificationToFCM(null, messageText, remitent, usuario_send.rows[0].nombre, usuario_send.rows[0].apellido, usuario_send.rows[0].link_foto);
+     const fcmResponse = await sendNotificationToFCM('text', null, messageText, remitent, usuario_send.rows[0].nombre, usuario_send.rows[0].apellido, usuario_send.rows[0].link_foto);
      console.log('Notificación enviada:', fcmResponse);
    } catch (error) {
     console.error('Error enviando notificacion a usuario interno:', error.error);
-    
    }
     
   } catch (error) {
@@ -231,7 +267,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
   }
 };
 
-const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, integration_id) => {
+const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, integration_id, reply_from) => {
  
    // Obtén los detalles de la integración
    const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
@@ -271,8 +307,9 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
          latitude,
          longitude,
          replies_id,
-         created_at
-       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+         created_at,
+         reply_from
+       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
      `;
      const messageValues = [
        phone,
@@ -283,7 +320,8 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
        null,
        null,
        response.data.messages[0].id, // ID del mensaje de WhatsApp
-       new Date() // Timestamp actual
+       new Date(), // Timestamp actual
+       reply_from
      ];
      const res = await pool.query(insertQuery, messageValues);
      console.log('Inserted reply ID:', res.rows[0]);
@@ -342,7 +380,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
      console.log('Mensaje emitido:', newMessage.id);
 
     try {
-       const fcmResponse = await sendNotificationToFCM(phone, messageText, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
+       const fcmResponse = await sendNotificationToFCM('text', phone, messageText, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
        console.log('Notificación enviada:', fcmResponse);
     } catch (error) {
       console.error('Error sending notificaion whatsapps:', error.error);
@@ -354,16 +392,282 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
    }
 }
 
+//Funciones de tipo audio:
+const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
+
+  if (!conversationId) {
+    let isUnique = false;
+  
+    // Intentar generar un ID numérico único
+    while (!isUnique) {
+      const generatedId = Math.floor(Math.random() * 1000000000); // Genera un número aleatorio grande
+      const checkQuery = await pool.query('SELECT conversation_id FROM conversations WHERE conversation_id = $1', [generatedId]);
+      
+      if (checkQuery.rowCount === 0) {
+        conversationId = generatedId;
+        isUnique = true; // Si no existe, podemos usar este ID
+      }
+    }
+  } 
+
+  // Verificar si la conversación existe
+  const conversationCheck = await pool.query('SELECT * FROM conversations WHERE conversation_id = $1', [conversationId]);
+
+  let newConversationId = conversationId;
+
+  if (conversationCheck.rowCount === 0) {
+    // Si la conversación no existe, crear una nueva
+    const insertConversationQuery = `
+    INSERT INTO conversations (
+      conversation_id, 
+      phone_number, 
+      state, 
+      last_update, 
+      unread_messages, 
+      id_usuario, 
+      contact_user_id, 
+      integration_id
+    ) VALUES ($1, $2, 'active', $3, $4, $5, $6, $7) RETURNING conversation_id;
+  `;
+
+  const currentTimestamp = new Date();
+  const newConversationRes = await pool.query(insertConversationQuery, [
+    newConversationId,  // conversation_id
+    phone,             // phone_number (asumiendo que es null)
+    currentTimestamp,   // last_update
+    0,                  // unread_messages
+    id_usuario,         // id_usuario
+    usuario_send,       // contact_id
+    integration_id      // integration_id
+  ]);
+
+    newConversationId = newConversationRes.rows[0].conversation_id;
+    console.log('Nueva conversación creada:', newConversationId);
+  }
+  
+  try {
+
+    // Intenta insertar en la base de datos
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        duration,
+        reply_from
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+    `;
+    const messageValues = [
+      Math.floor(Math.random() * 1000000),
+      usuario_send,
+      conversationId,
+      'audio',
+      null,
+      audioUrl,
+      null,
+      null,
+      audioDuration,
+      reply_from
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    const unreadMessages = result.rows[0].unread_messages;
+
+
+    // Usando push:
+    const recipients = [];
+    recipients.push(id_usuario);
+    recipients.push(usuario_send);
+
+    recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('internalMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: usuario_send,
+      type: 'reply',
+      message_type: 'audio',
+      text: null,
+      url: audioUrl,
+      duration: audioDuration,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: id_usuario,
+      reply_from: newMessage.reply_from,
+      company_id: companyId, // Añadir company_id aquí
+    });
+  });
+    console.log('Mensaje emitido:', newMessage.replies_id);
+
+    try {
+      const fcmResponse = await sendNotificationToFCM( 'audio', null, messageText, audioDuration, usuario_send.rows[0].nombre, usuario_send.rows[0].apellido, usuario_send.rows[0].link_foto);
+      console.log('Notificación enviada:', fcmResponse);
+    } catch (error) {
+     console.error('Error enviando notificacion a usuario interno:', error.error);
+    }
+
+  } catch (error) {
+    console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
+
+const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fileName, conversationId, integration_id, reply_from) => {
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
+
+  try {
+     // Paso 1: Descargar el archivo de audio desde la URL
+     const audioResponse = await axios.get(fullAudioUrl, { responseType: 'arraybuffer' });
+     const audioBuffer = Buffer.from(audioResponse.data, 'binary');
+ 
+     // Convertir el buffer a un stream
+     const audioStream = new PassThrough();
+     audioStream.end(audioBuffer); // Pasa el buffer directamente al stream
+ 
+     // Paso 2: Crear un FormData para subir el archivo
+       const formData = new FormData();
+       formData.append('file', audioStream, {
+        filename: `${fileName}`,
+        contentType: 'audio/ogg; codecs=opus' // Incluye el tipo de contenido con el codec
+      });
+       formData.append('messaging_product', 'whatsapp');
+       formData.append('type', 'audio/ogg')
+ 
+     // Subir archivo multimedia
+     const mediaUploadResponse = await axios(
+      {url: `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/media`,
+        method: 'post',
+       data: formData,
+         headers: {
+           'Authorization': `Bearer ${whatsapp_api_token}`,
+           ...formData.getHeaders(),  // Obtener los headers necesarios para multipart/form-data
+         },
+       }
+     );
+
+     const mediaId = mediaUploadResponse.data.id;
+     console.log("ID del medio:", mediaId);
+ 
+    const messagePayload = {
+      messaging_product: 'whatsapp',
+      to: phone,
+      type: 'audio',
+      audio: {
+        id: mediaId, // Usa el media_id en lugar del link
+      },
+    };
+
+    const sendMessageResponse = await axios.post(
+      `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/messages`,
+      messagePayload,
+      {
+        headers: {
+          'Authorization': `Bearer ${whatsapp_api_token}`,
+          'Content-Type': 'application/json',
+        },
+      }
+    );
+
+    console.log('Mensaje enviado correctamente:', sendMessageResponse.data);
+
+    // Intenta insertar en la base de datos
+    const insertQuery = `
+      INSERT INTO replies (
+        replies_id,
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        duration,
+        reply_from
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
+    `;
+    const messageValues = [
+      sendMessageResponse.data.messages[0].id,
+      phone,
+      conversationId,
+      'audio',
+      null,
+      audioUrl,
+      null,
+      null,
+      audioDuration,
+      reply_from
+    ];
+    const result = await pool.query(insertQuery, messageValues);
+    console.log('Inserted reply ID:', result.rows[0]);
+    const newMessage = result.rows[0];
+    const unreadMessages = result.rows[0].unread_messages;
+    const responsibleUserId = result.rows[0].id_usuario;
+
+    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+    // Consulta para obtener los administradores
+    const adminQuery = `
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = adminIds.includes(responsibleUserId) 
+      ? adminIds 
+      : [responsibleUserId, ...adminIds];
+
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'audio',
+      text: null,
+      url: audioUrl,
+      duration: audioDuration,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId,
+      company_id: integrationDetails.company_id, // Añadir company_id aquí
+    });
+  });
+    console.log('Mensaje emitido:', newMessage.replies_id);
+
+  } catch (error) {
+    console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
+    res.status(500).json({ error: error.message });
+  }
+}
+
 export async function sendTextMessage(io, req, res) {
-  const { phone, messageText, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent } = req.body;
+  const { phone, messageText, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
   console.log("datos del cuerpo del msj:", req.body)
   switch (integration_name) {
     case 'Interno':
-        await InternalMessageSend(io, res, messageText, conversation_id, usuario_send, id_usuario, integration_id, phone, companyId, remitent)
+        await InternalMessageSend(io, res, messageText, conversation_id, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from)
       break;
   
     default:
-       await WhatsAppMessageSend(io, res, phone, messageText, conversationId || conversation_id, integration_id)
+       await WhatsAppMessageSend(io, res, phone, messageText, conversationId || conversation_id, integration_id, reply_from)
       break;
   }
 }
@@ -475,7 +779,6 @@ export async function sendImageMessage(io, req, res) {
 export async function sendVideoMessage(io, req, res) {
   const { phone, videoUrl, videoThumbnail, videoDuration, conversationId } = req.body;
   const fullVideoUrl = `${backendUrl}${videoUrl}`;
-  console.log(fullVideoUrl);
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
@@ -687,142 +990,25 @@ export async function sendDocumentMessage(io, req, res) {
 }
 
 export async function sendAudioMessage(io, req, res) {
-  const { phone, audioUrl, audioDuration, conversationId } = req.body;
+  const { phone, audioUrl, audioDuration, conversationId, usuario_send, id_usuario, companyId, remitent, reply_from, integration_name, integration_id } = req.body;
   const fullAudioUrl = `${backendUrl}${audioUrl}`;
   const fileName = audioUrl.split('/media/audios/')[1]; 
+  
+  
+try {
+    switch (integration_name) {
+      case 'Interno':
+         await InternalAudioSend(io, res, fileName, audioUrl, audioDuration, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from)
+        break;
+    
+      default:
+        await WhatAppAudioSend(io, res, phone, audioDuration, audioUrl, fileName, conversationId, integration_id, reply_from)
+        break;
+    }
+} catch (error) {
+   console.log("error:", error)
+}
 
-  // Obtén los detalles de la integración
-  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
-  const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
-
-  try {
-     // Paso 1: Descargar el archivo de audio desde la URL
-     const audioResponse = await axios.get(fullAudioUrl, { responseType: 'arraybuffer' });
-     const audioBuffer = Buffer.from(audioResponse.data, 'binary');
- 
-     // Convertir el buffer a un stream
-     const audioStream = new PassThrough();
-     audioStream.end(audioBuffer); // Pasa el buffer directamente al stream
- 
-     // Paso 2: Crear un FormData para subir el archivo
-       const formData = new FormData();
-       formData.append('file', audioStream, {
-        filename: `${fileName}`,
-        contentType: 'audio/ogg; codecs=opus' // Incluye el tipo de contenido con el codec
-      });
-       formData.append('messaging_product', 'whatsapp');
-       formData.append('type', 'audio/ogg')
- 
-     // Subir archivo multimedia
-     const mediaUploadResponse = await axios(
-      {url: `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/media`,
-        method: 'post',
-       data: formData,
-         headers: {
-           'Authorization': `Bearer ${whatsapp_api_token}`,
-           ...formData.getHeaders(),  // Obtener los headers necesarios para multipart/form-data
-         },
-       }
-     );
-
-     const mediaId = mediaUploadResponse.data.id;
-     console.log("ID del medio:", mediaId);
- 
-    const messagePayload = {
-      messaging_product: 'whatsapp',
-      to: phone,
-      type: 'audio',
-      audio: {
-        id: mediaId, // Usa el media_id en lugar del link
-      },
-    };
-
-    const sendMessageResponse = await axios.post(
-      `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/messages`,
-      messagePayload,
-      {
-        headers: {
-          'Authorization': `Bearer ${whatsapp_api_token}`,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-
-    console.log('Mensaje enviado correctamente:', sendMessageResponse.data);
-
-    // Intenta insertar en la base de datos
-    const insertQuery = `
-      INSERT INTO replies (
-        replies_id,
-        sender_id,
-        conversation_fk,
-        reply_type,
-        reply_text,
-        reply_media_url,
-        latitude,
-        longitude,
-        duration
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
-    `;
-    const messageValues = [
-      sendMessageResponse.data.messages[0].id,
-      phone,
-      conversationId,
-      'audio',
-      null,
-      audioUrl,
-      null,
-      null,
-      audioDuration,
-    ];
-    const result = await pool.query(insertQuery, messageValues);
-    console.log('Inserted reply ID:', result.rows[0]);
-    const newMessage = result.rows[0];
-    const unreadMessages = result.rows[0].unread_messages;
-    const responsibleUserId = result.rows[0].id_usuario;
-
-    // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    // Consulta para obtener los administradores
-    const adminQuery = `
-    SELECT id_usuario FROM users 
-    WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
-  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
-
-
-  const adminIds = adminResult.rows.map(row => row.id_usuario);
-
-  // Emitir el mensaje al usuario responsable y a los administradores
-  const recipients = adminIds.includes(responsibleUserId) 
-      ? adminIds 
-      : [responsibleUserId, ...adminIds];
-
-  recipients.forEach(userId => {
-    io.to(`user-${userId}`).emit('newMessage', {
-      id: newMessage.replies_id,
-      conversationId: conversationId,
-      timestamp: newMessage.created_at,
-      senderId: phone,
-      type: 'reply',
-      message_type: 'audio',
-      text: null,
-      url: audioUrl,
-      duration: audioDuration,
-      latitude: null,
-      longitude: null,
-      unread_messages: unreadMessages,
-      responsibleUserId: responsibleUserId,
-      company_id: integrationDetails.company_id, // Añadir company_id aquí
-    });
-  });
-    console.log('Mensaje emitido:', newMessage.replies_id);
-
-    res.status(200).json({ message: 'Audio message sent successfully', data: sendMessageResponse.data });
-  } catch (error) {
-    console.error('Error sending WhatsApp audio:', error.response?.data || error.message);
-    res.status(500).json({ error: error.message });
-  }
 }
 export async function sendLocationMessage(io, req, res) {
   const { phone, latitude, longitude, streetName, conversationId } = req.body;

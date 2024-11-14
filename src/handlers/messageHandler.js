@@ -58,7 +58,7 @@ const getDeviceTokenForUser = async (phone, id_usuario) => {
   }
 }
 
-const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, apellido, foto) => {
+const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario, nombre, apellido, foto) => {
   // Obtener el token del dispositivo del usuario
   const deviceToken = await getDeviceTokenForUser(phone, id_usuario);
   if (!deviceToken) {
@@ -68,21 +68,90 @@ const sendNotificationToFCM = async (phone, messageText, id_usuario, nombre, ape
 
   console.log("Token del usuario:", deviceToken);
 
-  const notificationPayload = {
-    message: {
-      token: deviceToken,
-      notification: {
-        title: `${nombre} ${apellido}`,
-        body: messageText,
-        image: `${process.env.BACKEND_URL}${foto}`,
-      },
-      data: {
-        text: String(messageText),
-        senderId: String(phone || id_usuario), 
-      },
-    },
+  const formatVideoDuration = (duration) => {
+    if (isNaN(duration)) {
+      return '';
+    }
+    const minutes = Math.floor(duration / 60);
+    const seconds = Math.floor(duration % 60);
+    return `${minutes}:${seconds.toString().padStart(2, '0')}`;
   };
 
+  var notificationPayload = {};
+  switch (typeMessage) {
+    case 'audio':
+       const formattedDuration = formatVideoDuration(audioDuration);
+       notificationPayload = {
+        message: {
+          token: deviceToken,
+          notification: {
+            title: `${nombre} ${apellido}`,
+            body: `🎙️ Mensaje de audio: ${formattedDuration}`,
+            image: `${process.env.BACKEND_URL}${foto}`,
+          },
+          data: {
+            text: "audio",
+            duration: String(audioDuration),
+            senderId: String(phone || id_usuario),
+          },
+        },
+      };
+      
+      break;
+    case 'text':
+      notificationPayload = {
+        message: {
+          token: deviceToken,
+          notification: {
+            title: `${nombre} ${apellido}`,
+            body: messageText,
+            image: `${process.env.BACKEND_URL}${foto}`,
+          },
+          data: {
+            text: String(messageText),
+            senderId: String(phone || id_usuario), 
+          },
+        },
+      }; 
+      break;
+     case 'document':
+        const fileName = messageText 
+        notificationPayload = {
+          message: {
+            token: deviceToken,
+            notification: {
+              title: `${nombre} ${apellido}`,
+              body: `📄 Documento: ${fileName}`,
+              image: `${process.env.BACKEND_URL}${foto}`,
+            },
+            data: {
+              text: "document",  // Indicar que el tipo de mensaje es un documento
+              fileName: fileName, // Nombre del archivo para uso adicional
+              senderId: String(phone || id_usuario),
+            },
+          },
+        };
+        break;
+      case 'image':
+          notificationPayload = {
+            message: {
+              token: deviceToken,
+              notification: {
+                title: `${nombre} ${apellido}`,
+                body: messageText?.mensaje ? messageText.mensaje : '📷 Foto enviada', 
+                image: `${messageText.foto}`, 
+              },
+              data: {
+                text: "image",
+                imageUrl: `${messageText.foto}`,
+                senderId: String(phone || id_usuario),
+              },
+            },
+          };
+          break;         
+    default:
+      break;
+  }
   try {
     // Obtener el token de acceso OAuth
     const accessToken = await getAccessToken();
@@ -254,9 +323,33 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
 
 
       console.log('Mensaje emitido:', newMessage.id);
- 
+      var messageContet = null;
+      
+      switch (messageData.type) {
+        case 'audio':
+          messageContet = mediaDuration;
+          break;
+        case 'text':
+          messageContet = messageText;
+          break;
+        case 'video':
+          messageContet = mediaDuration;
+          break;
+        case 'image':
+          messageContet ={
+            foto: `${process.env.BACKEND_URL}${newMessage.message_media_url }`,
+            mensaje: messageText
+          }
+          break;
+        case 'document':  
+          messageContet = message_media_url.split('/images/')[1];
+          break;  
+        default:
+          break;
+      }
+
       try {
-        const fcmResponse = await sendNotificationToFCM(phone, messageText, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
+        const fcmResponse = await sendNotificationToFCM(messageData.type, phone, messageContet, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
         console.log('Notificación enviada:', fcmResponse);
      } catch (error) {
        console.error('Error sending notificaion de whatapps:', error.error);

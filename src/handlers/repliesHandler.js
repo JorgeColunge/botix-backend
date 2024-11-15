@@ -261,7 +261,12 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     const res = await pool.query(insertQuery, messageValues);
     const newMessage = res.rows[0];
 
-    const usuario_sending = await pool.query(
+     // Usando push:
+     const recipients = [];
+     recipients.push(id_usuario);
+     recipients.push(usuario_send);
+
+     const usuario_sending = await pool.query(
       'SELECT * FROM users WHERE id_usuario = $1', 
       [usuario_send]
     );
@@ -270,13 +275,14 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       'SELECT * FROM users WHERE id_usuario = $1', 
       [id_usuario]
     );
-
+ 
     const integracionSelect = await pool.query(
       'SELECT * FROM integrations WHERE id = $1', 
       [integration_id]
     );
-
-    io.emit('internalMessage', {
+    
+    recipients.forEach(userId => {
+      io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.id,
       conversationId: newConversationId,
       timestamp: newMessage.created_at,
@@ -298,6 +304,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       destino_foto: usuario_sending.link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
+   }); 
 
     console.log('Mensaje emitido:', newMessage.id);
    
@@ -1077,8 +1084,9 @@ const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoD
       'SELECT * FROM integrations WHERE id = $1', 
       [integration_id]
     );
+
   recipients.forEach(userId => {
-    io.to(`user-${userId}`).emit('newMessage', {
+    io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,
@@ -1332,7 +1340,7 @@ const InternalDocumentSend = async(io, res, phone, documentUrl, documentName, co
        );
 
   recipients.forEach(userId => {
-    io.to(`user-${userId}`).emit('newMessage', {
+    io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.replies_id,
       conversationId: conversationId,
       timestamp: newMessage.created_at,

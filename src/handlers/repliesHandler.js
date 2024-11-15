@@ -835,8 +835,8 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
       senderId: usuario_send,
       type: 'reply',
       message_type: 'image',
-      text: null,
-      url: imageUrl,
+      text: messageText || '',
+      url: backendUrl+imageUrl,
       thumbnail_url: null,
       duration: null,
       latitude: null,
@@ -855,7 +855,7 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
     try {
       const messageImage = {
         foto: `${backendUrl.imageUrl}`,
-        mensaje: messageText
+        mensaje: messageText || ''
       }
       const fcmResponse = await sendNotificationToFCM( 'image', null, messageImage, usuario_send, usuario_remitent.rows[0].nombre, usuario_remitent.rows[0].apellido, usuario_remitent.rows[0].link_foto);
       console.log('Notificación enviada:', fcmResponse);

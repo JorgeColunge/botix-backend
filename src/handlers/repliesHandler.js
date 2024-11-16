@@ -532,6 +532,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
     recipients.push(id_usuario);
     recipients.push(usuario_send);
     
+    console.log("usuarios", recipients)
     const usuario_sending = await pool.query(
       'SELECT * FROM users WHERE id_usuario = $1', 
       [usuario_send]
@@ -585,7 +586,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
   }
 }
 
-const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fileName, conversationId, integration_id, reply_from) => {
+const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudioUrl, fileName, conversationId, integration_id, reply_from) => {
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
@@ -1553,7 +1554,7 @@ try {
         break;
     
       default:
-        await WhatAppAudioSend(io, res, phone, audioDuration, audioUrl, fileName, conversationId, integration_id, reply_from)
+        await WhatAppAudioSend(io, res, phone, audioDuration, audioUrl, fullAudioUrl, fileName, conversationId, integration_id, reply_from)
         break;
     }
 } catch (error) {

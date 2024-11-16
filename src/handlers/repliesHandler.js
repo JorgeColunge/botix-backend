@@ -309,7 +309,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     console.log('Mensaje emitido:', newMessage.id);
    
    try {
-     const fcmResponse = await sendNotificationToFCM('text', null, messageText, usuario_send, usuario_remitent.rows[0].nombre, usuario_remitent.rows[0].apellido, usuario_remitent.rows[0].link_foto);
+     const fcmResponse = await sendNotificationToFCM('text', null, messageText, id_usuario, usuario_remitent.rows[0].nombre, usuario_remitent.rows[0].apellido, usuario_remitent.rows[0].link_foto);
      console.log('Notificación enviada:', fcmResponse);
    } catch (error) {
     console.error('Error enviando notificacion a usuario interno:', error.error);

@@ -85,7 +85,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
         message: {
           token: deviceToken,
           notification: {
-            title: `${nombre} ${apellido}`,
+            title: `${nombre || ''} ${apellido || ''}`,
             body: `🎙️ Mensaje de audio: ${formattedDuration}`,
             image: `${process.env.BACKEND_URL}${foto}`,
           },
@@ -103,7 +103,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
         message: {
           token: deviceToken,
           notification: {
-            title: `${nombre} ${apellido}`,
+            title: `${nombre || ''} ${apellido || ''}`,
             body: messageText,
             image: `${process.env.BACKEND_URL}${foto}`,
           },
@@ -120,7 +120,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           message: {
             token: deviceToken,
             notification: {
-              title: `${nombre} ${apellido}`,
+              title: `${nombre || ''} ${apellido || ''}`,
               body: `📄 Documento: ${fileName}`,
               image: `${process.env.BACKEND_URL}${foto}`,
             },
@@ -137,7 +137,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             message: {
               token: deviceToken,
               notification: {
-                title: `${nombre} ${apellido}`,
+                title: `${nombre || ''} ${apellido || ''}`,
                 body: messageText?.mensaje ? messageText.mensaje : '📷 Foto enviada', 
                 image: `${messageText.foto}`, 
               },
@@ -155,7 +155,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           message: {
             token: deviceToken,
             notification: {
-              title: `${nombre} ${apellido}`,
+              title: `${nombre || ''} ${apellido || ''}`,
               body: `🎥 Video: ${formattedDuration2}`,
             },
             data: {

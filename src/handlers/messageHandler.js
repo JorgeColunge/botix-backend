@@ -181,7 +181,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
       {
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${accessToken}`, // Aquí va el token de acceso OAuth
+          'Authorization': `Bearer ${accessToken}`,
         },
       }
     );
@@ -370,7 +370,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         const fcmResponse = await sendNotificationToFCM(messageData.type, phone, messageContet, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
         console.log('Notificación enviada:', fcmResponse);
      } catch (error) {
-       console.error('Error sending notificaion de whatapps:', error.error);
+       console.error('Error sending notificaion de whatapps:', error);
      }
 
       // Obtener el rol del usuario responsable y procesar según su tipo

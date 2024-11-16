@@ -105,7 +105,6 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           notification: {
             title: `${nombre || ''} ${apellido || ''}`,
             body: messageText,
-            image: `${process.env.BACKEND_URL}${foto}`,
           },
           data: {
             text: String(messageText),

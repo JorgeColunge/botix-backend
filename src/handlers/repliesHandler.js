@@ -572,12 +572,12 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
     });
   });
     console.log('Mensaje emitido:', newMessage.replies_id);
-
+  console.log("usuario a enviar:", usuario_send)
     try {
       const fcmResponse = await sendNotificationToFCM( 'audio', null, audioDuration, usuario_send, usuario_send.rows[0].nombre, usuario_send.rows[0].apellido, usuario_send.rows[0].link_foto);
       console.log('Notificación enviada:', fcmResponse);
     } catch (error) {
-     console.error('Error enviando notificacion a usuario interno:', error.error);
+     console.error('Error enviando notificacion a usuario interno:', error);
     }
 
   } catch (error) {

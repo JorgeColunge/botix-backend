@@ -31,16 +31,16 @@ function getAccessToken() {
 }
 
 const getDeviceTokenForUser = async (phone, id_usuario) => {
-  // Implementa la lógica para recuperar el token del dispositivo desde la base de datos
-  // o donde sea que estés almacenando los tokens de los usuarios
-  if (phone) {
-    const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
-    return res.rows[0] ? res.rows[0].token_firebase : null;   
-  } else if (id_usuario) {
+  
+  try {
     
     const res = await pool.query('SELECT token_firebase FROM users WHERE id_usuario = $1', [id_usuario]);
-    return res.rows[0] ? res.rows[0].token_firebase : null;
+    return res.rows[0] ? res.rows[0].token_firebase : null;   
+  } catch (error) {
+    console.log("error:", error)
   }
+
+
 }
 
 const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario, nombre, apellido, foto) => {

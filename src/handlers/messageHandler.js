@@ -359,7 +359,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
           }
           break;
         case 'document':  
-          messageContet = message_media_url.split('/media/documents/')[1];
+          messageContet = newMessage.message_media_url.split('/media/documents/')[1];
           break;  
         default:
           break;

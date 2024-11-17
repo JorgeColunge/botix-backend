@@ -360,20 +360,23 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
    try {
      // Enviar mensaje via WhatsApp
      const response = await axios.post(
-       `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
-       {
-         messaging_product: "whatsapp",
-         to: phone,
-         type: "text",
-         text: { body: messageText }
-       },
-       {
-         headers: {
-           'Authorization': `Bearer ${whatsapp_api_token}`,
-           'Content-Type': 'application/json'
-         }
-       }
-     );
+      `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: phone,
+        type: "text",
+        text: { body: messageText },
+        context: {
+          message_id: replyFromMessageId // El ID del mensaje original al que deseas responder
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${whatsapp_api_token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );    
  
      // Intenta insertar en la base de datos
      const insertQuery = `

@@ -374,7 +374,8 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         const fcmResponse = await sendNotificationToFCM(messageData.type, senderId, messageContet, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
         console.log('Notificación enviada:', fcmResponse);
      } catch (error) {
-       console.error('Error sending notificaion de whatapps:', error);
+      console.error('Error enviando la notificación:', error.response?.data?.error || error.message);
+
      }
 
       // Obtener el rol del usuario responsable y procesar según su tipo

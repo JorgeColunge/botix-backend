@@ -582,7 +582,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
       const fcmResponse = await sendNotificationToFCM( 'audio', null, audioDuration, usuario_send, usuario_sending.rows[0].nombre, usuario_sending.rows[0].apellido, usuario_sending.rows[0].link_foto);
       console.log('Notificación enviada:', fcmResponse);
     } catch (error) {
-      console.error('Error enviando la notificación:', error.response?.data?.error || error.message);;
+      console.error('Error enviando la notificación:', error.response?.data?.error || error.message);
     }
 
   } catch (error) {

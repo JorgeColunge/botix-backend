@@ -88,4 +88,24 @@ router.get('/facebook/callback', passport.authenticate('facebook', { failureRedi
   }
 );
 
+router.delete('/deleteToken/:id', async (req, res) => {
+  const { id } = req.params;
+
+  try {
+    // Verificar si el usuario existe
+    const userResult = await pool.query('SELECT * FROM users WHERE id_usuario = $1', [id]);
+
+    if (userResult.rowCount === 0) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
+
+    // Eliminar el firebase_token del usuario
+    await pool.query('UPDATE users SET token_firebase = NULL WHERE id_usuario = $1', [id]);
+
+    res.status(200).json({ message: 'Firebase token eliminado con éxito' });
+  } catch (error) {
+    console.error('Error eliminando el token:', error);
+    res.status(500).json({ message: 'Error eliminando el token', error: error.message });
+  }
+});
 export default router;

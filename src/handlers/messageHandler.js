@@ -88,8 +88,12 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             title: `${nombre || ''} ${apellido || ''}`,
             body: `🎙️ Mensaje de audio: ${formattedDuration}`,
             image: `${process.env.BACKEND_URL}${foto}`,
-            tag: String(id_usuario), 
           },
+          android:{
+            notification: {
+              tag: String(id_usuario)
+          }
+        },
           data: {
             text: "audio",
             duration: String(messageText),
@@ -108,6 +112,11 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             body: messageText,
             tag: String(id_usuario), 
           },
+          android:{
+            notification: {
+              tag: String(id_usuario)
+          }
+        },
           data: {
             text: String(messageText),
             senderId: String(phone || id_usuario), 
@@ -126,6 +135,11 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               image: `${process.env.BACKEND_URL}${foto}`,
               tag: String(id_usuario), 
             },
+            android:{
+              notification: {
+                tag: String(id_usuario)
+            }
+          },
             data: {
               text: "document",  // Indicar que el tipo de mensaje es un documento
               fileName: fileName, // Nombre del archivo para uso adicional
@@ -144,6 +158,11 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
                 image: `${messageText.foto}`,
                 tag: String(id_usuario),  
               },
+              android:{
+                notification: {
+                  tag: String(id_usuario)
+              }
+            },
               data: {
                 text: "image",
                 imageUrl: `${messageText.foto}`,
@@ -162,6 +181,11 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               body: `🎥 Video: ${formattedDuration2}`,
               tag: String(id_usuario), 
             },
+            android:{
+              notification: {
+                tag: String(id_usuario)
+            }
+          },
             data: {
               text: "video",
               duration: String(messageText),

@@ -70,7 +70,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
         message: {
           token: deviceToken,
           notification: {
-            title: `${nombre} ${apellido}`,
+            title: `${nombre || ''} ${apellido || ''}`,
             body: `🎙️ Mensaje de audio: ${formattedDuration}`,
           },
           data: {
@@ -87,7 +87,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
          message: {
            token: deviceToken,
            notification: {
-             title: `${nombre} ${apellido}`,
+             title: `${nombre || ''} ${apellido || ''}`,
              body: `🎥 Video: ${formattedDuration2}`,
            },
            data: {
@@ -103,7 +103,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
         message: {
           token: deviceToken,
           notification: {
-            title: `${nombre} ${apellido}`,
+            title: `${nombre || ''} ${apellido || ''}`,
             body: messageText,
           },
           data: {
@@ -118,7 +118,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           message: {
             token: deviceToken,
             notification: {
-              title: `${nombre} ${apellido}`,
+              title: `${nombre || ''} ${apellido || ''}`,
               body: `📄 Documento: ${messageText}`,
             },
             data: {
@@ -574,7 +574,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
     console.log('Mensaje emitido:', newMessage.replies_id);
   console.log("usuario a enviar:", usuario_send)
     try {
-      const fcmResponse = await sendNotificationToFCM( 'audio', null, audioDuration, usuario_send, usuario_send.rows[0].nombre, usuario_send.rows[0].apellido, usuario_send.rows[0].link_foto);
+      const fcmResponse = await sendNotificationToFCM( 'audio', null, audioDuration, usuario_send, usuario_sending.rows[0].nombre, usuario_sending.rows[0].apellido, usuario_sending.rows[0].link_foto);
       console.log('Notificación enviada:', fcmResponse);
     } catch (error) {
      console.error('Error enviando notificacion a usuario interno:', error);

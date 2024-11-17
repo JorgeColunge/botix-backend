@@ -110,7 +110,6 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           notification: {
             title: `${nombre || ''} ${apellido || ''}`,
             body: messageText,
-            tag: String(id_usuario), 
           },
           android:{
             notification: {
@@ -133,7 +132,6 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               title: `${nombre || ''} ${apellido || ''}`,
               body: `📄 Documento: ${fileName}`,
               image: `${process.env.BACKEND_URL}${foto}`,
-              tag: String(id_usuario), 
             },
             android:{
               notification: {
@@ -156,7 +154,6 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
                 title: `${nombre || ''} ${apellido || ''}`,
                 body: messageText?.mensaje ? messageText.mensaje : '📷 Foto enviada', 
                 image: `${messageText.foto}`,
-                tag: String(id_usuario),  
               },
               android:{
                 notification: {
@@ -179,7 +176,6 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             notification: {
               title: `${nombre || ''} ${apellido || ''}`,
               body: `🎥 Video: ${formattedDuration2}`,
-              tag: String(id_usuario), 
             },
             android:{
               notification: {

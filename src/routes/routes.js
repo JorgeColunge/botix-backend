@@ -1,7 +1,7 @@
 import express from 'express';
 import pool from '../config/dbConfig.js';
 import { processMessage } from '../handlers/messageHandler.js';
-import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact } from '../handlers/repliesHandler.js';
+import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendReactMessage } from '../handlers/repliesHandler.js';
 import multer from 'multer';
 import csv from 'csv-parser';
 import path from 'path';
@@ -338,7 +338,8 @@ router.get('/messages/:id', async (req, res) => {
         NULL as reply_button,
         NULL as reply_type_header,
         reply_from,
-        NULL as state
+        NULL as state,
+        reaction
       FROM messages
       WHERE conversation_fk = $1
       UNION ALL
@@ -360,7 +361,8 @@ router.get('/messages/:id', async (req, res) => {
         reply_button,
         reply_type_header,
         reply_from,
-        state
+        state,
+        reaction
       FROM replies
       WHERE conversation_fk = $1
     ) AS combined
@@ -684,6 +686,9 @@ router.post('/messages/send-text', (req, res) => {
   sendTextMessage(io, req, res);
 });
 
+router.post('/messages/react-message', (req, res) => {
+  sendReactMessage(io, req, res)
+})
 // Configuración de Multer para el almacenamiento de imágenes
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {

@@ -459,7 +459,59 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     } catch (error) {
       console.error('Error insertando mensaje en la base de datos:', error);
     }
-  } else {
+  } else if(messageData.type == 'reaction'){
+    try {
+      var messageReact = null;
+    
+      // Obtener mensajes no leídos y el ID del usuario responsable
+      const unreadRes = await pool.query(
+        'SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1',
+        [conversationId]
+      );
+      const responsibleUserId = unreadRes.rows[0].id_usuario;
+    
+      // Actualizar la reacción en la tabla "messages"
+      const queryReact = `
+        UPDATE messages
+        SET reaction = ?
+        WHERE id = ?
+      `;
+      await pool.query(queryReact, [messageData.emoji, messageData.message_id]);
+      console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.message_id}`);
+    
+      // Consulta para obtener el mensaje actualizado
+      const [updatedMessage] = await pool.query(
+        'SELECT * FROM messages WHERE id = ?',
+        [messageData.message_id]
+      );
+      messageReact = updatedMessage;
+    
+      // Consulta para obtener los administradores
+      const adminQuery = `
+        SELECT id_usuario FROM users 
+        WHERE company_id = $1 
+          AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+      `;
+      const adminResult = await pool.query(adminQuery, [company_id]);
+      const adminIds = adminResult.rows.map(row => row.id_usuario);
+    
+      // Emitir el mensaje al usuario responsable y a los administradores
+      const recipients = adminIds.includes(responsibleUserId)
+        ? adminIds
+        : [responsibleUserId, ...adminIds];
+    
+      recipients.forEach(userId => {
+        io.to(`user-${userId}`).emit('reactionMessage', {
+          ...messageData,
+          conversationId,
+          company_id
+        });
+      });
+    } catch (error) {
+      console.error('Error en la operación:', error.message);
+    }
+    
+  }else{
     console.log('Mensaje redirigido, no se almacena ni se emite');
   }
 }

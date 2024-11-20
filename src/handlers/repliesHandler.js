@@ -1531,6 +1531,115 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
   }
 }
 
+//FUnciones de tipo reaccion:
+const InternalReactMessage = async(io, res, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from) => {
+
+
+  try {
+     var messageReact = null;
+    if (message_type === 'message') {
+      const queryReact = `
+        UPDATE messages
+        SET reaction = $1
+        WHERE id = $2
+      `;
+      await pool.query(queryReact, [emoji, message_id]);
+      console.log(`Emoji actualizado en la tabla "messages" para el ID ${message_id}`);
+    
+      // Consulta para obtener el mensaje actualizado
+      const updatedMessage = await pool.query('SELECT * FROM messages WHERE id = $1', [message_id]);
+      messageReact = updatedMessage.rows[0];
+    
+    } else if (message_type === 'reply') {
+      const queryReact = `
+        UPDATE replies
+        SET reaction = $1
+        WHERE replies_id = $2
+      `;
+      await pool.query(queryReact, [emoji, message_id]);
+      console.log(`Emoji actualizado en la tabla "replies" para el ID ${message_id}`);
+    
+// Consulta para obtener la respuesta actualizada
+        const updatedReplyResult = await pool.query('SELECT * FROM replies WHERE replies_id = $1', [message_id]);
+        messageReact = updatedReplyResult.rows[0]; // Extrae el primer elemento de rows
+
+    } else {
+      console.error('Tipo de mensaje no reconocido');
+    }
+    
+     res.status(200).json({messageReact})
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: error.message });
+  }
+
+}
+
+const WhatasAppReactMessage = async(io, res, phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from) => {
+
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
+  const { whatsapp_api_token, whatsapp_phone_number_id} = integrationDetails;
+
+
+  try {
+    const response = await axios.post(
+      `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
+      {
+        messaging_product: "whatsapp",
+        to: phone, // Número de teléfono del destinatario
+        type: "reaction",
+        reaction: {
+          message_id: message_id, // El ID del mensaje original al que deseas reaccionar
+          emoji: emoji // Emoji que deseas usar como reacción
+        }
+      },
+      {
+        headers: {
+          'Authorization': `Bearer ${whatsapp_api_token}`, // Token de la API
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    console.log("respuesta de reaccion:", response)
+
+    var messageReact = null;
+    if (message_type === 'message') {
+      const queryReact = `
+        UPDATE messages
+        SET reaction = $1
+        WHERE id = $2
+      `;
+      await pool.query(queryReact, [emoji, message_id]);
+      console.log(`Emoji actualizado en la tabla "messages" para el ID ${message_id}`);
+    
+      // Consulta para obtener el mensaje actualizado
+      const updatedMessage = await pool.query('SELECT * FROM messages WHERE id = $1', [message_id]);
+      messageReact = updatedMessage.rows[0];
+    
+    } else if (message_type === 'reply') {
+      const queryReact = `
+        UPDATE replies
+        SET reaction = $1
+        WHERE replies_id = $2
+      `;
+      await pool.query(queryReact, [emoji, message_id]);
+      console.log(`Emoji actualizado en la tabla "replies" para el ID ${message_id}`);
+    
+      // Consulta para obtener la respuesta actualizada
+      const updatedReply = await pool.query('SELECT * FROM replies WHERE replies_id = $1', [message_id]);
+      messageReact = updatedReply.rows[0];
+    } else {
+      console.error('Tipo de mensaje no reconocido');
+    }
+    
+     res.status(200).json({messageReact})
+  } catch (error) {
+    console.error('Error sending message:', error);
+    res.status(500).json({ error: error.message });
+  }
+
+}
+
 //Funciones de procesamiento de mensajes:
 export async function sendTextMessage(io, req, res) {
   const { phone, messageText, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
@@ -1710,6 +1819,19 @@ export async function sendLocationMessage(io, req, res) {
   } catch (error) {
     console.error('Error sending WhatsApp location:', error.response?.data || error.message);
     res.status(500).json({ error: error.message });
+  }
+}
+
+export async function sendReactMessage(io, req, res) {
+  const { phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
+  switch (integration_name) {
+    case 'Interno':
+         await InternalReactMessage(io, res, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
+      break;
+  
+    default:
+        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
+      break;
   }
 }
 

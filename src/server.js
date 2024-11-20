@@ -271,6 +271,9 @@ app.post('/webhook', async (req, res) => {
                 await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req);
               }
               break;
+            case 'reaction':
+              await processMessage(io, senderId, { id: messageId, type: 'reaction', reaction: firstMessage.reaction, context }, "si", integrationDetails, req);
+               break;    
             case 'location':
               if (firstMessage.location) {
                 await processMessage(io, senderId, {

@@ -482,8 +482,8 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       
       // Si se actualizó en la tabla "replies", obtenemos el mensaje actualizado
       const updatedMessageReply = await pool.query(
-        'SELECT * FROM replies WHERE id = $1',
-        [messageData.message_id]
+        'SELECT * FROM replies WHERE replies_id = $1',
+        [messageData.reaction.message_id]
       );
       messageReact = updatedMessageReply.rows[0];
     } else {
@@ -496,16 +496,16 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       const resultMessage = await pool.query(queryReactMessage, [messageData.reaction.emoji, messageData.reaction.message_id, messageData.senderId]);
 
       if (resultMessage.rowCount > 0) {
-        console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.message_id}`);
+        console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.reaction.message_id}`);
         
         // Si se actualizó en la tabla "messages", obtenemos el mensaje actualizado
         const updatedMessage = await pool.query(
           'SELECT * FROM messages WHERE id = $1',
-          [messageData.message_id]
+          [messageData.reaction.message_id]
         );
         messageReact = updatedMessage.rows[0];
       } else {
-        console.error(`No se encontró el mensaje con ID ${messageData.message_id} en ninguna de las tablas.`);
+        console.error(`No se encontró el mensaje con ID ${messageData.reaction.message_id} en ninguna de las tablas.`);
       }
     }
       // Consulta para obtener los administradores

@@ -1572,8 +1572,10 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
     recipients.forEach(userId => {
       io.to(`user-${userId}`).emit('internalReactionMessage', {
          ...messageReact ,
-         companyId,
-         conversationId
+         company_id:companyId,
+         conversationId,
+         responsibleUserId: id_usuario,
+         senderId: usuario_send,
       });
     });
 

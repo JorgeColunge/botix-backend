@@ -1559,14 +1559,24 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
       await pool.query(queryReact, [emoji, message_id]);
       console.log(`Emoji actualizado en la tabla "replies" para el ID ${message_id}`);
     
-// Consulta para obtener la respuesta actualizada
         const updatedReplyResult = await pool.query('SELECT * FROM replies WHERE replies_id = $1', [message_id]);
-        messageReact = updatedReplyResult.rows[0]; // Extrae el primer elemento de rows
+        messageReact = updatedReplyResult.rows[0]; 
 
     } else {
       console.error('Tipo de mensaje no reconocido');
     }
     
+    const recipients = [];
+    recipients.push(usuario_send);
+
+    recipients.forEach(userId => {
+      io.to(`user-${userId}`).emit('internalReactionMessage', {
+         ...messageReact ,
+         companyId,
+         conversationId
+      });
+    });
+
      res.status(200).json({messageReact})
   } catch (error) {
     console.error('Error sending message:', error);

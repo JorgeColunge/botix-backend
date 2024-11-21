@@ -1575,7 +1575,6 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
          company_id:companyId,
          conversationId,
          responsibleUserId: id_usuario,
-         senderId: usuario_send,
       });
     });
 

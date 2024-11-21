@@ -475,7 +475,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       SET reaction = $1
       WHERE replies_id = $2 AND sender_id = $3
     `;
-    const resultReply = await pool.query(queryReactReply, [messageData.emoji, messageData.message_id, messageData.senderId]);
+    const resultReply = await pool.query(queryReactReply, [messageData.reaction.emoji, messageData.reaction.message_id, messageData.senderId]);
     
     if (resultReply.rowCount > 0) {
       console.log(`Emoji actualizado en la tabla "replies" para el ID ${messageData.message_id}`);
@@ -493,7 +493,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         SET reaction = $1
         WHERE id = $2 AND sender_id = $3
       `;
-      const resultMessage = await pool.query(queryReactMessage, [messageData.emoji, messageData.message_id, messageData.senderId]);
+      const resultMessage = await pool.query(queryReactMessage, [messageData.reaction.emoji, messageData.reaction.message_id, messageData.senderId]);
 
       if (resultMessage.rowCount > 0) {
         console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.message_id}`);

@@ -480,11 +480,11 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.message_id}`);
     
       // Consulta para obtener el mensaje actualizado
-      const [updatedMessage] = await pool.query(
-        'SELECT * FROM messages WHERE id = ?',
+      const updatedMessage = await pool.query(
+        'SELECT * FROM messages WHERE id = $1',
         [messageData.message_id]
       );
-      messageReact = updatedMessage;
+      messageReact = updatedMessage.rows[0];
     
       // Consulta para obtener los administradores
       const adminQuery = `
@@ -502,7 +502,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     
       recipients.forEach(userId => {
         io.to(`user-${userId}`).emit('reactionMessage', {
-          ...messageData,
+          ...messageReact,
           conversationId,
           company_id
         });

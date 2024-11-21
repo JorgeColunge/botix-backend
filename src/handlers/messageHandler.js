@@ -23,6 +23,7 @@ const axiosInstance = axios.create({
 const externalData = '';
 
 import serviceAccount from '../../crm-android-system.json' assert { type: 'json' };
+import { channel } from 'process';
 
 function getAccessToken() {
   return new Promise(async (resolve, reject) => {
@@ -91,7 +92,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           android:{
             notification: {
-              tag: String(id_usuario)
+              channel_id: String(id_usuario)
           }
         },
           data: {

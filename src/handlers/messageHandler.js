@@ -473,7 +473,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       const queryReactReply = `
       UPDATE replies
       SET reaction = $1
-      WHERE id = $2 AND sender_id = $3
+      WHERE replies_id = $2 AND sender_id = $3
     `;
     const resultReply = await pool.query(queryReactReply, [messageData.emoji, messageData.message_id, messageData.senderId]);
     

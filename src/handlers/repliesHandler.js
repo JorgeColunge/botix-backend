@@ -1823,14 +1823,14 @@ export async function sendLocationMessage(io, req, res) {
 }
 
 export async function sendReactMessage(io, req, res) {
-  const { phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
+  const { phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
   switch (integration_name) {
     case 'Interno':
-         await InternalReactMessage(io, res, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
+         await InternalReactMessage(io, res, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
       break;
   
     default:
-        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
+        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
       break;
   }
 }

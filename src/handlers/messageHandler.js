@@ -473,8 +473,8 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       // Actualizar la reacción en la tabla "messages"
       const queryReact = `
         UPDATE messages
-        SET reaction = ?
-        WHERE id = ?
+        SET reaction = $1
+        WHERE id = $2
       `;
       await pool.query(queryReact, [messageData.emoji, messageData.message_id]);
       console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.message_id}`);

@@ -308,7 +308,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     
     recipients.forEach(userId => {
       io.to(`user-${userId}`).emit('internalMessage', {
-      id: newMessage.id,
+      id: newMessage.replies_id,
       conversationId: newConversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,

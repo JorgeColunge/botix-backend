@@ -916,22 +916,26 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
   }
 }
 
-const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
-  const fullImageUrl = `${backendUrl}${imageUrl}`; // Agregar el prefijo a la URL de la imagen
+const WhatsAppImageSend = async(io, res, imageUrl, caption, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
+  const fullImageUrl = `${backendUrl}${imageUrl}`; // Construir la URL completa de la imagen
+  
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
-    if (!whatsapp_api_token || !whatsapp_phone_number_id) {
-      throw new Error('Faltan detalles de integración necesarios para enviar el mensaje.');
-    }
+  if (!whatsapp_api_token || !whatsapp_phone_number_id) {
+    throw new Error('Faltan detalles de integración necesarios para enviar el mensaje.');
+  }
 
   const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: phone,
     type: "image",
-    image: { link: fullImageUrl }
+    image: {
+      link: fullImageUrl, // URL de la imagen
+      caption: caption || "", // Agrega el caption si está disponible
+    },
   };
 
   // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
@@ -940,15 +944,17 @@ const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, 
   const responsibleUserId = unreadRes.rows[0].id_usuario;
 
   try {
+    // Enviar la imagen a través de la API de WhatsApp
     const response = await axios.post(url, payload, {
       headers: {
         'Authorization': `Bearer ${whatsapp_api_token}`,
-        'Content-Type': 'application/json'
-      }
+        'Content-Type': 'application/json',
+      },
     });
-    console.log(response.data);
 
-    // Intenta insertar en la base de datos
+    console.log("Respuesta de WhatsApp:", response.data);
+
+    // Insertar el mensaje en la base de datos
     const insertQuery = `
       INSERT INTO replies (
         replies_id,
@@ -967,57 +973,57 @@ const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, 
       phone,           
       conversationId,
       'image',
-      null,
+      caption || null, // Almacenar el caption
       imageUrl,
       null,
       null,
-      reply_from
+      reply_from,
     ];
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
+
     const newMessage = result.rows[0];
+
     // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario FROM users 
-    WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
-  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+      SELECT id_usuario FROM users 
+      WHERE company_id = $1 
+        AND rol IN (SELECT id FROM roles WHERE name = 'Administrador');
+    `;
+    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+    const adminIds = adminResult.rows.map(row => row.id_usuario);
 
+    // Emitir el mensaje al usuario responsable y a los administradores
+    const recipients = adminIds.includes(responsibleUserId) 
+        ? adminIds 
+        : [responsibleUserId, ...adminIds];
 
-  const adminIds = adminResult.rows.map(row => row.id_usuario);
-
-  // Emitir el mensaje al usuario responsable y a los administradores
-  const recipients = adminIds.includes(responsibleUserId) 
-      ? adminIds 
-      : [responsibleUserId, ...adminIds];
-
-  recipients.forEach(userId => {
-    io.to(`user-${userId}`).emit('newMessage', {
-      id: newMessage.replies_id,
-      conversationId: conversationId,
-      timestamp: newMessage.created_at,
-      senderId: phone,
-      type: 'reply',
-      message_type: 'image',
-      text: null,
-      url: imageUrl,
-      thumbnail_url: null,
-      duration: null,
-      latitude: null,
-      longitude: null,
-      unread_messages: unreadMessages,
-      responsibleUserId: responsibleUserId,
-      company_id: integrationDetails.company_id // Añadir company_id aquí
+    recipients.forEach(userId => {
+      io.to(`user-${userId}`).emit('newMessage', {
+        id: newMessage.replies_id,
+        conversationId: conversationId,
+        timestamp: newMessage.created_at,
+        senderId: phone,
+        type: 'reply',
+        message_type: 'image',
+        text: caption, // Enviar el caption junto al mensaje emitido
+        url: imageUrl,
+        thumbnail_url: null,
+        duration: null,
+        latitude: null,
+        longitude: null,
+        unread_messages: unreadMessages,
+        responsibleUserId: responsibleUserId,
+        company_id: integrationDetails.company_id, // Añadir company_id aquí
+      });
     });
-  });
-    console.log('Mensaje emitido:', newMessage.replies_id);
 
+    console.log('Mensaje emitido:', newMessage.replies_id);
   } catch (error) {
-    console.error('Error sending WhatsApp image:', error.response?.data || error.message);
+    console.error('Error enviando imagen a WhatsApp:', error.response?.data || error.message);
     res.status(500).json({ error: error.message });
   }
-}
+};
 
 //Funciones de tipo Video:
 const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoDuration, conversationId, integration_name, messageText, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from) => {

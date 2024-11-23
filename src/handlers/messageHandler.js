@@ -91,7 +91,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           android:{
             notification: {
-              tag: String(id_usuario)
+              channel_id: String(id_usuario)
           }
         },
           data: {
@@ -231,7 +231,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
   const contactId = await getOrCreateContact(senderId, company_id);
   const conversationId = await getOrCreateConversation(contactId, senderId, integration_id, company_id);
 
-  if (oldMessage !== "Si") {
+  if (oldMessage !== "si") {
     const incrementUnread = `UPDATE conversations SET unread_messages = unread_messages + 1 WHERE conversation_id = $1`;
     await pool.query(incrementUnread, [conversationId]);
 
@@ -469,23 +469,45 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         [conversationId]
       );
       const responsibleUserId = unreadRes.rows[0].id_usuario;
+
+      const queryReactReply = `
+      UPDATE replies
+      SET reaction = $1
+      WHERE replies_id = $2 AND sender_id = $3
+    `;
+    const resultReply = await pool.query(queryReactReply, [messageData.reaction.emoji, messageData.reaction.message_id, messageData.senderId]);
     
-      // Actualizar la reacción en la tabla "messages"
-      const queryReact = `
-        UPDATE messages
-        SET reaction = ?
-        WHERE id = ?
-      `;
-      await pool.query(queryReact, [messageData.emoji, messageData.message_id]);
-      console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.message_id}`);
-    
-      // Consulta para obtener el mensaje actualizado
-      const [updatedMessage] = await pool.query(
-        'SELECT * FROM messages WHERE id = ?',
-        [messageData.message_id]
+    if (resultReply.rowCount > 0) {
+      console.log(`Emoji actualizado en la tabla "replies" para el ID ${messageData.message_id}`);
+      
+      // Si se actualizó en la tabla "replies", obtenemos el mensaje actualizado
+      const updatedMessageReply = await pool.query(
+        'SELECT * FROM replies WHERE replies_id = $1',
+        [messageData.reaction.message_id]
       );
-      messageReact = updatedMessage;
-    
+      messageReact = updatedMessageReply.rows[0];
+    } else {
+      // Si no se encontró en la tabla "replies", buscamos en la tabla "messages"
+      const queryReactMessage = `
+        UPDATE messages
+        SET reaction = $1
+        WHERE id = $2 AND sender_id = $3
+      `;
+      const resultMessage = await pool.query(queryReactMessage, [messageData.reaction.emoji, messageData.reaction.message_id, messageData.senderId]);
+
+      if (resultMessage.rowCount > 0) {
+        console.log(`Emoji actualizado en la tabla "messages" para el ID ${messageData.reaction.message_id}`);
+        
+        // Si se actualizó en la tabla "messages", obtenemos el mensaje actualizado
+        const updatedMessage = await pool.query(
+          'SELECT * FROM messages WHERE id = $1',
+          [messageData.reaction.message_id]
+        );
+        messageReact = updatedMessage.rows[0];
+      } else {
+        console.error(`No se encontró el mensaje con ID ${messageData.reaction.message_id} en ninguna de las tablas.`);
+      }
+    }
       // Consulta para obtener los administradores
       const adminQuery = `
         SELECT id_usuario FROM users 
@@ -502,7 +524,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     
       recipients.forEach(userId => {
         io.to(`user-${userId}`).emit('reactionMessage', {
-          ...messageData,
+          ...messageReact,
           conversationId,
           company_id
         });

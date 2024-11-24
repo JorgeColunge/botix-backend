@@ -1445,7 +1445,8 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
     type: "document",
     document: {
       link: fullDocumentUrl,
-      filename: documentName
+      filename: documentName,
+      caption: messageText
     }
   };
 
@@ -1482,7 +1483,7 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
       phone,           
       conversationId,
       'document',
-      null,
+      messageText,
       documentUrl,
       null,
       null,
@@ -1516,7 +1517,7 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
       senderId: phone,
       type: 'reply',
       message_type: 'document',
-      text: null,
+      text: messageText,
       url: documentUrl,
       thumbnail_url: null,
       duration: null,
@@ -1693,7 +1694,7 @@ export async function sendDocumentMessage(io, req, res) {
   const { phone, documentUrl, documentName, conversationId, integration_name, messageText, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from  } = req.body;
 
   switch (integration_name) {
-    case value:
+    case 'Interno':
         await InternalDocumentSend(io, res, phone, documentUrl, documentName, conversationId, integration_name, messageText, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
       break;
     default:

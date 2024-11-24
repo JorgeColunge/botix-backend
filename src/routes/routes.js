@@ -789,19 +789,21 @@ router.post('/upload-video', uploadVideo.single('video'), async (req, res) => {
 
 const createThumbnail = (videoPath) => new Promise((resolve, reject) => {
   const thumbnailFilename = `thumbnail-${path.basename(videoPath, path.extname(videoPath))}.png`;
-  const thumbnailDir = path.join(__dirname, '..', '..', 'public','media', 'thumbnails');
+  const thumbnailDir = path.join(__dirname, '..', '..', 'public', 'thumbnail');
 
   if (!fs.existsSync(thumbnailDir)) {
     fs.mkdirSync(thumbnailDir, { recursive: true });
   }
 
+  const thumbnailPath = path.join(thumbnailDir, thumbnailFilename);
+
   ffmpeg(videoPath)
-    .on('end', () => resolve(`/media/thumbnails/${thumbnailFilename}`))
+    .on('end', () => resolve(`/thumbnail/${thumbnailFilename}`))
     .on('error', (err) => reject(err))
     .output(thumbnailPath)
     .outputOptions([
-      '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=290:290', // Crop to square then scale
-      '-frames:v', '1' // Only output one frame
+      '-vf', 'crop=min(iw\\,ih):min(iw\\,ih),scale=290:290',
+      '-frames:v', '1'
     ])
     .run();
 });

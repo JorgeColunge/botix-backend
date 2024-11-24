@@ -1187,7 +1187,8 @@ const WhatsAppsVideoSend = async(io, res, phone, videoUrl, videoThumbnail, video
     to: phone,
     type: "video",
     video: {
-      link: fullVideoUrl
+      link: fullVideoUrl,
+      caption: messageText
     }
   };
 

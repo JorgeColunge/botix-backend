@@ -75,7 +75,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           android:{
             notification: {
-              channel_id: String(id_usuario)
+              tag: String(id_usuario)
           }
         },
           data: {
@@ -97,7 +97,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
            },
            android:{
             notification: {
-              channel_id: String(id_usuario)
+              tag: String(id_usuario)
           }
         },
            data: {
@@ -118,7 +118,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           android:{
             notification: {
-              channel_id: String(id_usuario)
+              tag: String(id_usuario)
           }
         },
           data: {
@@ -138,7 +138,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             },
             android:{
               notification: {
-                channel_id: String(id_usuario)
+                tag: String(id_usuario)
             }
           },
             data: {
@@ -160,7 +160,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               },
               android:{
                 notification: {
-                  channel_id: String(id_usuario)
+                  tag: String(id_usuario)
               }
             },
               data: {
@@ -308,7 +308,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     
     recipients.forEach(userId => {
       io.to(`user-${userId}`).emit('internalMessage', {
-      id: newMessage.replies_id,
+      id: newMessage.id,
       conversationId: newConversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,
@@ -916,26 +916,26 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
   }
 }
 
-const WhatsAppImageSend = async(io, res, imageUrl, caption, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
-  const fullImageUrl = `${backendUrl}${imageUrl}`; // Construir la URL completa de la imagen
-  
+const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
+  const fullImageUrl = `${backendUrl}${imageUrl}`; // Agregar el prefijo a la URL de la imagen
+  console.log("Caption recibido:", messageText);
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
 
-  if (!whatsapp_api_token || !whatsapp_phone_number_id) {
-    throw new Error('Faltan detalles de integración necesarios para enviar el mensaje.');
-  }
+    if (!whatsapp_api_token || !whatsapp_phone_number_id) {
+      throw new Error('Faltan detalles de integración necesarios para enviar el mensaje.');
+    }
 
   const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: phone,
     type: "image",
-    image: {
-      link: fullImageUrl, // URL de la imagen
-      caption: caption || "", // Agrega el caption si está disponible
-    },
+    image: { 
+      link: fullImageUrl,
+      caption: messageText
+    }
   };
 
   // Obtén la cantidad de mensajes no leídos y el id_usuario responsable
@@ -944,17 +944,15 @@ const WhatsAppImageSend = async(io, res, imageUrl, caption, conversationId, usua
   const responsibleUserId = unreadRes.rows[0].id_usuario;
 
   try {
-    // Enviar la imagen a través de la API de WhatsApp
     const response = await axios.post(url, payload, {
       headers: {
         'Authorization': `Bearer ${whatsapp_api_token}`,
-        'Content-Type': 'application/json',
-      },
+        'Content-Type': 'application/json'
+      }
     });
+    console.log(response.data);
 
-    console.log("Respuesta de WhatsApp:", response.data);
-
-    // Insertar el mensaje en la base de datos
+    // Intenta insertar en la base de datos
     const insertQuery = `
       INSERT INTO replies (
         replies_id,
@@ -973,57 +971,57 @@ const WhatsAppImageSend = async(io, res, imageUrl, caption, conversationId, usua
       phone,           
       conversationId,
       'image',
-      caption || null, // Almacenar el caption
+      null,
       imageUrl,
       null,
       null,
-      reply_from,
+      reply_from
     ];
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
-
     const newMessage = result.rows[0];
-
     // Consulta para obtener los administradores
     const adminQuery = `
-      SELECT id_usuario FROM users 
-      WHERE company_id = $1 
-        AND rol IN (SELECT id FROM roles WHERE name = 'Administrador');
-    `;
-    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
-    const adminIds = adminResult.rows.map(row => row.id_usuario);
+    SELECT id_usuario FROM users 
+    WHERE company_id = $1 
+      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+  `;
+  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
-    // Emitir el mensaje al usuario responsable y a los administradores
-    const recipients = adminIds.includes(responsibleUserId) 
-        ? adminIds 
-        : [responsibleUserId, ...adminIds];
 
-    recipients.forEach(userId => {
-      io.to(`user-${userId}`).emit('newMessage', {
-        id: newMessage.replies_id,
-        conversationId: conversationId,
-        timestamp: newMessage.created_at,
-        senderId: phone,
-        type: 'reply',
-        message_type: 'image',
-        text: caption, // Enviar el caption junto al mensaje emitido
-        url: imageUrl,
-        thumbnail_url: null,
-        duration: null,
-        latitude: null,
-        longitude: null,
-        unread_messages: unreadMessages,
-        responsibleUserId: responsibleUserId,
-        company_id: integrationDetails.company_id, // Añadir company_id aquí
-      });
+  const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+  // Emitir el mensaje al usuario responsable y a los administradores
+  const recipients = adminIds.includes(responsibleUserId) 
+      ? adminIds 
+      : [responsibleUserId, ...adminIds];
+
+  recipients.forEach(userId => {
+    io.to(`user-${userId}`).emit('newMessage', {
+      id: newMessage.replies_id,
+      conversationId: conversationId,
+      timestamp: newMessage.created_at,
+      senderId: phone,
+      type: 'reply',
+      message_type: 'image',
+      text: messageText,
+      url: imageUrl,
+      thumbnail_url: null,
+      duration: null,
+      latitude: null,
+      longitude: null,
+      unread_messages: unreadMessages,
+      responsibleUserId: responsibleUserId,
+      company_id: integrationDetails.company_id // Añadir company_id aquí
     });
-
+  });
     console.log('Mensaje emitido:', newMessage.replies_id);
+
   } catch (error) {
-    console.error('Error enviando imagen a WhatsApp:', error.response?.data || error.message);
+    console.error('Error sending WhatsApp image:', error.response?.data || error.message);
     res.status(500).json({ error: error.message });
   }
-};
+}
 
 //Funciones de tipo Video:
 const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoDuration, conversationId, integration_name, messageText, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from) => {
@@ -1565,25 +1563,14 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
       await pool.query(queryReact, [emoji, message_id]);
       console.log(`Emoji actualizado en la tabla "replies" para el ID ${message_id}`);
     
+// Consulta para obtener la respuesta actualizada
         const updatedReplyResult = await pool.query('SELECT * FROM replies WHERE replies_id = $1', [message_id]);
-        messageReact = updatedReplyResult.rows[0]; 
+        messageReact = updatedReplyResult.rows[0]; // Extrae el primer elemento de rows
 
     } else {
       console.error('Tipo de mensaje no reconocido');
     }
     
-    const recipients = [];
-    recipients.push(usuario_send);
-
-    recipients.forEach(userId => {
-      io.to(`user-${userId}`).emit('internalReactionMessage', {
-         ...messageReact ,
-         company_id:companyId,
-         conversationId,
-         responsibleUserId: id_usuario,
-      });
-    });
-
      res.status(200).json({messageReact})
   } catch (error) {
     console.error('Error sending message:', error);
@@ -1840,14 +1827,14 @@ export async function sendLocationMessage(io, req, res) {
 }
 
 export async function sendReactMessage(io, req, res) {
-  const { phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
+  const { phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
   switch (integration_name) {
     case 'Interno':
-         await InternalReactMessage(io, res, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
+         await InternalReactMessage(io, res, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
       break;
   
     default:
-        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
+        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
       break;
   }
 }

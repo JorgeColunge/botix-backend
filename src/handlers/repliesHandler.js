@@ -1263,7 +1263,7 @@ const WhatsAppsVideoSend = async(io, res, phone, videoUrl, videoThumbnail, video
       senderId: phone,
       type: 'reply',
       message_type: 'video',
-      text: null,
+      text: messageText,
       url: videoUrl,
       thumbnail_url: videoThumbnail,
       duration: videoDuration,

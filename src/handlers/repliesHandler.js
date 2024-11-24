@@ -1434,6 +1434,8 @@ const InternalDocumentSend = async(io, res, phone, documentUrl, documentName, co
 const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, conversationId, integration_name, messageText, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from) => {
   const fullDocumentUrl = `${backendUrl}${documentUrl}`; // Add the prefix to the document URL
 
+  console.log('caption procesado: ', messageText);
+
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;

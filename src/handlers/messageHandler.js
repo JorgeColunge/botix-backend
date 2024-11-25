@@ -195,7 +195,28 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
         };
         
-        break;           
+        break;
+    case 'reaction':
+      notificationPayload = {
+        message: {
+          token: deviceToken,
+          notification: {
+            title: `${nombre || ''} ${apellido || ''}`,
+            body: messageText,
+          },
+          android:{
+            notification: {
+               channel_id: String(id_usuario),
+                tag: `message_${id_usuario}_${Date.now()}`
+          }
+        },
+          data: {
+            text: String(messageText),
+            senderId: String(phone || id_usuario), 
+          },
+        },
+      };
+      break;               
     default:
       break;
   }
@@ -527,6 +548,12 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         ? adminIds
         : [responsibleUserId, ...adminIds];
     
+        const usuario_send = await pool.query(
+          'SELECT * FROM contacts WHERE phone_number = $1', 
+          [senderId]
+        );
+
+        
       recipients.forEach(userId => {
         io.to(`user-${userId}`).emit('reactionMessage', {
           ...messageReact,
@@ -534,6 +561,39 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
           company_id
         });
       });
+
+      
+      console.log('Mensaje emitido:', messageReact.id);
+      var messageContet = null;
+      
+      switch (messageReact.type) {
+        case 'audio':
+          messageContet = 'Reacciono a: 🎙️ Mensaje de audio';
+          break;
+        case 'text':
+          messageContet = `Reacciono a: '${messageReact.text}'`;
+          break;
+        case 'video':
+          messageContet = 'Reacciono a: 🎥 Video';
+          break;
+        case 'image':
+          messageContet = 'Reacciono a: 📷 Foto'
+          break;
+        case 'document':  
+          messageContet = 'Reacciono a : 📄 Documento';
+          break;  
+        default:
+          break;
+      }
+
+      try {
+        const fcmResponse = await sendNotificationToFCM('reaction', senderId, messageContet, responsibleUserId,  usuario_send.rows[0].first_name, usuario_send.rows[0].last_name, usuario_send.rows[0].profile_url);
+        console.log('Notificación enviada:', fcmResponse);
+     } catch (error) {
+      console.error('Error enviando la notificación:', error.response?.data?.error || error.message);
+
+     }
+
     } catch (error) {
       console.error('Error en la operación:', error.message);
     }

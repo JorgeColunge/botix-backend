@@ -91,7 +91,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           android:{
             notification: {
-              channel_id: String(id_usuario)
+              channel_id: String(id_usuario),
+                tag: `message_${id_usuario}_${Date.now()}`
           }
         },
           data: {
@@ -113,7 +114,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           },
           android:{
             notification: {
-              tag: String(id_usuario)
+               channel_id: String(id_usuario),
+                tag: `message_${id_usuario}_${Date.now()}`
           }
         },
           data: {
@@ -135,7 +137,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             },
             android:{
               notification: {
-                tag: String(id_usuario)
+                channel_id: String(id_usuario),
+                  tag: `message_${id_usuario}_${Date.now()}`
             }
           },
             data: {
@@ -157,7 +160,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               },
               android:{
                 notification: {
-                  tag: String(id_usuario)
+                  channel_id: String(id_usuario),
+                  tag: `message_${id_usuario}_${Date.now()}`
               }
             },
               data: {
@@ -179,7 +183,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             },
             android:{
               notification: {
-                tag: String(id_usuario)
+               channel_id: String(id_usuario),
+                  tag: `message_${id_usuario}_${Date.now()}`
             }
           },
             data: {

@@ -92,7 +92,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           android:{
             notification: {
               channel_id: String(id_usuario),
-                tag: `message_${id_usuario}_${Date.now()}`
+                tag: `message_${id_usuario}_${Date.now()}`,
+                icon:  process.env.BACKEND_URL+foto,
           }
         },
           data: {
@@ -115,7 +116,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           android:{
             notification: {
                channel_id: String(id_usuario),
-                tag: `message_${id_usuario}_${Date.now()}`
+                tag: `message_${id_usuario}_${Date.now()}`,
+                icon:  process.env.BACKEND_URL+foto,
           }
         },
           data: {
@@ -138,7 +140,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             android:{
               notification: {
                 channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
             }
           },
             data: {
@@ -161,7 +164,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               android:{
                 notification: {
                   channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
               }
             },
               data: {
@@ -184,7 +188,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             android:{
               notification: {
                channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
             }
           },
             data: {
@@ -207,7 +212,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           android:{
             notification: {
                channel_id: String(id_usuario),
-                tag: `message_${id_usuario}_${Date.now()}`
+                tag: `message_${id_usuario}_${Date.now()}`,
+                icon:  process.env.BACKEND_URL+foto,
           }
         },
           data: {
@@ -558,7 +564,11 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
         io.to(`user-${userId}`).emit('reactionMessage', {
           ...messageReact,
           conversationId,
-          company_id
+          company_id,
+          responsibleUserId,
+          destino_nombre: usuario_send.rows[0].first_name || '',
+          destino_apellido: usuario_send.rows[0].last_name || '',
+          destino_foto: usuario_send.profile_url || '',
         });
       });
 

@@ -76,7 +76,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           android:{
             notification: {
                 channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
           }
         },
           data: {
@@ -99,7 +100,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
            android:{
             notification: {
                 channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
           }
         },
            data: {
@@ -121,7 +123,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
           android:{
             notification: {
                channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
           }
         },
           data: {
@@ -142,7 +145,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
             android:{
               notification: {
                  channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
             }
           },
             data: {
@@ -165,7 +169,8 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               android:{
                 notification: {
                    channel_id: String(id_usuario),
-                  tag: `message_${id_usuario}_${Date.now()}`
+                  tag: `message_${id_usuario}_${Date.now()}`,
+                  icon:  process.env.BACKEND_URL+foto,
               }
             },
               data: {
@@ -175,7 +180,29 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
               },
             },
           };
-          break;         
+          break;
+          case 'reaction':
+            notificationPayload = {
+              message: {
+                token: deviceToken,
+                notification: {
+                  title: `${nombre || ''} ${apellido || ''}`,
+                  body: messageText,
+                },
+                android:{
+                  notification: {
+                     channel_id: String(id_usuario),
+                      tag: `message_${id_usuario}_${Date.now()}`,
+                      icon:  process.env.BACKEND_URL+foto,
+                }
+              },
+                data: {
+                  text: String(messageText),
+                  senderId: String(phone || id_usuario), 
+                },
+              },
+            };
+            break;                        
     default:
       break;
   }
@@ -1575,7 +1602,39 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
 // Consulta para obtener la respuesta actualizada
         const updatedReplyResult = await pool.query('SELECT * FROM replies WHERE replies_id = $1', [message_id]);
         messageReact = updatedReplyResult.rows[0]; // Extrae el primer elemento de rows
+    
+        const usuario_remitent = await pool.query(
+          'SELECT * FROM users WHERE id_usuario = $1', 
+          [id_usuario]
+        );
 
+        var messageContet = null;
+      
+        switch (messageReact.type) {
+          case 'audio':
+            messageContet = 'Reacciono a: 🎙️ Mensaje de audio';
+            break;
+          case 'text':
+            messageContet = `Reacciono a: '${messageReact.text}'`;
+            break;
+          case 'video':
+            messageContet = 'Reacciono a: 🎥 Video';
+            break;
+          case 'image':
+            messageContet = 'Reacciono a: 📷 Foto'
+            break;
+          case 'document':  
+            messageContet = 'Reacciono a : 📄 Documento';
+            break;  
+          default:
+            break;
+        }
+      try {
+        const fcmResponse = await sendNotificationToFCM('reaction', null, messageContet, usuario_send, usuario_remitent.rows[0].nombre, usuario_remitent.rows[0].apellido, usuario_remitent.rows[0].link_foto);
+        console.log('Notificación enviada:', fcmResponse);
+      } catch (error) {
+        console.error('Error enviando notificacion a usuario interno:', error.error);
+      }
     } else {
       console.error('Tipo de mensaje no reconocido');
     }
@@ -1836,14 +1895,14 @@ export async function sendLocationMessage(io, req, res) {
 }
 
 export async function sendReactMessage(io, req, res) {
-  const { phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
+  const { phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
   switch (integration_name) {
     case 'Interno':
-         await InternalReactMessage(io, res, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
+         await InternalReactMessage(io, res, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from);
       break;
   
     default:
-        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversation_id, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
+        await WhatasAppReactMessage(io, res, phone, emoji, message_id, message_type, conversationId, integration_name, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from)
       break;
   }
 }

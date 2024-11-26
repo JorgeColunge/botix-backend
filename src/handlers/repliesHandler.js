@@ -356,9 +356,9 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       responsibleUserId: id_usuario,
       reply_from: newMessage.reply_from,
       company_id: companyId,
-      destino_nombre: usuario_sending.rows[0].nombre || '',
-      destino_apellido: usuario_sending.rows[0].apellido || '',
-      destino_foto: usuario_sending.link_foto || '',
+      destino_nombre: usuario_remitent.rows[0].nombre || '',
+      destino_apellido: usuario_remitent.rows[0].apellido || '',
+      destino_foto: usuario_remitent.rows[0].link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
    }); 
@@ -644,9 +644,9 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
       responsibleUserId: id_usuario,
       reply_from: newMessage.reply_from,
       company_id: companyId,
-      destino_nombre: usuario_sending.rows[0].nombre || '',
-      destino_apellido: usuario_sending.rows[0].apellido || '',
-      destino_foto: usuario_sending.link_foto || '',
+      destino_nombre: usuario_remitent.rows[0].nombre || '',
+      destino_apellido: usuario_remitent.rows[0].apellido || '',
+      destino_foto: usuario_remitent.rows[0].link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
   });
@@ -924,9 +924,9 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
       unread_messages: unreadMessages,
       responsibleUserId: id_usuario,
       company_id: companyId,
-      destino_nombre: usuario_sending.rows[0].nombre || '',
-      destino_apellido: usuario_sending.rows[0].apellido || '',
-      destino_foto: usuario_sending.link_foto || '',
+      destino_nombre: usuario_remitent.rows[0].nombre || '',
+      destino_apellido: usuario_remitent.rows[0].apellido || '',
+      destino_foto: usuario_remitent.rows[0].link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
   });
@@ -1186,9 +1186,9 @@ const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoD
       unread_messages: unreadMessages,
       responsibleUserId: id_usuario,
       company_id: integrationDetails.company_id,
-      destino_nombre: usuario_sending.rows[0].nombre || '',
-      destino_apellido: usuario_sending.rows[0].apellido || '',
-      destino_foto: usuario_sending.link_foto || '',
+      destino_nombre: usuario_remitent.rows[0].nombre || '',
+      destino_apellido: usuario_remitent.rows[0].apellido || '',
+      destino_foto: usuario_remitent.rows[0].link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
   });
@@ -1442,9 +1442,9 @@ const InternalDocumentSend = async(io, res, phone, documentUrl, documentName, co
       responsibleUserId: id_usuario,
       file_name: documentName,
       company_id: integrationDetails.company_id,
-      destino_nombre: usuario_sending.rows[0].nombre || '',
-      destino_apellido: usuario_sending.rows[0].apellido || '',
-      destino_foto: usuario_sending.link_foto || '',
+      destino_nombre: usuario_remitent.rows[0].nombre || '',
+      destino_apellido: usuario_remitent.rows[0].apellido || '',
+      destino_foto: usuario_remitent.rows[0].link_foto || '',
       integracion: integracionSelect.rows[0].name || '',
     });
   });
@@ -1630,7 +1630,7 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
          companyId,
          destino_nombre: usuario_remitent.rows[0].nombre || '',
          destino_apellido: usuario_remitent.rows[0].apellido || '',
-         destino_foto: process.env.BACKEND_URL+usuario_remitent.rows[0].link_foto || '',
+         destino_foto: usuario_remitent.rows[0].link_foto || '',
          integracion: integracionSelect.rows[0].name || '',
        });
       });

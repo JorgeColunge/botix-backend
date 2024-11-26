@@ -1603,11 +1603,36 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
         const updatedReplyResult = await pool.query('SELECT * FROM replies WHERE replies_id = $1', [message_id]);
         messageReact = updatedReplyResult.rows[0]; // Extrae el primer elemento de rows
     
-        const usuario_remitent = await pool.query(
-          'SELECT * FROM users WHERE id_usuario = $1', 
-          [id_usuario]
-        );
-
+        const recipients = [];
+        recipients.push(usuario_send);
+   
+        const usuario_sending = await pool.query(
+         'SELECT * FROM users WHERE id_usuario = $1', 
+         [usuario_send]
+       );
+   
+       const usuario_remitent = await pool.query(
+         'SELECT * FROM users WHERE id_usuario = $1', 
+         [id_usuario]
+       );
+    
+       const integracionSelect = await pool.query(
+         'SELECT * FROM integrations WHERE id = $1', 
+         [integration_id]
+       );
+       
+       recipients.forEach(userId => {
+         io.to(`user-${userId}`).emit('internalMessage', {
+         conversationId,
+         ...messageReact,
+         responsibleUserId: id_usuario,
+         companyId,
+         destino_nombre: usuario_sending.rows[0].nombre || '',
+         destino_apellido: usuario_sending.rows[0].apellido || '',
+         destino_foto: usuario_sending.link_foto || '',
+         integracion: integracionSelect.rows[0].name || '',
+       });
+      });
         var messageContet = null;
       
         switch (messageReact.type) {

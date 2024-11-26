@@ -1622,14 +1622,15 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
        );
        
        recipients.forEach(userId => {
-         io.to(`user-${userId}`).emit('internalMessage', {
+        console.log("se envia reaccion")
+         io.to(`user-${userId}`).emit('internalReactionMessage', {
          conversationId,
          ...messageReact,
          responsibleUserId: id_usuario,
          companyId,
-         destino_nombre: usuario_sending.rows[0].nombre || '',
-         destino_apellido: usuario_sending.rows[0].apellido || '',
-         destino_foto: usuario_sending.link_foto || '',
+         destino_nombre: usuario_remitent.rows[0].nombre || '',
+         destino_apellido: usuario_remitent.rows[0].apellido || '',
+         destino_foto: process.env.BACKEND_URL+usuario_remitent.rows[0].link_foto || '',
          integracion: integracionSelect.rows[0].name || '',
        });
       });

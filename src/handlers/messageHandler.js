@@ -388,10 +388,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
           reply_from: newMessage.reply_from,
           state: newMessage.state,
           company_id: integrationDetails.company_id,
-        destino_nombre: usuario_send.rows[0].first_name || '',
-        destino_apellido: usuario_send.rows[0].last_name || '',
-        destino_foto: usuario_send.profile_url || '',
-        integracion: integracionSelect.rows[0].name || '',
+          destino_nombre: usuario_send.rows[0].first_name || '',
+          destino_apellido: usuario_send.rows[0].last_name || '',
+          destino_foto: usuario_send.rows[0].profile_url || '',
+          integracion: integracionSelect.rows[0].name || '',
         });
       });
 
@@ -568,7 +568,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
           responsibleUserId,
           destino_nombre: usuario_send.rows[0].first_name || '',
           destino_apellido: usuario_send.rows[0].last_name || '',
-          destino_foto: usuario_send.profile_url || '',
+          destino_foto: usuario_send.rows[0].profile_url || '',
         });
       });
 

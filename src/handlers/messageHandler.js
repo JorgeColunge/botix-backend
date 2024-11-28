@@ -244,7 +244,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
 
     return response.data;
   } catch (error) {
-    console.error('Error enviando la notificación:', error);
+    console.error('Error enviando la notificación:', error.data);
     throw error;
   }
 };

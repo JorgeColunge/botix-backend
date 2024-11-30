@@ -136,9 +136,17 @@ const registerValidation = (data) => {
     socket_id: Joi.optional().allow(''),
     link_foto: Joi.string().optional().allow(''),
     department_id: Joi.number().allow(null),
-    company_id: Joi.number().required()
+    company_id: Joi.number().required(),
   });
-  return schema.validate(data, { abortEarly: false });
+
+  const result = schema.validate(data, { abortEarly: false });
+
+  if (result.error) {
+    // Log detallado para la consola
+    console.error('Errores de validación:', result.error.details.map((e) => e.message));
+  }
+
+  return result;
 };
 
 const loginValidation = (data) => {

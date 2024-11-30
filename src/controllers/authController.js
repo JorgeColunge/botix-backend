@@ -170,13 +170,20 @@ export const edit = async (req, res) => {
   }
 };
 
-// Función para registrar un nuevo usuario
 export const registerUser = async (req, res) => {
   const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id } = req.body;
 
   // Validación de los datos de registro
   const { error } = registerValidation(req.body);
-  if (error) return res.status(400).send({ error: error.details[0].message });
+
+  if (error) {
+    // Crear un mensaje claro para el frontend
+    const errorMessages = error.details.map((e) => e.message); // Mapeamos todos los errores
+    return res.status(400).json({
+      message: 'Errores en los datos enviados',
+      errors: errorMessages,
+    });
+  }
 
   try {
     // Verificar si el usuario ya existe
@@ -195,12 +202,13 @@ export const registerUser = async (req, res) => {
       [id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseñaHash, company_id, department_id]
     );
 
-    res.status(201).json({ message: "Usuario creado exitosamente", nombre });
+    res.status(201).json({ message: 'Usuario creado exitosamente', nombre });
   } catch (err) {
-    console.error(err);
+    console.error('Error al registrar usuario:', err);
     res.status(500).send('Error al registrar al usuario: ' + err.message);
   }
 };
+
 
 
 // Función para registrar un bot

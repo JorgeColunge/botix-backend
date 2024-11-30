@@ -6,21 +6,52 @@ import '../config/passportConfig.js';
 import pool from '../config/dbConfig.js';
 // import pool from '../config/dbConfig.js';
 
-const router = express.Router();
+const authRoutes = express.Router();
 
-router.post('/register', registerAuth);
+authRoutes.post('/register', registerAuth);
 
-router.post('/register-user', registerUser);
+authRoutes.post('/register-user', 
+  async(req, res) => {
+    const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id } = req.body;
+  
+    // Validación de los datos de registro
+    const { error } = registerValidation(req.body);
+    if (error) return res.status(400).send({ error: error.details[0].message });
+  
+    try {
+      // Verificar si el usuario ya existe
+      const userExists = await pool.query('SELECT * FROM users WHERE id_usuario = $1;', [id_usuario]);
+      if (userExists.rows.length > 0) {
+        return res.status(409).send('El ID de usuario ya está registrado.');
+      }
+  
+      // Encriptar la contraseña
+      const salt = await bcrypt.genSalt(10);
+      const contraseñaHash = await bcrypt.hash(contraseña, salt);
+  
+      // Crear el usuario con el rol proporcionado
+      await pool.query(
+        'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);',
+        [id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseñaHash, company_id, department_id]
+      );
+  
+      res.status(201).json({ message: "Usuario creado exitosamente", nombre });
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Error al registrar al usuario: ' + err.message);
+    }
+  }
+);
 
-router.post('/register-bot', registerBot);
+authRoutes.post('/register-bot', registerBot);
 
-router.post('/login', (req, res) => {
+authRoutes.post('/login', (req, res) => {
   const { error } = loginValidation(req.body);
   if (error) return res.status(400).send(error.details[0].message);
   loginAuth(req, res);
 });
 
-router.get('/get_token_firebase', async (req, res) => {
+authRoutes.get('/get_token_firebase', async (req, res) => {
   const { id_usuario } = req.query; // Cambiado de req.params a req.query
   console.log("id de usuario", id_usuario)
   try {
@@ -36,7 +67,7 @@ router.get('/get_token_firebase', async (req, res) => {
   }
 });
 
-router.post('/set_token_firebase', async (req, res) => {
+authRoutes.post('/set_token_firebase', async (req, res) => {
   const { id_usuario, token } = req.body; // Obtener el id_usuario y el token del cuerpo de la solicitud
 
   console.log("id de usuario", id_usuario);
@@ -62,33 +93,33 @@ router.post('/set_token_firebase', async (req, res) => {
 });
 
 // Ruta para actualizar un usuario
-router.put('/users/:id', (req, res) => {
+authRoutes.put('/users/:id', (req, res) => {
   const { error } = registerValidation(req.body);
   if (error) return res.status(400).send(error.details[0].message);
   edit(req, res);
 });
 
 // Ruta para autenticación con Google
-router.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
+authRoutes.get('/google', passport.authenticate('google', { scope: ['profile', 'email'] }));
 
 // Callback de Google
-router.get('/google/callback', passport.authenticate('google', { failureRedirect: '/' }),
+authRoutes.get('/google/callback', passport.authenticate('google', { failureRedirect: '/' }),
   (req, res) => {
     res.redirect('/home');
   }
 );
 
 // Ruta para autenticación con Facebook
-router.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
+authRoutes.get('/facebook', passport.authenticate('facebook', { scope: ['email'] }));
 
 // Callback de Facebook
-router.get('/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/' }),
+authRoutes.get('/facebook/callback', passport.authenticate('facebook', { failureRedirect: '/' }),
   (req, res) => {
     res.redirect('/home');
   }
 );
 
-router.delete('/deleteToken/:id', async (req, res) => {
+authRoutes.delete('/deleteToken/:id', async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -108,4 +139,4 @@ router.delete('/deleteToken/:id', async (req, res) => {
     res.status(500).json({ message: 'Error eliminando el token', error: error.message });
   }
 });
-export default router;
+export default authRoutes;

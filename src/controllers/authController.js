@@ -96,11 +96,13 @@ export const login = async (req, res) => {
       process.env.JWT_SECRET, // Debe ser una variable de entorno segura
       { expiresIn: '1h' } // El token expirará en 1 hora
     );
+    
+    const { contraseña: _, ...rest } = user;
 
     res.status(200).json({
       message: "Inicio de sesión exitoso",
       token,
-      user: user
+      user: rest
     });
   } catch (err) {
     console.error(err);

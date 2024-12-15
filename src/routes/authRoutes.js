@@ -10,38 +10,7 @@ const authRoutes = express.Router();
 
 authRoutes.post('/register', registerAuth);
 
-authRoutes.post('/register-user', 
-  async(req, res) => {
-    const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id } = req.body;
-  
-    // Validación de los datos de registro
-    const { error } = registerValidation(req.body);
-    if (error) return res.status(400).send({ error: error.details[0].message });
-  
-    try {
-      // Verificar si el usuario ya existe
-      const userExists = await pool.query('SELECT * FROM users WHERE id_usuario = $1;', [id_usuario]);
-      if (userExists.rows.length > 0) {
-        return res.status(409).send('El ID de usuario ya está registrado.');
-      }
-  
-      // Encriptar la contraseña
-      const salt = await bcrypt.genSalt(10);
-      const contraseñaHash = await bcrypt.hash(contraseña, salt);
-  
-      // Crear el usuario con el rol proporcionado
-      await pool.query(
-        'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);',
-        [id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseñaHash, company_id, department_id]
-      );
-  
-      res.status(201).json({ message: "Usuario creado exitosamente", nombre });
-    } catch (err) {
-      console.error(err);
-      res.status(500).send('Error al registrar al usuario: ' + err.message);
-    }
-  }
-);
+authRoutes.post('/register-user', registerUser);
 
 authRoutes.post('/register-bot', registerBot);
 

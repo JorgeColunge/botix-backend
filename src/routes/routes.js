@@ -453,7 +453,14 @@ router.get('/users', async (req, res) => {
   try {
     const query = 'SELECT * FROM users WHERE company_id = $1';
     const result = await pool.query(query, [company_id]);
-    res.json(result.rows);
+
+    // Filtra las contraseñas de los usuarios
+    const usersWithoutPasswords = result.rows.map(user => {
+      const { contraseña, ...userWithoutPassword } = user;
+      return userWithoutPassword;
+    });
+
+    res.json(usersWithoutPasswords);
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).send('Internal Server Error');

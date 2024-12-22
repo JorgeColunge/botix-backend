@@ -187,31 +187,50 @@ authRoutes.post("/create-plan-paypal", async (req, res) => {
     const billingCyclesFormatted = [
       {
         frequency: {
-          interval_unit: billing_cycles.interval_unit, // Ejemplo: "MONTH"
-          interval_count: parseInt(billing_cycles.interval_count, 10), // Convertir a número
+          interval_unit: billing_cycles.interval_unit || "MONTH", // Predeterminado a "MONTH"
+          interval_count: parseInt(billing_cycles.interval_count, 10) || 1, // Predeterminado a 1
         },
         pricing_scheme: {
           fixed_price: {
-            value: billing_cycles.pricing_value, // Ejemplo: "250"
-            currency_code: "USD", // Puedes cambiar la moneda si es necesario
+            value: parseFloat(billing_cycles.pricing_value) > 0 ? parseFloat(billing_cycles.pricing_value).toFixed(2) : "1.00", // Asegura que el valor sea mayor a 0
+            currency_code: billing_cycles.currency_code || "USD", // Predeterminado a "USD"
           },
         },
-        tenure_type: "REGULAR", // Tipo de tenencia (puedes personalizar según lo que necesites)
-        sequence: 1, // El número de secuencia de este ciclo
-        total_cycles: parseInt(billing_cycles.total_cycles, 10), // Convertir a número
+        tenure_type: "REGULAR", // Tipo de tenencia
+        sequence: 1, // Número de secuencia
+        total_cycles: parseInt(billing_cycles.total_cycles, 10) || 0, // Predeterminado a 0
       },
     ];
+    
+    // Validación adicional antes de enviar
+    if (parseFloat(billing_cycles.pricing_value) <= 0 || isNaN(billing_cycles.pricing_value)) {
+      throw new Error("El valor de pricing_value debe ser mayor a 0.");
+    }
+       
 
     const paymentPreferencesFormatted = {
       auto_bill_outstanding: payment_preferences.auto_bill_outstanding === "yes", // Asegurarse de que sea booleano
       setup_fee: {
-        value: payment_preferences.setup_fee.value, // Ejemplo: "10"
+        value: payment_preferences.setup_fee.value && !isNaN(payment_preferences.setup_fee.value) ? payment_preferences.setup_fee.value : "0", // Validación de setup_fee
         currency_code: payment_preferences.setup_fee.currency_code || "USD", // Asignar moneda, por defecto USD
       },
-      setup_fee_failure_action: payment_preferences.setup_fee_failure_action, // Ejemplo: "CONTINUE"
-      payment_failure_threshold: parseInt(payment_preferences.payment_failure_threshold, 10), // Convertir a número
+      setup_fee_failure_action: payment_preferences.setup_fee_failure_action || "CONTINUE", // Asegúrate de que setup_fee_failure_action tenga un valor
+      payment_failure_threshold: payment_preferences.payment_failure_threshold && !isNaN(payment_preferences.payment_failure_threshold) ? parseInt(payment_preferences.payment_failure_threshold, 10) : 1, // Predeterminado a 1
+    
+      // Agregar el campo adicional para el cargo extra
+      additional_fee: payment_preferences.additional_fee ? {
+        value: payment_preferences.additional_fee.value && !isNaN(payment_preferences.additional_fee.value) ? payment_preferences.additional_fee.value : "0", // Validación de value
+        currency_code: payment_preferences.additional_fee.currency_code || "USD", // Moneda, predeterminado a USD si no se pasa
+      } : undefined, // Si no se pasa additional_fee, se asigna undefined
     };
-
+    
+    console.log("Datos a enviar",JSON.stringify({
+      product_id,
+      name,
+      description,
+      billing_cycles: billingCyclesFormatted, // Ciclos de facturación formateados
+      payment_preferences: paymentPreferencesFormatted, // Preferencias de pago formateadas
+    }, null, 2))
     // Llamada a la API de PayPal para crear el plan de facturación
     const response = await axios.post(
       `${process.env.PAYPAL_API}/v1/billing/plans`,
@@ -237,28 +256,124 @@ authRoutes.post("/create-plan-paypal", async (req, res) => {
     };
     
     const query = `
-    INSERT INTO licenses (
-      type, contacts, users, ai_messages, ai_analysis, integrations, automations, bot_messages, id_plan_paypal
+    INSERT INTO plans (
+      plan_nombre, contactos, usuarios, integraciones, integracion_web, automatizaciones_crm, automatizaciones_rpa, id_paypal, ia_precio, precio
     ) VALUES (
-      $1, $2, $3, $4, $5, $6, $7, $8, $9
+      $1, $2, $3, $4, $5, $6, $7, $8, $9, $10
     )
     RETURNING id;
   `;
 
   const values = [
-    db_licence_db.type,
+    db_licence_db.name,
     db_licence_db.contacts,
     db_licence_db.users,
-    db_licence_db.ai_messages,
-    db_licence_db.ai_analysis,
     db_licence_db.integrations,
-    db_licence_db.automations,
-    db_licence_db.bot_messages,
+    db_licence_db.integracion_web,
+    db_licence_db.automatizaciones_crm,
+    db_licence_db.automatizaciones_rpa,
     db_licence_db.id_plan_paypal,
+    db_licence_db.ia_precio,
+    db_licence_db.precio,
   ];
 
     const result = await pool.query(query, values);
     console.log("Licencia insertada con ID:", result.rows[0].id);
+ 
+    // Enviar la respuesta de PayPal de vuelta al frontend
+    res.json(response.data);
+  } catch (error) {
+    console.error("Error al crear plan:", error.response?.data || error);
+    res.status(500).send("Hubo un problema al crear el plan.");
+  }
+});
+
+authRoutes.post("/create-plan-paypal-personalized", async (req, res) => {
+  const { name, billing_cycles, payment_preferences, old_id_paypal } = req.body;
+
+  try {
+    // Obtener el token de acceso de PayPal
+    const auth = await axios.post(
+      `${process.env.PAYPAL_API}/v1/oauth2/token`,
+      "grant_type=client_credentials",
+      {
+        auth: {
+          username: process.env.PAYPAL_CLIENT_ID,
+          password: process.env.PAYPAL_SECRET,
+        },
+      }
+    );
+    const accessToken = auth.data.access_token;
+
+    const planResponse = await axios.get(
+      `${process.env.PAYPAL_API}/v1/billing/plans/${old_id_paypal}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    // Paso 3: Extraer el product_id
+    const product_id = planResponse.data.product_id;
+
+    // Preparar los datos para enviar a PayPal
+    const billingCyclesFormatted = [
+      {
+        frequency: {
+          interval_unit: billing_cycles.interval_unit || "MONTH", // Predeterminado a "MONTH"
+          interval_count: parseInt(billing_cycles.interval_count, 10) || 1, // Predeterminado a 1
+        },
+        pricing_scheme: {
+          fixed_price: {
+            value: parseFloat(billing_cycles.pricing_value) > 0 ? parseFloat(billing_cycles.pricing_value).toFixed(2) : "1.00", // Asegura que el valor sea mayor a 0
+            currency_code: billing_cycles.currency_code || "USD", // Predeterminado a "USD"
+          },
+        },
+        tenure_type: "REGULAR", // Tipo de tenencia
+        sequence: 1, // Número de secuencia
+        total_cycles: parseInt(billing_cycles.total_cycles, 10) || 0, // Predeterminado a 0
+      },
+    ];
+    
+    // Validación adicional antes de enviar
+    if (parseFloat(billing_cycles.pricing_value) <= 0 || isNaN(billing_cycles.pricing_value)) {
+      throw new Error("El valor de pricing_value debe ser mayor a 0.");
+    }
+       
+
+    const paymentPreferencesFormatted = {
+      auto_bill_outstanding: payment_preferences.auto_bill_outstanding === "yes", // Asegurarse de que sea booleano
+      setup_fee: {
+        value: payment_preferences.setup_fee.value && !isNaN(payment_preferences.setup_fee.value) ? payment_preferences.setup_fee.value : "0", // Validación de setup_fee
+        currency_code: payment_preferences.setup_fee.currency_code || "USD", // Asignar moneda, por defecto USD
+      },
+      setup_fee_failure_action: payment_preferences.setup_fee_failure_action || "CONTINUE", // Asegúrate de que setup_fee_failure_action tenga un valor
+      payment_failure_threshold: payment_preferences.payment_failure_threshold && !isNaN(payment_preferences.payment_failure_threshold) ? parseInt(payment_preferences.payment_failure_threshold, 10) : 1, // Predeterminado a 1
+    
+      // Agregar el campo adicional para el cargo extra
+      additional_fee: payment_preferences.additional_fee ? {
+        value: payment_preferences.additional_fee.value && !isNaN(payment_preferences.additional_fee.value) ? payment_preferences.additional_fee.value : "0", // Validación de value
+        currency_code: payment_preferences.additional_fee.currency_code || "USD", // Moneda, predeterminado a USD si no se pasa
+      } : undefined, // Si no se pasa additional_fee, se asigna undefined
+    };
+
+    // Llamada a la API de PayPal para crear el plan de facturación
+    const response = await axios.post(
+      `${process.env.PAYPAL_API}/v1/billing/plans`,
+      {
+        product_id,
+        name,
+        description: name,
+        billing_cycles: billingCyclesFormatted, // Ciclos de facturación formateados
+        payment_preferences: paymentPreferencesFormatted, // Preferencias de pago formateadas
+      },
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
  
     // Enviar la respuesta de PayPal de vuelta al frontend
     res.json(response.data);
@@ -397,6 +512,18 @@ authRoutes.post("/cancel-subscription", async (req, res) => {
   }
 });
 //FIN DE METODOS DE PAYPAL
+authRoutes.get('/get_plans', async (req, res) => {
+  try {
+    const query = 'SELECT * FROM plans';
+    const result = await pool.query(query);
+
+    res.json(result.rows);
+  } catch (error) {
+    console.error('Error fetching planes:', error);
+    res.status(500).send('Internal Server Error', error);
+  }
+})
+//METODOS DE PLANES
 
 authRoutes.get('/get_token_firebase', async (req, res) => {
   const { id_usuario } = req.query; // Cambiado de req.params a req.query

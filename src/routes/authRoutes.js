@@ -384,7 +384,7 @@ authRoutes.post("/create-plan-paypal-personalized", async (req, res) => {
 });
 
 authRoutes.post("/create-subscription", async (req, res) => {
-  const { plan_id } = req.body; // El cliente enviará el ID del plan creado en PayPal
+  const { plan_id } = req.body; 
 
   try {
     // Autenticación con PayPal
@@ -407,7 +407,7 @@ authRoutes.post("/create-subscription", async (req, res) => {
       {
         plan_id: plan_id, // Este ID viene del cliente (se genera en PayPal)
         application_context: {
-          brand_name: "Tu Empresa",
+          brand_name: "AXIOMA ROBOTICS",
           locale: "en-US",
           user_action: "SUBSCRIBE_NOW",
           return_url: "https://tuapp.com/success", // Redirigir a esta URL tras la suscripción

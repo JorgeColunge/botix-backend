@@ -11,19 +11,23 @@ import fs from 'fs';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
+import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import moment from 'moment-timezone';
 import ffmpeg from 'fluent-ffmpeg';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
-// Configurar ffmpeg
+
+// Configurar ffmpeg y ffprobe
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
+ffmpeg.setFfprobePath(ffprobeInstaller.path);
+
 // Definimos la función que acepta 'io' como parámetro y devuelve el router configurado
 export default function createRouter(io) {
 const router = express.Router();
 
 
-  router.post('/new-message', async (req, res) => {
+router.post('/new-message', async (req, res) => {
   const { senderId, messageData } = req.body;
   try {
     await processMessage(io, senderId, messageData);

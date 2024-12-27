@@ -341,7 +341,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
     recipients.forEach(userId => {
       io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.id,
-      conversationId: newConversationId,
+      conversation_fk: newConversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,
       message_type: 'text',
@@ -630,7 +630,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
     recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,
       type: 'reply',
@@ -910,7 +910,7 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,
       type: 'reply',
@@ -1172,13 +1172,13 @@ const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoD
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,
       type: 'reply',
       message_type: 'video',
       text: messageText,
-      url: videoUrl,
+      media_url: videoUrl,
       thumbnail_url: videoThumbnail,
       duration: videoDuration,
       latitude: null,
@@ -1290,13 +1290,13 @@ const WhatsAppsVideoSend = async(io, res, phone, videoUrl, videoThumbnail, video
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: phone,
       type: 'reply',
       message_type: 'video',
       text: messageText,
-      url: videoUrl,
+      media_url: videoUrl,
       thumbnail_url: videoThumbnail,
       duration: videoDuration,
       latitude: null,
@@ -1427,7 +1427,7 @@ const InternalDocumentSend = async(io, res, phone, documentUrl, documentName, co
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('internalMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: usuario_send,
       type: 'reply',
@@ -1546,7 +1546,7 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: phone,
       type: 'reply',
@@ -1624,7 +1624,7 @@ const InternalReactMessage = async(io, res, emoji, message_id, message_type, con
        recipients.forEach(userId => {
         console.log("se envia reaccion")
          io.to(`user-${userId}`).emit('internalReactionMessage', {
-         conversationId,
+          conversation_fk:conversationId,
          ...messageReact,
          responsibleUserId: id_usuario,
          companyId,

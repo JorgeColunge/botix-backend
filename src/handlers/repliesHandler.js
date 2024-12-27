@@ -490,7 +490,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
    recipients.forEach(userId => {
      io.to(`user-${userId}`).emit('newMessage', {
        id: newMessage.replies_id,
-       conversationId: conversationId,
+       conversation_fk: conversationId,
        timestamp: newMessage.created_at,
        senderId: phone,
        message_type: 'text',
@@ -778,13 +778,13 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: phone,
       type: 'reply',
       message_type: 'audio',
       text: null,
-      url: audioUrl,
+      url: process.env.BACKEND_URL+audioUrl,
       duration: audioDuration,
       latitude: null,
       longitude: null,
@@ -1797,7 +1797,7 @@ export async function sendDocumentMessage(io, req, res) {
 
 export async function sendAudioMessage(io, req, res) {
   const { phone, audioUrl, audioDuration, conversationId, usuario_send, id_usuario, companyId, remitent, reply_from, integration_name, integration_id } = req.body;
-  const fullAudioUrl = `${backendUrl}${audioUrl}`;
+  const fullAudioUrl = `${process.env.BACKEND_URL}${audioUrl}`;
   const fileName = audioUrl.split('/media/audios/')[1]; 
   
   
@@ -2584,7 +2584,7 @@ const uploadDocumentToWhatsApp = async (documentUrl, token, phoneNumberId) => {
 };
 
 
-const storeMessage = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl = null, whatsappMessageId, headerType, footerText = null) => {
+const storeMessage = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, whatsappMessageId, headerType, footerText = null) => {
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversation.conversation_id);
@@ -2698,26 +2698,26 @@ if (conversation.conversation_id) {
     let response;
     let mediaUrl = null;
 
-    if (template.header_type === 'TEXT') {
-      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    } else if (template.header_type === 'IMAGE') {
-      const imageUrl = `${backendUrl}${template.medio}`
-      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-      mediaUrl = imageUrl;
-    } else if (template.header_type === 'VIDEO') {
-      const videoUrl = `${backendUrl}${template.medio}`
-      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-      mediaUrl = videoUrl;
-    } else if (template.header_type === 'DOCUMENT') {
-      const documentUrl = `${backendUrl}${template.medio}`
-      const mediaId = await uploadDocumentToWhatsApp(documentUrl);
-      response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-      mediaUrl = documentUrl;
-    }else{
-      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    }
+    // if (template.header_type === 'TEXT') {
+    //   response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    // } else if (template.header_type === 'IMAGE') {
+    //   const imageUrl = `${backendUrl}${template.medio}`
+    //   response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    //   mediaUrl = imageUrl;
+    // } else if (template.header_type === 'VIDEO') {
+    //   const videoUrl = `${backendUrl}${template.medio}`
+    //   response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    //   mediaUrl = videoUrl;
+    // } else if (template.header_type === 'DOCUMENT') {
+    //   const documentUrl = `${backendUrl}${template.medio}`
+    //   const mediaId = await uploadDocumentToWhatsApp(documentUrl);
+    //   response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    //   mediaUrl = documentUrl;
+    // }else{
+    //   response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    // }
 
-    if (response) {
+    if (true) {
       const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
       const unreadMessages = unreadRes.rows[0].unread_messages;
 
@@ -2730,14 +2730,14 @@ if (conversation.conversation_id) {
         template,
         io,
         mediaUrl,
-        response.messages[0].id, 
+        "msndlasn-23131d", 
         template.header_type
       );
     }
 
     return res.status(200).json({ message: 'Plantilla enviada exitosamente' });
   } catch (error) {
-    console.error('Error sending template:', error.data);
+    console.error('Error sending template:', error);
     return res.status(500).json({ error: 'Error interno del servidor' });
   }
 }else{

@@ -759,7 +759,8 @@ const audioStorage = multer.diskStorage({
 const uploadAudio = multer({
   storage: audioStorage,
   fileFilter: function (req, file, cb) {
-    const mimeTypes = ['audio/wav'];
+    console.log("formato de audio", file.mimetype)
+    const mimeTypes = ['audio/wav', 'audio/ogg; codecs=opus','audio/ogg'];
     if (mimeTypes.includes(file.mimetype)) {
       cb(null, true);
     } else {
@@ -839,10 +840,17 @@ router.post('/upload-document', uploadDocument.single('document'), (req, res) =>
 // Ruta para manejar la subida de audios
 router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
   const tempFilePath = req.file.path;
+  const duration = req.body.duration;
+  const fileExtension = path.extname(req.file.filename); 
+
+  if (fileExtension === '.ogg') {
+    return res.json({ audioUrl: '/media/audios/' + req.file.filename.replace('.wav', '.ogg'), duration });
+  }
+
   const processedFilePath = path.join('public', 'media', 'audios', req.file.filename.replace('.wav', '.ogg'));
 
   ffmpeg(tempFilePath)
-    .audioChannels(1) // Convertir a mono
+    .audioChannels(1) 
     .audioCodec('libopus')
     .toFormat('ogg')
     .on('end', () => {
@@ -854,7 +862,7 @@ router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
       });
 
       // Devolver la URL del archivo procesado OGG
-      res.json({ audioUrl: '/media/audios/' + req.file.filename.replace('.wav', '.ogg') });
+      res.json({ audioUrl: '/media/audios/' + req.file.filename.replace('.wav', '.ogg'), duration });
     })
     .on('error', (err) => {
       console.error('Error processing audio:', err);

@@ -1031,20 +1031,20 @@ const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, 
   recipients.forEach(userId => {
     io.to(`user-${userId}`).emit('newMessage', {
       id: newMessage.replies_id,
-      conversationId: conversationId,
+      conversation_fk: conversationId,
       timestamp: newMessage.created_at,
       senderId: phone,
       type: 'reply',
       message_type: 'image',
       text: messageText,
-      url: imageUrl,
+      media_url: imageUrl,
       thumbnail_url: null,
       duration: null,
       latitude: null,
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
-      company_id: integrationDetails.company_id // Añadir company_id aquí
+      company_id: integrationDetails.company_id 
     });
   });
     console.log('Mensaje emitido:', newMessage.replies_id);

@@ -2656,7 +2656,7 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
    recipients.forEach(userId => {
      io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.replies_id,
-          conversationId: conversation.conversation_id,
+          conversation_fk: conversation.conversation_id,
           timestamp: newMessage.created_at,
           senderId: contact?.phone_number || 'unknown',
           message_type: 'template',
@@ -2698,26 +2698,26 @@ if (conversation.conversation_id) {
     let response;
     let mediaUrl = null;
 
-    // if (template.header_type === 'TEXT') {
-    //   response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    // } else if (template.header_type === 'IMAGE') {
-    //   const imageUrl = `${backendUrl}${template.medio}`
-    //   response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    //   mediaUrl = imageUrl;
-    // } else if (template.header_type === 'VIDEO') {
-    //   const videoUrl = `${backendUrl}${template.medio}`
-    //   response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    //   mediaUrl = videoUrl;
-    // } else if (template.header_type === 'DOCUMENT') {
-    //   const documentUrl = `${backendUrl}${template.medio}`
-    //   const mediaId = await uploadDocumentToWhatsApp(documentUrl);
-    //   response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    //   mediaUrl = documentUrl;
-    // }else{
-    //   response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
-    // }
+    if (template.header_type === 'TEXT') {
+      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    } else if (template.header_type === 'IMAGE') {
+      const imageUrl = `${backendUrl}${template.medio}`
+      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      mediaUrl = imageUrl;
+    } else if (template.header_type === 'VIDEO') {
+      const videoUrl = `${backendUrl}${template.medio}`
+      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      mediaUrl = videoUrl;
+    } else if (template.header_type === 'DOCUMENT') {
+      const documentUrl = `${backendUrl}${template.medio}`
+      const mediaId = await uploadDocumentToWhatsApp(documentUrl);
+      response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      mediaUrl = documentUrl;
+    }else{
+      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+    }
 
-    if (true) {
+    if (response) {
       const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
       const unreadMessages = unreadRes.rows[0].unread_messages;
 
@@ -2730,7 +2730,7 @@ if (conversation.conversation_id) {
         template,
         io,
         mediaUrl,
-        "msndlasn-23131d", 
+        response.messages[0].id,
         template.header_type
       );
     }

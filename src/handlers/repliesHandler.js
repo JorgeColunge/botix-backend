@@ -1678,7 +1678,6 @@ const WhatasAppReactMessage = async(io, res, phone, emoji, message_id, message_t
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id} = integrationDetails;
 
-
   try {
     const response = await axios.post(
       `https://graph.facebook.com/v13.0/${whatsapp_phone_number_id}/messages`,
@@ -1698,7 +1697,7 @@ const WhatasAppReactMessage = async(io, res, phone, emoji, message_id, message_t
         }
       }
     );
-    console.log("respuesta de reaccion:", response)
+    console.log("respuesta de reaccion:", response.data)
 
     var messageReact = null;
     if (message_type === 'message') {
@@ -1732,7 +1731,7 @@ const WhatasAppReactMessage = async(io, res, phone, emoji, message_id, message_t
     
      res.status(200).json({messageReact})
   } catch (error) {
-    console.error('Error sending message:', error);
+    console.error('Error sending message:', error.response.data || error.message);
     res.status(500).json({ error: error.message });
   }
 
@@ -2584,7 +2583,7 @@ const uploadDocumentToWhatsApp = async (documentUrl, token, phoneNumberId) => {
 };
 
 
-const storeMessage = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, whatsappMessageId, headerType, footerText = null) => {
+const storeMessage = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, whatsappMessageId, headerType, footerText) => {
 
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversation.conversation_id);

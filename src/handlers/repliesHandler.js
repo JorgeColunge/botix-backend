@@ -790,6 +790,7 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
+      reply_from: newMessage.reply_from,
       company_id: integrationDetails.company_id, // Añadir company_id aquí
     });
   });
@@ -1044,7 +1045,9 @@ const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, 
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
-      company_id: integrationDetails.company_id 
+      company_id: integrationDetails.company_id ,
+      reply_from: newMessage.reply_from,
+      company_id: integrationDetails.company_id,
     });
   });
     console.log('Mensaje emitido:', newMessage.replies_id);
@@ -1303,6 +1306,7 @@ const WhatsAppsVideoSend = async(io, res, phone, videoUrl, videoThumbnail, video
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
+      reply_from: newMessage.reply_from,
       company_id: integrationDetails.company_id // Añadir company_id aquí
     });
   });
@@ -1509,8 +1513,9 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
         reply_media_url,
         latitude,
         longitude,
-        file_name
-      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *;
+        file_name,
+        reply_from
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
     `;
     const messageValues = [
       response.data.messages[0].id,
@@ -1521,7 +1526,8 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
       documentUrl,
       null,
       null,
-      documentName
+      documentName,
+      reply_from
     ];
     const result = await pool.query(insertQuery, messageValues);
     console.log('Inserted reply ID:', result.rows[0]);
@@ -1560,6 +1566,7 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
       unread_messages: unreadMessages,
       responsibleUserId: responsibleUserId,
       file_name: documentName,
+      reply_from: newMessage.reply_from,
       company_id: integrationDetails.company_id // Añadir company_id aquí
     });
   });

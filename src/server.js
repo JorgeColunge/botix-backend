@@ -209,7 +209,7 @@ app.post('/webhook', async (req, res) => {
         if (change.field === 'message_template_status_update' && change.value && change.value.message_template_id) {
           const templateId = change.value.message_template_id;
           const status = change.value.event;
-
+           
           io.emit('templateStatusUpdate', { templateId, status });
           console.log(`Emitted templateStatusUpdate event for templateId: ${templateId} with status: ${status}`);
 
@@ -233,9 +233,9 @@ app.post('/webhook', async (req, res) => {
             const messageId = statusUpdate.id;
             const status = statusUpdate.status;
 
-            await updateReplyStatus(messageId, status);
+            const conversationFk = await updateReplyStatus(messageId, status);
 
-            io.emit('replyStatusUpdate', { messageId, status });
+            io.emit('replyStatusUpdate', { messageId, status, conversationFk });
             console.log(`Emitted replyStatusUpdate event for messageId: ${messageId} with status: ${status}`);
           }
           continue;
@@ -325,11 +325,14 @@ const updateReplyStatus = async (messageId, status) => {
       UPDATE replies
       SET state = $1
       WHERE replies_id = $2
+      RETURNING conversation_fk
     `;
-    await pool.query(query, [status, messageId]);
+    const result = await pool.query(query, [status, messageId]);
     console.log(`Reply ${messageId} updated to state ${status}`);
+    return result.rows[0]?.conversation_fk; // Devuelve el conversation_fk
   } catch (error) {
     console.error('Error updating reply status:', error);
+    throw error; // Lanza el error para manejarlo fuera si es necesario
   }
 };
 

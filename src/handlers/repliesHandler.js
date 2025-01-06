@@ -2348,79 +2348,101 @@ export async function sendTemplateMessage(io, req, res) {
     res.status(500).send({ error: error.message });
   }
 }
-
-const sendWhatsAppMessage = async (phone, templateName, language, parameters, token, phoneNumberId, whatsappBusinessId) => {
+const sendWhatsAppMessage = async (phone, template, parameters, token, phoneNumberId) => {
   try {
+    // Construcción inicial del payload
     const payload = {
       messaging_product: "whatsapp",
       to: phone,
       type: "template",
       template: {
-        namespace: whatsappBusinessId,
-        name: templateName,
+        namespace: template.id, // Usamos el ID de la plantilla
+        name: template.nombre, // Nombre del template
         language: {
-          code: language,
-          policy: "deterministic"
+          code: template.language,
+          policy: "deterministic",
         },
-        components: []
-      }
+        components: [],
+      },
     };
 
-    // Verifica si hay un parámetro válido para el header (primer parámetro) antes de agregarlo
-    if (parameters[0] && parameters[0].trim() !== "") {
-      payload.template.components.push({
-        type: "header",
-        parameters: [
-          {
+    // **Header**
+    if (template.header_type === "TEXT" && template.headerVariables?.length > 0) {
+      const headerText = parameters[0] || ""; // Primer parámetro es para el header
+      if (headerText.trim() !== "") {
+        payload.template.components.push({
+          type: "header",
+          parameters: [
+            {
+              type: "text",
+              text: headerText,
+            },
+          ],
+        });
+      }
+    }
+
+    // **Body**
+    if (template.bodyVariables?.length > 0) {
+      const bodyParameters = parameters.slice(0, template.bodyVariables.length).filter((param) => param && param.trim() !== "");
+      if (bodyParameters.length > 0) {
+        payload.template.components.push({
+          type: "body",
+          parameters: bodyParameters.map((value) => ({
             type: "text",
-            text: parameters[0]
-          }
-        ]
-      });
+            text: value,
+          })),
+        });
+      }
     }
 
-    // Verifica si hay parámetros válidos para el body
-    const bodyParameters = parameters.slice(1).filter(param => param && param.trim() !== "");
-    if (bodyParameters.length > 0) {
-      payload.template.components.push({
-        type: "body",
-        parameters: bodyParameters.map(value => ({
-          type: "text",
-          text: value
-        }))
+    // **Buttons**
+    if (template.buttonVariables?.length > 0) {
+      template.buttonVariables.forEach((button, index) => {
+        let subType = button.variable === "PHONE_NUMBER" ? "voice_call" : button.variable.toLowerCase();
+        let buttonPayload = {
+          type: "button",
+          sub_type: subType,
+          index: index
+        };
+    
+        if (button.variable === "QUICK_REPLY") {
+          // Botón de tipo respuesta rápida
+          buttonPayload.parameters = [
+            {
+              type: "payload",
+              payload: button.payload || ""
+            }
+          ];
+        }
+    
+        // Agregamos el botón al payload
+        payload.template.components.push(buttonPayload);
       });
     }
+    
+    // Log para depuración
+    console.log("Payload a enviar:", JSON.stringify(payload, null, 2));
 
-    // Si tienes botones en el template, agrégalos de manera correcta
-    if (parameters.buttons && parameters.buttons.length > 0) {
-      payload.template.components.push({
-        type: "button",
-        sub_type: "quick_reply",  // Puede ser 'quick_reply' o 'url' dependiendo de tu botón
-        parameters: parameters.buttons.map(button => ({
-          type: "text",
-          text: button.text
-        }))
-      });
-    }
-
-    console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
-
+    // Llamada a la API de WhatsApp
     const response = await axios.post(
       `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
       payload,
       {
         headers: {
-          'Authorization': `Bearer ${token}`,
-          'Content-Type': 'application/json'
-        }
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
       }
     );
+
     return response.data;
   } catch (error) {
-    console.error('Error sending WhatsApp message:', error.response?.data || error.message);
+    console.error("Error enviando mensaje de WhatsApp:", error.response?.data || error.message);
     throw error;
   }
 };
+
 
 const sendImageWhatsAppMessage = async (phone, templateName, language, imageUrl, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {
@@ -2603,8 +2625,14 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
   // Reemplazar los placeholders en cada componente
   const headerText = replacePlaceholders(template.header_text, headerParameters);
   const bodyText = replacePlaceholders(template.body_text, bodyParameters);
-  const buttonText = replacePlaceholders(template.button_text, buttonParameters);
-
+  var buttonText = ''
+  if (template.buttonVariables.length > 0) { 
+   buttonText = replacePlaceholders(template.buttons, buttonParameters);
+   
+  } else if (template.button_text) {
+   buttonText = replacePlaceholders(template.button_text, buttonParameters);
+  }
+  
   // Agregar el valor del footer si lo tiene
   const footerTextReplaced = footerText ? replacePlaceholders(footerText, parameters) : null;
 
@@ -2659,6 +2687,7 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
       ? adminIds 
       : [responsibleUserId, ...adminIds];
       
+
    recipients.forEach(userId => {
      io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.replies_id,
@@ -2677,6 +2706,8 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
           responsibleUserId: responsibleUserId,
           reply_type_header: headerType,
           footer: footerTextReplaced,
+          reply_header: headerText,
+          reply_button: JSON.parse(buttonText),
           company_id: integrationDetails.company_id // Añadir company_id aquí
       });
     });
@@ -2705,7 +2736,11 @@ if (conversation.conversation_id) {
     let mediaUrl = null;
 
     if (template.header_type === 'TEXT') {
-      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      response = await sendWhatsAppMessage(  conversation.phone_number,
+        template, // Enviar el template completo
+        parameters,
+        whatsapp_api_token,
+        whatsapp_phone_number_id);
     } else if (template.header_type === 'IMAGE') {
       const imageUrl = `${backendUrl}${template.medio}`
       response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
@@ -2720,7 +2755,11 @@ if (conversation.conversation_id) {
       response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;
     }else{
-      response = await sendWhatsAppMessage(phoneNumber, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      response = await sendWhatsAppMessage(  conversation.phone_number,
+        template, // Enviar el template completo
+        parameters,
+        whatsapp_api_token,
+        whatsapp_phone_number_id);
     }
 
     if (response) {

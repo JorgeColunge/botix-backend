@@ -377,16 +377,30 @@ router.get('/messages/:id', async (req, res) => {
 
   try {
     const result = await pool.query(query, [id, offset]);
-    const messagesWithMedia = result.rows.map(row => ({
-      ...row,
-      url: getMediaUrl(row.message_type, row.media_url, row.latitude, row.longitude),
-      thumbnail_url: getThumbnailUrl(row.message_type, row.thumbnail_url)
-    }));
+    const messagesWithMedia = result.rows.map(row => {
+      let parsedReplyButton = null;
+      try {
+        // Intenta parsear 'reply_button' solo si tiene un formato válido de JSON
+        parsedReplyButton = row?.reply_button ? JSON.parse(row?.reply_button) : null;
+      } catch (e) {
+        // Si ocurre un error, simplemente devolvemos el valor original de 'reply_button'
+        console.error('Error parsing reply_button:', e);
+        parsedReplyButton = row?.reply_button; // Devolvemos el valor tal cual
+      }
+      
+      return {
+        ...row,
+        reply_button: parsedReplyButton,
+        url: getMediaUrl(row.message_type, row.media_url, row.latitude, row.longitude),
+        thumbnail_url: getThumbnailUrl(row.message_type, row.thumbnail_url)
+      };
+    });
     res.json(messagesWithMedia);
   } catch (err) {
     console.error('Error fetching messages:', err);
     res.status(500).send('Internal Server Error');
   }
+  
 });
 
 function getMediaUrl(type, mediaUrl, latitude, longitude) {

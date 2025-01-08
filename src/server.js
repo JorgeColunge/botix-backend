@@ -23,6 +23,7 @@ import geoip from 'geoip-lite';
 import moment from 'moment-timezone';
 import { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, getReverseGeocoding, getGeocoding, assignResponsibleUser } from './handlers/messageHandler.js'
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from './handlers/repliesHandler.js';
+import db from './models/index.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -1708,9 +1709,17 @@ app.post('/bot', async (req, res) => {
 });
 
 // Iniciar el servidor HTTP y WebSocket
-server.listen(PORT, () => {
-  console.log(`Server running on port ${PORT}`);
-});
+db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
+  .then(() => {
+    console.log('Modelos sincronizados correctamente.');
+    // Iniciar el servidor solo después de que la base de datos esté lista
+    server.listen(PORT, () => {
+      console.log(`Servidor escuchando en el puerto ${PORT}`);
+    });
+  })
+  .catch((error) => {
+    console.error('Error al sincronizar los modelos:', error);
+  });
 
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

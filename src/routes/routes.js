@@ -14,6 +14,7 @@ import ffmpegInstaller from '@ffmpeg-installer/ffmpeg';
 import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import moment from 'moment-timezone';
 import ffmpeg from 'fluent-ffmpeg';
+import { authorize } from '../middlewares/authorizationMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -477,7 +478,8 @@ router.get('/users', async (req, res) => {
       const { contraseña, ...userWithoutPassword } = user;
       return userWithoutPassword;
     });
-
+   
+    // console.log("datos", usersWithoutPasswords)
     res.json(usersWithoutPasswords);
   } catch (error) {
     console.error('Error fetching users:', error);
@@ -633,7 +635,8 @@ router.put('/users/:id', async (req, res) => {
 });
 
 
-router.delete('/users/:id', async (req, res) => {
+router.delete('/users/:id', authorize(['ADMIN', 'SUPER ADMIN'], ['USER_WRITE', 'CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -1166,7 +1169,6 @@ const convertToDateOrNull = (value) => {
     res.status(500).send('Internal Server Error');
   }
 });
-
 
 
 // Configuración de Multer para la carga de archivos CSV

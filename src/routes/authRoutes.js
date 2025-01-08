@@ -44,11 +44,32 @@ authRoutes.get('/renew', async (req, res) => {
 
       const user = userQuery.rows[0];
 
-      // Generar un nuevo token JWT
+        const privilegesQuery = `
+        SELECT p.name 
+        FROM public."Privileges" p
+        JOIN public."UserPrivileges" up ON p.id = up."privilegeId"  -- Cambié privilege_id por privilegeId
+        WHERE up."userId" = $1;  -- Cambié user_id por userId
+      `;
+
+        const roleQuery = `
+          SELECT r.name 
+          FROM public."role" r
+          WHERE r.id = $1;
+        `;
+        const roleResult = await pool.query(roleQuery, [user.role_id]);
+        if (roleResult.rows.length === 0) {
+          return res.status(404).send('Rol no encontrado');
+        }
+        const roleName = roleResult.rows[0].name;
+        
+      const privilegesResult = await pool.query(privilegesQuery, [user.id_usuario]);
+      const privileges = privilegesResult.rows.map(row => row.name);
+
+      // Generar token JWT
       const newToken = jwt.sign(
-          { id_usuario: user.id_usuario, email: user.email, rol: user.rol },
-          process.env.JWT_SECRET,
-          { expiresIn: '1h' }
+        { id_usuario: user.id_usuario, email: user.email, rol: roleName, privileges },
+        process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+        { expiresIn: '1h' } // Configuración de expiración
       );
 
       const { contraseña: _, ...rest } = user;

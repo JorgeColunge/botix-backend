@@ -1,9 +1,10 @@
 import Sequelize from 'sequelize';
-import pool from '../config/dbConfig.js'; // Importa `pool` de `dbConfig.js`
+import pool from '../config/dbConfig.js'; 
 import defineRole from './role.js';
 import definePrivilege from './privileges.js';
 import defineUser from './users.js';
 import defineUserPrivileges from './userPrivileges.js';
+import defineTypeUser from './typeUser.js';
 
 // Extraer las configuraciones de conexión desde el pool
 const config = {
@@ -24,6 +25,7 @@ db.Role = defineRole(sequelize);
 db.Privilege = definePrivilege(sequelize);
 db.User = defineUser(sequelize);
 db.UserPrivileges = defineUserPrivileges(sequelize);
+db.Type_user = defineTypeUser(sequelize);
 
 // Asociaciones
 Object.values(db).forEach((model) => {
@@ -34,6 +36,5 @@ Object.values(db).forEach((model) => {
 
 // Agregar Sequelize y la conexión al objeto `db`
 db.sequelize = sequelize;
-db.Sequelize = Sequelize;
 
 export default db;

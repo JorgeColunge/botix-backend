@@ -6,6 +6,7 @@ import '../config/passportConfig.js';
 import pool from '../config/dbConfig.js';
 import jwt from 'jsonwebtoken';
 import axios from 'axios';
+import { authorize } from '../middlewares/authorizationMiddleware.js';
 
 const authRoutes = express.Router();
 
@@ -77,7 +78,7 @@ authRoutes.get('/renew', async (req, res) => {
       res.status(200).json({
           message: 'Token renovado con éxito',
           token: newToken,
-          user: rest
+          user: {...rest, privileges},
       });
   } catch (err) {
       console.error('Error al renovar el token:', err);
@@ -588,7 +589,9 @@ authRoutes.post('/set_token_firebase', async (req, res) => {
 });
 
 // Ruta para actualizar un usuario
-authRoutes.put('/users/:id', (req, res) => {
+authRoutes.put('/users/:id',
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'CONFIG']),
+ async (req, res) => {
   const { error } = registerValidation(req.body);
   if (error) return res.status(400).send(error.details[0].message);
   edit(req, res);

@@ -131,12 +131,18 @@ const registerValidation = (data) => {
     apellido: Joi.string().min(3).required(),
     telefono: Joi.string().max(15).optional().allow(''),
     email: Joi.string().email().required(),
-    rol: Joi.number().required(),
+    rol: Joi.optional(),
+    role_id: Joi.optional(),
+    role: Joi.optional(),
     contraseña: Joi.string().min(6).allow(''),
     socket_id: Joi.optional().allow(''),
-    link_foto: Joi.string().optional().allow(''),
+    link_foto: Joi.string().optional().allow('', null),
     department_id: Joi.number().allow(null),
     company_id: Joi.number().required(),
+    token_firebase: Joi.optional(),
+    privileges: Joi.optional(),
+    type_user_id: Joi.optional(),
+    Type_user: Joi.optional()
   });
 
   const result = schema.validate(data, { abortEarly: false });

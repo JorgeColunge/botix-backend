@@ -3,10 +3,12 @@ import jwt from 'jsonwebtoken';
 import pool from '../config/dbConfig.js';
 import { newRegisterValidation, registerValidation, botRegisterValidation } from '../validations/userValidation.js';
 import { authorize } from '../middlewares/authorizationMiddleware.js';
+import db from '../models/index.js';
 
+const {User, Privilege, Type_user} = db;
 // Función para registrar un nuevo usuario
 export const register = [
-  authorize(['ADMIN', 'SUPER ADMIN'], ['USER_WRITE', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'CONFIG']),
   async (req, res) => {
   const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, empresa, plan } = req.body;
 
@@ -126,7 +128,7 @@ export const login = async (req, res) => {
     res.status(200).json({
       message: 'Inicio de sesión exitoso',
       token,
-      user: userWithoutPassword,
+      user: {...userWithoutPassword, privileges},
     });
   } catch (err) {
     console.error('Error al iniciar sesión:', err);
@@ -137,108 +139,146 @@ export const login = async (req, res) => {
 // Función para editar usuario
 export const edit = async (req, res) => {
   const { id } = req.params;
-  const { nombre, apellido, telefono, email, link_foto, rol, department_id, contraseña } = req.body;
-
+  const { nombre, apellido, telefono, email, link_foto, rol, department_id } = req.body;
+   
   try {
-    // Construir la consulta de actualización
-    const updateFields = [];
-    const updateValues = [];
-    let index = 1;
+    // Buscar al usuario por su ID
+    const user = await User.findOne({
+      where: { id_usuario: id },
+      include: [
+        {
+          model: Type_user, // Incluye Type_user
+          as: 'Type_user',
+        },
+        {
+          model: Privilege, // Incluye Privileges
+          as: 'Privileges',
+        },
+      ],
+    });
 
-    if (nombre) {
-      updateFields.push(`nombre = $${index++}`);
-      updateValues.push(nombre);
-    }
-    if (apellido) {
-      updateFields.push(`apellido = $${index++}`);
-      updateValues.push(apellido);
-    }
-    if (telefono) {
-      updateFields.push(`telefono = $${index++}`);
-      updateValues.push(telefono);
-    }
-    if (email) {
-      updateFields.push(`email = $${index++}`);
-      updateValues.push(email);
-    }
-    if (link_foto) {
-      updateFields.push(`link_foto = $${index++}`);
-      updateValues.push(link_foto);
-    }
-    if (rol) {
-      updateFields.push(`rol = $${index++}`);
-      updateValues.push(rol);
-    }
-    if (department_id) {
-      updateFields.push(`department_id = $${index++}`);
-      updateValues.push(department_id);
-    }
-    if (contraseña) {
-      const hashedPassword = await bcrypt.hash(contraseña, 10);
-      updateFields.push(`contraseña = $${index++}`);
-      updateValues.push(hashedPassword);
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
     }
 
-    updateValues.push(id);
+    // Actualizar los campos proporcionados
+    user.nombre = nombre || user.nombre;
+    user.apellido = apellido || user.apellido;
+    user.telefono = telefono || user.telefono;
+    user.email = email || user.email;
+    user.link_foto = link_foto || user.link_foto;
+    user.role = rol || user.role;
+    user.department_id = department_id || user.department_id;
 
-    const updateQuery = `
-      UPDATE users
-      SET ${updateFields.join(', ')}
-      WHERE id_usuario = $${index}
-      RETURNING *;
-    `;
+    // Guardar los cambios
+    await user.save();
 
-    const result = await pool.query(updateQuery, updateValues);
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error updating user data:', error);
-    res.status(500).send('Internal Server Error');
-  }
+    // Devolver el usuario actualizado (sin la contraseña)
+    const userWithType = await User.findOne({
+      where: { id_usuario: user.id_usuario },
+      include: [
+        {
+          model: Type_user, // Incluye Type_user
+          as: 'Type_user',
+        },
+        {
+          model: Privilege, // Incluye Privileges
+          as: 'Privileges',
+        },
+      ],
+      attributes: { exclude: ['contraseña'] }, // Excluimos la contraseña
+    });
+
+    res.json({
+      message: 'Usuario actualizado exitosamente',
+      user: userWithType,
+    });
+  } catch (err) {
+    console.error('Error al actualizar el usuario:', err);
+    res.status(500).json({ message: 'Error al actualizar al usuario', error: err.message });
+   }
 };
 
 export const registerUser = [
   authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'CONFIG']),
   async (req, res) => {
-    const { nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id } = req.body;
+    const { nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id, privileges } = req.body;
 
     // Validación de los datos de registro
     const { error } = registerValidation(req.body);
 
     if (error) {
-      // Crear un mensaje claro para el frontend
       const errorMessages = error.details.map((e) => e.message); // Mapeamos todos los errores
       return res.status(400).json({
         message: 'Errores en los datos enviados',
         errors: errorMessages,
-      }); // 'return' para evitar continuar ejecutando el código
+      });
     }
 
     try {
       // Encriptar la contraseña
       const salt = await bcrypt.genSalt(10);
       const contraseñaHash = await bcrypt.hash(contraseña, salt);
-    
-      // Crear el usuario con el rol proporcionado
-      await pool.query(
-        'INSERT INTO users (nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id_usuario, nombre, apellido, telefono, email, link_foto, rol, company_id, department_id;',
-        [nombre, apellido, telefono, email, link_foto, rol, contraseñaHash, company_id, department_id]
-      )
-      .then(result => {
-        // El resultado contiene los datos del usuario recién insertado
-        const newUser = result.rows[0];
-    
-        res.status(201).json({
-          message: 'Usuario creado exitosamente',
-          user: newUser // Devolvemos el usuario creado
-        });
+
+      // Buscar el type_user con el nombre "HUMANO"
+      const humanoType = await Type_user.findOne({
+        where: { name: 'HUMANO' }
       });
-    
+
+      if (!humanoType) {
+        return res.status(400).json({
+          message: 'Tipo de usuario "HUMANO" no encontrado',
+        });
+      }
+
+      // Crear el usuario con el rol proporcionado y asignar el type_user_id como "HUMANO"
+      const newUser = await User.create({
+        nombre,
+        apellido,
+        telefono,
+        email,
+        link_foto,
+        role: rol,
+        contraseña: contraseñaHash,
+        company_id,
+        department_id,
+        type_user_id: humanoType.id, // Asignamos el ID de "HUMANO"
+      });
+
+      // Verificar que los privilegios se hayan enviado
+      if (privileges && privileges.length > 0) {
+        // Buscar los privilegios por sus ids
+        const privilegesToAdd = await Privilege.findAll({
+          where: {
+            id: privileges, // Filtramos los privilegios que coinciden con los IDs enviados
+          },
+        });
+
+        if (privilegesToAdd.length > 0) {
+          // Asociar los privilegios al usuario en la tabla intermedia 'UserPrivileges'
+          await newUser.setPrivileges(privilegesToAdd); // Usamos Sequelize para establecer la relación
+        }
+      }
+      const userWithType = await User.findOne({
+        where: { id_usuario: newUser.id_usuario },
+        attributes: { exclude: ['contraseña'] },
+        include: [
+          {
+            model: Type_user, // Incluye Type_user
+            as: 'Type_user',
+          },
+        ],
+      });
+
+      res.status(201).json({
+        message: 'Usuario creado exitosamente',
+        user: userWithType,
+      });
     } catch (err) {
       console.error('Error al registrar usuario:', err);
-      // Devolver error con mensaje y código de estado adecuado sin hacer que el servidor se caiga
       res.status(500).json({ message: 'Error al registrar al usuario', error: err.message });
-    }    
-  }
+    }
+  },
 ];
 
 // Función para registrar un bot

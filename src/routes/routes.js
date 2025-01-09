@@ -15,10 +15,14 @@ import ffprobeInstaller from '@ffprobe-installer/ffprobe';
 import moment from 'moment-timezone';
 import ffmpeg from 'fluent-ffmpeg';
 import { authorize } from '../middlewares/authorizationMiddleware.js';
+import db from '../models/index.js';
+import jwt from 'jsonwebtoken';
+import { Sequelize } from 'sequelize';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
+const { User, Type_user, Privilege, Role } = db;
 // Configurar ffmpeg y ffprobe
 ffmpeg.setFfmpegPath(ffmpegInstaller.path);
 ffmpeg.setFfprobePath(ffprobeInstaller.path);
@@ -157,9 +161,11 @@ router.get('/conversations/:conversationId', async (req, res) => {
   }
 });
 
-router.get('/conversations', async (req, res) => {
+router.get('/conversations',
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  async (req, res) => {
   const userId = req.query.id_usuario;
-  const userRole = req.query.rol;
+  const userRole = req.query.role_id;
   const companyId = req.query.company_id;
 
   const query = 'SELECT * FROM integrations WHERE type = $1 LIMIT 1';
@@ -168,19 +174,22 @@ router.get('/conversations', async (req, res) => {
   
   const integracion = result.rows[0];
 
-  const getUserPrivileges = async (roleId) => {
+  const getUserRole = async (roleId) => {
     const query = `
-      SELECT pr.name
-      FROM privileges_roles pr
-      JOIN roles r ON pr.role_id = r.id
-      WHERE r.id = $1
+      SELECT name
+      FROM role
+      WHERE id = $1
     `;
+  
     const { rows } = await pool.query(query, [roleId]);
-    return rows.map(row => row.name);
+  
+    // Retorna el nombre del rol si existe, o null si no se encuentra
+    return rows.length > 0 ? rows[0].name : null;
   };
+  
 
   try {
-    const privileges = await getUserPrivileges(userRole);
+    const privileges = await getUserRole(userRole);
   
     let query = `
       SELECT
@@ -266,9 +275,9 @@ router.get('/conversations', async (req, res) => {
       ) last_message_info ON true
     `;
   
-    if (privileges.includes('SuperAdmin')) {
-      // No se necesita filtro adicional para SuperAdmin
-    } else if (privileges.includes('Admin') || privileges.includes('Show All Conversations')) {
+    if (privileges === "SUPERADMIN") {
+       console.log("super admin")
+    } else if (privileges === "ADMIN") {
       query += ` WHERE u.company_id = $1`;
       const { rows } = await pool.query(query, [companyId]);
       res.json(rows);
@@ -318,6 +327,22 @@ router.get('/privileges-role/:roleId', async (req, res) => {
     res.status(500).send('Internal Server Error');
   }
 });
+
+router.get("/privileges-all", 
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', "USER_WRITE", 'CONFIG']),
+  async (req, res) => {
+    
+    try {
+      // Usamos Sequelize para obtener todos los privilegios
+      const privileges = await Privilege.findAll();
+
+      // Convertir los resultados en formato JSON
+      res.json(privileges);
+    } catch (error) {
+      console.error('Error fetching privileges:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  });
 
 router.get('/messages/:id', async (req, res) => {
   const { id } = req.params;
@@ -469,18 +494,20 @@ router.put('/contacts/:phoneNumber', async (req, res) => {
 
 router.get('/users', async (req, res) => {
   const { company_id } = req.query;
-  try {
-    const query = 'SELECT * FROM users WHERE company_id = $1';
-    const result = await pool.query(query, [company_id]);
 
-    // Filtra las contraseñas de los usuarios
-    const usersWithoutPasswords = result.rows.map(user => {
-      const { contraseña, ...userWithoutPassword } = user;
-      return userWithoutPassword;
+  try {
+    const users = await User.findAll({
+      where: { company_id }, // Filtra por company_id
+      attributes: { exclude: ['contraseña'] }, // Excluye el atributo contraseña
+      include: [
+        {
+          model: Type_user, // Incluye Type_user
+          as: 'Type_user', // Alias definido en la asociación
+        },
+      ],
     });
-   
-    // console.log("datos", usersWithoutPasswords)
-    res.json(usersWithoutPasswords);
+
+    res.json(users);
   } catch (error) {
     console.error('Error fetching users:', error);
     res.status(500).send('Internal Server Error');
@@ -511,18 +538,43 @@ router.get('/instalaciones', async (req, res) => {
   }
 });
 
+router.get('/roles',
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  async (req, res) => {
+    const token = req.headers['x-token'];
+    if (!token) {
+      return res.status(401).send('No se proporcionó un token válido');
+    }
 
-router.get('/roles/:companyId', async (req, res) => {
-  const { companyId } = req.params;
-  try {
-    const query = 'SELECT * FROM roles WHERE company_id = $1';
-    const result = await pool.query(query, [companyId]);
-    res.json(result.rows);
-  } catch (error) {
-    console.error('Error fetching roles:', error);
-    res.status(500).send('Internal Server Error');
-  }
-});
+    try {
+      // Decodificar el token
+      const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+      // Obtener el rol del usuario
+      const userRole = decoded.rol; // Suponiendo que el rol esté en el token
+
+      // Si el usuario es 'SUPERADMIN', devolver todos los roles
+      if (userRole === 'SUPERADMIN') {
+        const roles = await Role.findAll();  // Obtener todos los roles si el usuario es SUPERADMIN
+        return res.json(roles);
+      }
+
+      // Si el usuario no es SUPERADMIN, devolver todos los roles excepto SUPERADMIN
+      const roles = await Role.findAll({
+        where: {
+          name: {
+            [Sequelize.Op.ne]: 'SUPERADMIN',  // Excluir el rol 'SUPERADMIN'
+          }
+        }
+      });
+
+      res.json(roles);
+
+    } catch (error) {
+      console.error('Error fetching roles:', error);
+      res.status(500).send('Internal Server Error');
+    }
+ });
 
 router.get('/departments/:companyId', async (req, res) => {
   const { companyId } = req.params;
@@ -614,28 +666,70 @@ router.put('/colaboradores/:id', async (req, res) => {
 });
 
 
-router.put('/users/:id', async (req, res) => {
+router.put('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'CONFIG']),
+async (req, res) => {
   const { id } = req.params;
   const { nombre, apellido, telefono, email, link_foto, rol, department_id } = req.body;
-
+console.log("nunca se llama")
   try {
-    const updateQuery = `
-      UPDATE users
-      SET nombre = $1, apellido = $2, telefono = $3, email = $4, link_foto = $5, rol = $6, department_id = $7
-      WHERE id_usuario = $8
-      RETURNING *;
-    `;
+    // Buscar al usuario por su ID
+    const user = await User.findOne({
+      where: { id_usuario: id },
+      include: [
+        {
+          model: Type_user, // Incluye Type_user
+          as: 'Type_user',
+        },
+        {
+          model: Privilege, // Incluye Privileges
+          as: 'Privileges',
+        },
+      ],
+    });
 
-    const result = await pool.query(updateQuery, [nombre, apellido, telefono, email, link_foto, rol, department_id, id]);
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error updating user data:', error);
-    res.status(500).send('Internal Server Error');
-  }
-});
+    if (!user) {
+      return res.status(404).json({ message: 'Usuario no encontrado' });
+    }
 
+    // Actualizar los campos proporcionados
+    user.nombre = nombre || user.nombre;
+    user.apellido = apellido || user.apellido;
+    user.telefono = telefono || user.telefono;
+    user.email = email || user.email;
+    user.link_foto = link_foto || user.link_foto;
+    user.role = rol || user.role;
+    user.department_id = department_id || user.department_id;
 
-router.delete('/users/:id', authorize(['ADMIN', 'SUPER ADMIN'], ['USER_WRITE', 'CONFIG']),
+    // Guardar los cambios
+    await user.save();
+
+    // Devolver el usuario actualizado (sin la contraseña)
+    const userWithType = await User.findOne({
+      where: { id_usuario: user.id_usuario },
+      include: [
+        {
+          model: Type_user, // Incluye Type_user
+          as: 'Type_user',
+        },
+        {
+          model: Privilege, // Incluye Privileges
+          as: 'Privileges',
+        },
+      ],
+      attributes: { exclude: ['contraseña'] }, // Excluimos la contraseña
+    });
+
+    res.json({
+      message: 'Usuario actualizado exitosamente',
+      user: userWithType,
+    });
+  } catch (err) {
+    console.error('Error al actualizar el usuario:', err);
+    res.status(500).json({ message: 'Error al actualizar al usuario', error: err.message });
+   }
+ })
+
+router.delete('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_DELETE', 'CONFIG']),
   async (req, res) => {
   const { id } = req.params;
 
@@ -696,12 +790,72 @@ const profileStorageContact = multer.diskStorage({
 
 const uploadProfileContact = multer({ storage: profileStorageContact });
 
-router.post('/upload-profile', uploadProfile.single('profile'), (req, res) => {
-  if (!req.file) {
-    return res.status(400).send('No file uploaded');
+ router.post('/upload-profile', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'USER_UPDATE', 'CONFIG']),
+  uploadProfile.single('profile'),
+  async (req, res) => {
+    try {
+      // Acceso al archivo subido
+      console.log("datos", req.file, req.files);
+      
+      if (!req.file) {
+        return res.status(400).send('No file uploaded');
+      }
+
+      const profileFile = req.file; // Obtén el archivo de req.file
+      const { id_usuario, company_id } = req.body;
+
+      if (!id_usuario || !company_id) {
+        return res.status(400).json({ message: 'Missing user or company ID' });
+      }
+
+      // Verificar si el usuario ya tiene una foto de perfil
+      const result = await pool.query(
+        'SELECT link_foto FROM users WHERE id_usuario = $1 AND company_id = $2',
+        [id_usuario, company_id]
+      );
+
+      const existingPhoto = result.rows[0]?.link_foto;
+
+      // Eliminar foto existente si existe
+      if (existingPhoto) {
+        const existingPhotoPath = path.join(__dirname, '..', '..', 'public', existingPhoto);
+        if (fs.existsSync(existingPhotoPath)) {
+          fs.unlinkSync(existingPhotoPath); // Elimina la foto existente
+          console.log(`Foto eliminada: ${existingPhotoPath}`);
+        }
+      }
+
+      // Crear directorio si no existe
+      const profileDir = path.join(__dirname, '..', '..', 'public', 'media', 'users', 'profile');
+      if (!fs.existsSync(profileDir)) {
+        fs.mkdirSync(profileDir, { recursive: true });
+      }
+
+      // Generar nombre de archivo único
+      const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1E9);
+      const fileExtension = path.extname(profileFile.originalname); // Usar originalname para la extensión
+      const newFileName = `${uniqueSuffix}${fileExtension}`;
+      const newFilePath = path.join(profileDir, newFileName);
+
+      // Mover el archivo a la nueva ubicación
+      fs.renameSync(profileFile.path, newFilePath); // Usar renameSync para mover el archivo
+
+      const newPhotoUrl = `/media/users/profile/${newFileName}`;
+
+      // Actualizar la base de datos con la nueva URL de la foto
+      await pool.query(
+        'UPDATE users SET link_foto = $1 WHERE id_usuario = $2 AND company_id = $3',
+        [newPhotoUrl, id_usuario, company_id]
+      );
+
+      res.json({ profileUrl: newPhotoUrl });
+    } catch (error) {
+      console.error('Error handling profile upload:', error);
+      res.status(500).json({ message: 'Error processing profile upload', error: error.message });
+    }
   }
-  res.json({ profileUrl: `/media/users/profile/${req.file.filename}` });
-});
+);
 
 router.post('/upload-profileContact', uploadProfileContact.single('profile'), (req, res) => {
   if (!req.file) {

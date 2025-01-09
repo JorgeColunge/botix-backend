@@ -26,9 +26,13 @@ const defineUser = (sequelize) => {
       link_foto: {
         type: DataTypes.STRING(255),
       },
-      rol: {
+      type_user_id: {
         type: DataTypes.INTEGER,
-        allowNull: false,
+        allowNull: true,  // Asegúrate de que este campo esté permitido para null si es necesario
+        references: {
+          model: 'Type_user', // El nombre de la tabla referenciada
+          key: 'id', // La columna que estamos referenciando
+        }
       },
       contraseña: {
         type: DataTypes.STRING(255),
@@ -59,14 +63,22 @@ const defineUser = (sequelize) => {
     });
   
     User.associate = (models) => {
-        User.belongsTo(models.Role, { foreignKey: 'role', as: 'roleAssociation' });
-        User.belongsToMany(models.Privilege, {
-          through: models.UserPrivileges,
-          foreignKey: 'userId',
-          otherKey: 'privilegeId',
-        });
-      };      
-  
+      // Relación con Role
+      User.belongsTo(models.Role, { foreignKey: 'role', as: 'roleAssociation' });
+      
+      // Relación muchos a muchos con Privilege
+      User.belongsToMany(models.Privilege, {
+        through: models.UserPrivileges,
+        foreignKey: 'userId',
+        otherKey: 'privilegeId',
+      });
+      // Relación con Type_user
+      User.belongsTo(models.Type_user, { 
+        foreignKey: 'type_user_id', 
+        onDelete: 'SET NULL',
+        onUpdate: 'CASCADE'
+      });
+    }; 
     return User;
 };
 

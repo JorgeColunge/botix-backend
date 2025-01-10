@@ -33,7 +33,7 @@ const router = express.Router();
 
 
 router.post('/new-message', 
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
   async (req, res) => {
   const { senderId, messageData } = req.body;
   try {
@@ -47,7 +47,9 @@ router.post('/new-message',
   }
 });
  
-router.post('/reset-unread/:conversationId', async (req, res) => {
+router.post('/reset-unread/:conversationId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
+  async (req, res) => {
   const { conversationId } = req.params;
   try {
       const resetUnread = `UPDATE conversations SET unread_messages = 0 WHERE conversation_id = $1`;
@@ -59,7 +61,9 @@ router.post('/reset-unread/:conversationId', async (req, res) => {
   }
 });
 
-router.get('/conversations/:conversationId', async (req, res) => {
+router.get('/conversations/:conversationId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
+  async (req, res) => {
   const { conversationId } = req.params;
   console.log(`Solicitud de conversación con id ${conversationId}`);
   try {
@@ -164,7 +168,7 @@ router.get('/conversations/:conversationId', async (req, res) => {
 });
 
 router.get('/conversations',
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
   async (req, res) => {
   const userId = req.query.id_usuario;
   const userRole = req.query.role_id;
@@ -347,7 +351,7 @@ router.get("/privileges-all",
   });
 
 router.get('/messages/:id', 
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
   async (req, res) => {
   const { id } = req.params;
   const { offset = 0 } = req.query; // offset indica desde qué mensaje empezar
@@ -463,7 +467,9 @@ function getThumbnailUrl(type, thumbnailUrl) {
   }
 }
 
-router.get('/contacts/:phoneNumber', async (req, res) => {
+router.get('/contacts/:phoneNumber', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'CONTACT_WRITE', 'CONTACT_UPDATE']),
+  async (req, res) => {
   const { phoneNumber } = req.params;
   try {
     const contactResult = await pool.query('SELECT * FROM contacts WHERE phone_number = $1', [phoneNumber]);
@@ -479,7 +485,9 @@ router.get('/contacts/:phoneNumber', async (req, res) => {
 });
 
 // Ruta para actualizar los datos de contacto
-router.put('/contacts/:phoneNumber', async (req, res) => {
+router.put('/contacts/:phoneNumber', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE']),
+  async (req, res) => {
   const { phoneNumber } = req.params;
   const { first_name, last_name, organization, label } = req.body;
   try {
@@ -509,8 +517,6 @@ router.get(
     if (!token) {
       return res.status(401).send('No se proporcionó un token');
     }
-
-    const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
     try {
       const users = await User.findAll({
@@ -545,7 +551,7 @@ router.get(
 );
 
 router.get('/colaboradores', 
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['CONTACT_WRITE', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['USER_WRITE', 'USER_UPDATE', 'READ_USERS_CONTACTS', 'CONFIG']),
   async (req, res) => {
   const { company_id } = req.query;
   try {
@@ -558,7 +564,9 @@ router.get('/colaboradores',
   }
 });
 
-router.get('/instalaciones', async (req, res) => {
+router.get('/instalaciones', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { company_id } = req.query;
   try {
     const query = 'SELECT * FROM instalaciones WHERE company_id = $1';
@@ -571,7 +579,7 @@ router.get('/instalaciones', async (req, res) => {
 });
 
 router.get('/roles',
-  authorize(['ADMIN', 'SUPERADMIN'], []),
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['CONFIG', 'ADMIN_ROLES', 'CONFIG']),
   async (req, res) => {
     const token = req.headers['x-token'];
     if (!token) {
@@ -608,7 +616,9 @@ router.get('/roles',
     }
  });
 
-router.get('/departments/:companyId', async (req, res) => {
+router.get('/departments/:companyId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'USER_WRITE', 'USER_UPDATE', 'CONFIG']),
+  async (req, res) => {
   const { companyId } = req.params;
   try {
     const query = 'SELECT id, name FROM departments WHERE company_id = $1';
@@ -620,7 +630,9 @@ router.get('/departments/:companyId', async (req, res) => {
   }
 });
 
-router.post('/api/users', async (req, res) => {
+router.post('/api/users', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'USER_WRITE', 'CONFIG']),
+  async (req, res) => {
   const {
     nombre,
     apellido,
@@ -680,8 +692,9 @@ router.post('/api/users', async (req, res) => {
   }
 });
 
-
-router.post('/colaboradores', async (req, res) => {
+router.post('/colaboradores', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'USER_WRITE', 'CONFIG']),
+  async (req, res) => {
   const { nombre, apellido, telefono, email, link_foto, rol, department_id, company_id } = req.body;
 
   try {
@@ -696,7 +709,9 @@ router.post('/colaboradores', async (req, res) => {
   }
 });
 
-router.delete('/colaboradores/:id', async (req, res) => {
+router.delete('/colaboradores/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'USER_DELETE', 'CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -719,7 +734,9 @@ router.delete('/colaboradores/:id', async (req, res) => {
   }
 });
 
-router.put('/colaboradores/:id', async (req, res) => {
+router.put('/colaboradores/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'USER_UPDATE', 'CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   const { nombre, apellido, telefono, email, link_foto, rol, department_id, company_id } = req.body;
 
@@ -944,11 +961,15 @@ router.post('/upload-profileContact',
   res.json({ profileUrl: `/media/contacts/profile/${req.file.filename}` });
 });
 
-router.post('/messages/send-text', (req, res) => {
+router.post('/messages/send-text', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']), 
+  async(req, res) => {
   sendTextMessage(io, req, res);
 });
 
-router.post('/messages/react-message', (req, res) => {
+router.post('/messages/react-message', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   sendReactMessage(io, req, res)
 })
 // Configuración de Multer para el almacenamiento de imágenes
@@ -1025,7 +1046,9 @@ const uploadAudio = multer({
 });
 
 // Ruta para manejar la subida de imágenes
-router.post('/upload-image', uploadImage.single('image'), (req, res) => {
+router.post('/upload-image', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  uploadImage.single('image'), (req, res) => {
   try {
     const imageUrl = '/media/images/' + req.file.filename;
     res.json({ imageUrl: imageUrl });
@@ -1036,7 +1059,9 @@ router.post('/upload-image', uploadImage.single('image'), (req, res) => {
 });
 
 // Ruta para manejar la subida de videos
-router.post('/upload-video', uploadVideo.single('video'), async (req, res) => {
+router.post('/upload-video', uploadVideo.single('video'), 
+authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+async (req, res) => {
   try {
     const videoUrl = '/media/videos/' + req.file.filename;
     const videoDuration = await getVideoDurationInSeconds(req.file.path);
@@ -1082,7 +1107,9 @@ const getVideoDurationInSeconds = (videoPath) => new Promise((resolve, reject) =
 });
 
 // Ruta para manejar la subida de documentos
-router.post('/upload-document', uploadDocument.single('document'), (req, res) => {
+router.post('/upload-document', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  uploadDocument.single('document'), (req, res) => {
   try {
     const documentUrl = '/media/documents/' + req.file.filename;
     res.json({ documentUrl });
@@ -1093,7 +1120,9 @@ router.post('/upload-document', uploadDocument.single('document'), (req, res) =>
 });
 
 // Ruta para manejar la subida de audios
-router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
+router.post('/upload-audio', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  uploadAudio.single('audio'), (req, res) => {
   const tempFilePath = req.file.path;
   const duration = req.body.duration;
   const fileExtension = path.extname(req.file.filename); 
@@ -1132,24 +1161,34 @@ router.post('/upload-audio', uploadAudio.single('audio'), (req, res) => {
     .save(processedFilePath);
 });
 
-router.post('/messages/send-image', (req, res) => {
+router.post('/messages/send-image', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   sendImageMessage(io, req, res);
 });
 
-router.post('/messages/send-video', (req, res) => {
+router.post('/messages/send-video', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   sendVideoMessage(io, req, res);
 });
 
-router.post('/messages/send-document', (req, res) => {
+router.post('/messages/send-document', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   sendDocumentMessage(io, req, res);
 });
 
-router.post('/messages/send-audio', (req, res) => {
+router.post('/messages/send-audio', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   sendAudioMessage(io, req, res);
 });
 
 // Ruta para obtener los datos del usuario
-router.get('/user/:id_usuario', async (req, res) => {
+router.get('/user/:id_usuario', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'USER_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const { id_usuario } = req.params;
   try {
     const query = 'SELECT * FROM users WHERE id_usuario = $1';
@@ -1166,7 +1205,9 @@ router.get('/user/:id_usuario', async (req, res) => {
 });
 
 // Ruta para obtener los datos de la empresa
-router.get('/company/:id', async (req, res) => {
+router.get('/company/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   try {
     const query = 'SELECT * FROM companies WHERE id = $1';
@@ -1182,7 +1223,9 @@ router.get('/company/:id', async (req, res) => {
   }
 });
 
-router.put('/company/:id', async (req, res) => {
+router.put('/company/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   const { name, document_type, document_number, address, city, country, postal_code, email, phone, logo, web, instagram, facebook, twiter, tiktok, youtube } = req.body;
 
@@ -1221,14 +1264,19 @@ const logoStorage = multer.diskStorage({
 
 const uploadLogo = multer({ storage: logoStorage });
 
-router.post('/upload-logo', uploadLogo.single('logo'), (req, res) => {
+router.post('/upload-logo', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  uploadLogo.single('logo'), 
+  async(req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded');
   }
   res.json({ logoUrl: `/media/companies/logos/${req.file.filename}` });
 });
 
-router.get('/privileges/:userId', async (req, res) => {
+router.get('/privileges/:userId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['ADMIN_ROLES', 'CONFIG']),
+  async (req, res) => {
   const { userId } = req.params;
   try {
     const query = `
@@ -1248,7 +1296,9 @@ router.get('/privileges/:userId', async (req, res) => {
 });
 
 // Ruta para obtener datos del rol basado en el ID del rol
-router.get('/role/:roleId', async (req, res) => {
+router.get('/role/:roleId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['ADMIN_ROLES', 'CONFIG']),
+  async (req, res) => {
   const { roleId } = req.params;
   try {
     const query = 'SELECT * FROM roles WHERE id = $1';
@@ -1266,7 +1316,9 @@ router.get('/role/:roleId', async (req, res) => {
 });
 
 // Ruta para obtener los datos de la licencia de la empresa
-router.get('/license/:companyId', async (req, res) => {
+router.get('/license/:companyId', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['CONFIG']),
+  async (req, res) => {
   const { companyId } = req.params;
   try {
     const query = 'SELECT * FROM licenses WHERE company_id = $1';
@@ -1283,7 +1335,9 @@ router.get('/license/:companyId', async (req, res) => {
 });
 
 // Ruta para obtener las integraciones de la empresa
-router.get('/integrations/:licenseId', async (req, res) => {
+router.get('/integrations/:licenseId', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   const { licenseId } = req.params;
   try {
     // Consulta para obtener integraciones con licenseId y aquellas de tipo "Interno"
@@ -1301,7 +1355,9 @@ router.get('/integrations/:licenseId', async (req, res) => {
 });
 
 // Ruta para obtener las automatizacioness de la empresa
-router.get('/automations/:licenseId', async (req, res) => {
+router.get('/automations/:licenseId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const { licenseId } = req.params;
   try {
     const query = 'SELECT * FROM automations WHERE license_id = $1';
@@ -1314,20 +1370,22 @@ router.get('/automations/:licenseId', async (req, res) => {
 });
 
 // Ruta para obtener la cantidad de contactos por ID de la empresa
-router.get('/contacts/count/:companyId', async (req, res) => {
-  const { companyId } = req.params;
-  try {
-    const query = 'SELECT COUNT(*) as count FROM contacts WHERE company_id = $1';
-    const result = await pool.query(query, [companyId]);
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching contacts count:', error);
-    res.status(500).send('Internal Server Error');
-  }
-});
+// router.get('/contacts/count/:companyId', async (req, res) => {
+//   const { companyId } = req.params;
+//   try {
+//     const query = 'SELECT COUNT(*) as count FROM contacts WHERE company_id = $1';
+//     const result = await pool.query(query, [companyId]);
+//     res.json(result.rows[0]);
+//   } catch (error) {
+//     console.error('Error fetching contacts count:', error);
+//     res.status(500).send('Internal Server Error');
+//   }
+// });
 
 // Ruta para agregar automatización
-router.post('/automations', async (req, res) => {
+router.post('/automations', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { name, license_id } = req.body;
   try {
     const query = 'INSERT INTO automations (name, license_id) VALUES ($1, $2) RETURNING *';
@@ -1458,20 +1516,22 @@ router.post('/contacts/upload-csv',
 });
 
 // Ruta para obtener la cantidad de roles por ID de la empresa
-router.get('/roles/count/:companyId', async (req, res) => {
-  const { companyId } = req.params;
-  try {
-    const query = 'SELECT COUNT(*) as count FROM roles WHERE company_id = $1';
-    const result = await pool.query(query, [companyId]);
-    res.json(result.rows[0]);
-  } catch (error) {
-    console.error('Error fetching roles count:', error);
-    res.status(500).send('Internal Server Error');
-  }
-});
+// router.get('/roles/count/:companyId', async (req, res) => {
+//   const { companyId } = req.params;
+//   try {
+//     const query = 'SELECT COUNT(*) as count FROM roles WHERE company_id = $1';
+//     const result = await pool.query(query, [companyId]);
+//     res.json(result.rows[0]);
+//   } catch (error) {
+//     console.error('Error fetching roles count:', error);
+//     res.status(500).send('Internal Server Error');
+//   }
+// });
 
 // Ruta para obtener la cantidad de organizaciones por ID de la empresa
-router.get('/organizations/count/:companyId', async (req, res) => {
+router.get('/organizations/count/:companyId', 
+  authorize(['SUPERADMIN'], []),
+  async (req, res) => {
   const { companyId } = req.params;
   try {
     const query = 'SELECT COUNT(*) as count FROM organizations WHERE company_id = $1';
@@ -1508,7 +1568,9 @@ router.post('/organizations',
   }
 });
 
-router.post('/roles', async (req, res) => {
+router.post('/roles', 
+  authorize(['SUPERADMIN'], []),
+  async (req, res) => {
   const { name, type, company_id, privileges } = req.body;
 
   const client = await pool.connect();
@@ -1554,7 +1616,9 @@ router.post('/departments',
 });
 
 // Ruta para obtener las fases de un departamento
-router.get('/departments/:departmentId/phases', async (req, res) => {
+router.get('/departments/:departmentId/phases', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const { departmentId } = req.params;
   try {
     const query = 'SELECT * FROM department_phases WHERE department_id = $1 ORDER BY "order"';
@@ -1567,7 +1631,9 @@ router.get('/departments/:departmentId/phases', async (req, res) => {
 });
 
 // Ruta para agregar una fase a un departamento
-router.post('/departments/:departmentId/phases', async (req, res) => {
+router.post('/departments/:departmentId/phases', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { name, order, color, department_id } = req.body;
   try {
     const query = 'INSERT INTO department_phases (name, department_id, "order", color) VALUES ($1, $2, $3, $4) RETURNING *';
@@ -1580,7 +1646,9 @@ router.post('/departments/:departmentId/phases', async (req, res) => {
 });
 
 // Ruta para actualizar una fase de un departamento
-router.put('/departments/phases/:id', async (req, res) => {
+router.put('/departments/phases/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   const { name, order, color } = req.body;
   try {
@@ -1673,7 +1741,9 @@ router.put('/edit-contact/:id',
   }
 });
 
-router.get('/company/:companyId/phases', async (req, res) => {
+router.get('/company/:companyId/phases', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async(req, res) => {
   const { companyId } = req.params;
   try {
     const query = `
@@ -1691,7 +1761,9 @@ router.get('/company/:companyId/phases', async (req, res) => {
   }
 });
 
-router.get('/users/conversation-stats/:companyId', async (req, res) => {
+router.get('/users/conversation-stats/:companyId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const { companyId } = req.params;
 
   try {
@@ -1753,7 +1825,9 @@ router.get('/contacts',
   }
 });
 
-router.get('/templates', async (req, res) => {
+router.get('/templates', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const companyId = req.query.company_id;
   if (!companyId) {
     console.error('company_id is required');
@@ -1790,7 +1864,9 @@ router.get('/templates', async (req, res) => {
   }
 });
 
-router.get('/template/:id', async (req, res) => {
+router.get('/template/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const templateId = req.params.id; // Obteniendo el ID del template desde los parámetros de la URL
   if (!templateId) {
     console.error('template_id is required');
@@ -1833,7 +1909,9 @@ router.get('/template/:id', async (req, res) => {
   }
 });
 
-router.get('/campaigns', async (req, res) => {
+router.get('/campaigns', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const companyId = req.query.company_id; // Usar query param en lugar de params
   if (!companyId) {
     console.error('company_id is required');
@@ -1856,7 +1934,9 @@ router.get('/campaigns', async (req, res) => {
 });
 
 // Crear una nueva campaña
-router.post('/campaigns', async (req, res) => {
+router.post('/campaigns', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { name, objective, type, template_id, scheduled_launch, state_conversation, company_id } = req.body;
 
   try {
@@ -1875,7 +1955,9 @@ router.post('/campaigns', async (req, res) => {
 });
 
 // Asociar responsables a una campaña
-router.post('/campaigns/:campaignId/responsibles', async (req, res) => {
+router.post('/campaigns/:campaignId/responsibles', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { campaignId } = req.params;
   const { responsible_ids } = req.body;
 
@@ -1892,7 +1974,9 @@ router.post('/campaigns/:campaignId/responsibles', async (req, res) => {
 });
 
 // Actualizar una campaña
-router.put('/campaigns/:id', async (req, res) => {
+router.put('/campaigns/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   const { name, objective, type, template_id, scheduled_launch, state_conversation, type_responsible } = req.body;
 
@@ -1926,7 +2010,9 @@ router.put('/campaigns/:id', async (req, res) => {
 });
 
 // Eliminar una campaña
-router.delete('/campaigns/:id', async (req, res) => {
+router.delete('/campaigns/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
 
   try {
@@ -1953,7 +2039,9 @@ router.delete('/campaigns/:id', async (req, res) => {
 });
 
 // Asociar contactos a una campaña
-router.post('/campaigns/:campaignId/contacts', async (req, res) => {
+router.post('/campaigns/:campaignId/contacts', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { campaignId } = req.params;
   const { contact_ids } = req.body;
 
@@ -1969,7 +2057,9 @@ router.post('/campaigns/:campaignId/contacts', async (req, res) => {
   }
 });
 
-router.put('/campaigns/:campaignId/contacts', async (req, res) => {
+router.put('/campaigns/:campaignId/contacts', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async(req, res) => {
   const { campaignId } = req.params;
   const { contact_ids } = req.body;
 
@@ -2017,7 +2107,9 @@ router.put('/campaigns/:campaignId/contacts', async (req, res) => {
   }
 });
 
-router.put('/campaigns/:campaignId/responsibles', async (req, res) => {
+router.put('/campaigns/:campaignId/responsibles', 
+  authorize(['ADMIN', 'SUPERADMIN'], [ 'CONFIG']),
+  async(req, res) => {
   const { campaignId } = req.params;
   const { responsible_ids } = req.body;
 
@@ -2046,7 +2138,9 @@ router.put('/campaigns/:campaignId/responsibles', async (req, res) => {
 });
 
 // Obtener todos los contactos de la tabla campaign_contacts
-router.get('/contactsCampaign', async (req, res) => {
+router.get('/contactsCampaign', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async(req, res) => {
   try {
     const query = 'SELECT * FROM campaign_contacts';
     const result = await pool.query(query);
@@ -2062,7 +2156,9 @@ router.get('/contactsCampaign', async (req, res) => {
   }
 });
 
-router.get('/phases/:companyId', async (req, res) => {
+router.get('/phases/:companyId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'READ_INFO_AUDIT', 'CONFIG']),
+  async(req, res) => {
   const { companyId } = req.params;
   try {
     const query = `
@@ -2080,11 +2176,15 @@ router.get('/phases/:companyId', async (req, res) => {
   }
 });
 
-router.post('/launch-campaign/:campaignId', async (req, res) => {
+router.post('/launch-campaign/:campaignId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   sendTemplateMessage(io, req, res);
 });
 
-router.post('/send-template', async (req, res) => {
+router.post('/send-template', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   sendTemplateToSingleContact(io, req, res);
 });
 
@@ -2148,7 +2248,9 @@ const getVariableValue = async (variable, contactId, userId, companyId) => {
   return value;
 };
 
-router.get('/conversation-variable-values/:templateId/:conversationId', async (req, res) => {
+router.get('/conversation-variable-values/:templateId/:conversationId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   const { templateId, conversationId } = req.params;
 
   try {
@@ -2205,7 +2307,9 @@ router.get('/conversation-variable-values/:templateId/:conversationId', async (r
 });
 
 // Ruta para obtener el ID del usuario predefinido para una empresa específica
-router.get('/default-user/:companyId', async (req, res) => {
+router.get('/default-user/:companyId', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'USER_WRITE', 'READ_USERS_CONTACTS', 'READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   const { companyId } = req.params;
   try {
     const query = `
@@ -2225,7 +2329,9 @@ router.get('/default-user/:companyId', async (req, res) => {
 });
 
 // Ruta para cambiar el usuario predefinido de una empresa
-router.put('/change-default-user', async (req, res) => {
+router.put('/change-default-user', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { companyId, userId } = req.body;
   console.log(`Request received with companyId: ${companyId} and userId: ${userId}`);
   
@@ -2255,7 +2361,9 @@ router.put('/change-default-user', async (req, res) => {
   }
 });
 
-router.get('/bots/:id', async (req, res) => {
+router.get('/bots/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_BOTS', 'BOT_WHRITE', 'BOT_DELETE', 'CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   try {
     const botQuery = 'SELECT * FROM bots WHERE id_usuario = $1';
@@ -2270,7 +2378,9 @@ router.get('/bots/:id', async (req, res) => {
   }
 });
 
-router.put('/bots/:id', async (req, res) => {
+router.put('/bots/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['BOT_WHRITE', 'CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
   const { codigo, react_flow } = req.body;
 
@@ -2293,7 +2403,9 @@ router.put('/bots/:id', async (req, res) => {
   }
 });
 
-router.post('/end-conversation', async (req, res) => {
+router.post('/end-conversation', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   const { conversationId, companyId } = req.body;
 
   try {
@@ -2317,7 +2429,9 @@ router.post('/end-conversation', async (req, res) => {
   }
 });
 
-router.post('/consumptions', async (req, res) => {
+router.post('/consumptions', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   console.log("Calculando costos");
   const { api_name, model, unit_type, unit_count, query_details, company_id, user_id, conversationId } = req.body;
 
@@ -2372,7 +2486,9 @@ router.post('/consumptions', async (req, res) => {
 });
 
 
-router.put('/consumptionsCompany', async (req, res) => {
+router.put('/consumptionsCompany',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { company_id, month, year } = req.body;
 
   if (!company_id || !month || !year) {
@@ -2420,7 +2536,9 @@ router.put('/consumptionsCompany', async (req, res) => {
 
 
 // Ruta para obtener la tasa de cambio de una moneda
-router.get('/currency/:currencyCode', async (req, res) => {
+router.get('/currency/:currencyCode', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   const { currencyCode } = req.params;
 
   try {
@@ -2443,7 +2561,9 @@ router.get('/currency/:currencyCode', async (req, res) => {
 });
 
 // Ruta para obtener eventos por tipo de asignación e ID de asignación
-router.get('/events', async (req, res) => {
+router.get('/events', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   const { tipo_asignacion, id_asignacion, company_id } = req.query;
 
   console.log('Received parameters:', { tipo_asignacion, id_asignacion, company_id }); // Log de los parámetros recibidos
@@ -2470,7 +2590,9 @@ router.get('/events', async (req, res) => {
 });
 
 // Ruta para crear un nuevo evento
-router.post('/events', async (req, res) => {
+router.post('/events', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT', 'CONFIG']),
+  async (req, res) => {
   const { titulo, descripcion, all_day, tipo_asignacion, id_asignacion, company_id } = req.body;
   const clientTimezone = req.body.timezone || 'America/Bogota'; // Usa la zona horaria proporcionada o una predeterminada
 
@@ -2506,7 +2628,9 @@ router.post('/events', async (req, res) => {
 });
 
 // Ruta para obtener horarios por tipo de asignación e ID de asignación
-router.get('/schedules', async (req, res) => {
+router.get('/schedules', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { tipo_asignacion, id_asignacion, company_id } = req.query;
 
   console.log('Received parameters:', { tipo_asignacion, id_asignacion, company_id }); // Log de los parámetros recibidos
@@ -2533,7 +2657,9 @@ router.get('/schedules', async (req, res) => {
 });
 
 // Ruta para crear un nuevo horario
-router.post('/schedules', async (req, res) => {
+router.post('/schedules', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async(req, res) => {
   const { dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id } = req.body;
 
   console.log('Received body:', { dia, hora_inicio, hora_fin, tipo_asignacion, id_asignacion, company_id }); // Log del cuerpo recibido

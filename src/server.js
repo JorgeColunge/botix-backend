@@ -24,6 +24,7 @@ import moment from 'moment-timezone';
 import { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, getReverseGeocoding, getGeocoding, assignResponsibleUser } from './handlers/messageHandler.js'
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from './handlers/repliesHandler.js';
 import db from './models/index.js';
+import { authorize } from './middlewares/authorizationMiddleware.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -174,9 +175,9 @@ app.use('/api/protected-route', verifyToken, (req, res) => {
 // Inicializar rutas con io
 const router = createRouter(io);
 app.use('/api', router);
-app.use('/images', express.static('public/image'));
-app.use('/media', express.static('public/media'));
-app.use('/thumbnail', express.static('public/thumbnail'));
+app.use('/images', authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []), express.static('public/image'));
+app.use('/media', authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []), express.static('public/media'));
+app.use('/thumbnail', authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []), express.static('public/thumbnail'));
 app.use('/api/auth', authRoutes);
 
 // Función para responder inmediatamente a WhatsApp
@@ -368,7 +369,9 @@ app.post('/upload', upload.single('document'), (req, res) => {
 });
 
 // Endpoint para la verificación del webhook
-app.get('/webhook', (req, res) => {
+app.get('/webhook', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  (req, res) => {
   const verifyToken = 'W3bh00k4APIV3rifnAut0rizad3';
   const mode = req.query['hub.mode'];
   const token = req.query['hub.verify_token'];
@@ -416,7 +419,9 @@ const uploadTemplateMedia = multer({
   }
 });
 
-app.post('/upload-template-media', uploadTemplateMedia.single('media'), async (req, res) => {
+app.post('/upload-template-media', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  uploadTemplateMedia.single('media'), async (req, res) => {
   if (!req.file) {
     return res.status(400).send({ error: 'No file uploaded' });
   }
@@ -446,7 +451,9 @@ app.post('/upload-template-media', uploadTemplateMedia.single('media'), async (r
   }
 });
 
-app.post('/create-template', async (req, res) => {
+app.post('/create-template', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id } = req.body;
   const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
   const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
@@ -898,7 +905,9 @@ app.post('/create-template', async (req, res) => {
   }
 });
 
-app.put('/edit-template', async (req, res) => {
+app.put('/edit-template', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id, id_plantilla } = req.body;
   const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
   const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
@@ -1505,7 +1514,9 @@ app.put('/edit-template', async (req, res) => {
   } 
 });
 
-app.delete('/api/templates/:id/:templateName/:company_id', async (req, res) => {
+app.delete('/api/templates/:id/:templateName/:company_id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { id, company_id, templateName } = req.params;
   const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
   const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
@@ -1554,7 +1565,9 @@ app.delete('/api/templates/:id/:templateName/:company_id', async (req, res) => {
   }
 });
 
-app.post('/create-flow', async (req, res) => {
+app.post('/create-flow', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   try {
     const { name, categories } = req.body;
 
@@ -1627,7 +1640,9 @@ app.get('/calculate-time', (req, res) => {
   res.send(`La hora actual en tu zona horaria (${clientTimezone}) es: ${currentTime}`);
 });
 
-app.post('/bot', async (req, res) => {
+app.post('/bot', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'BOT_WRITE']),
+  async (req, res) => {
   //const externalData = req.body;
 
   console.log(`Solicitud recibida a las ${new Date().toISOString()}:`, req.body);

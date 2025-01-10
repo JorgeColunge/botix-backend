@@ -87,7 +87,9 @@ authRoutes.get('/renew', async (req, res) => {
 });
 
 //METODOS DE PAYPAL
-authRoutes.post("/create-product-paypal", async (req, res) => {
+authRoutes.post("/create-product-paypal", 
+  authorize(['SUPERADMIN'], []),
+  async (req, res) => {
   const { name, description, type, category } = req.body;
 
   try {
@@ -127,7 +129,9 @@ authRoutes.post("/create-product-paypal", async (req, res) => {
   }
 });
 
-authRoutes.get("/products-paypal", async (req, res) => {
+authRoutes.get("/products-paypal", 
+  authorize(['SUPERADMIN'], []),
+  async (req, res) => {
   try {
     // Obtener el token de acceso de PayPal
     const auth = await axios.post(
@@ -309,7 +313,7 @@ authRoutes.post("/create-plan-paypal", async (req, res) => {
     res.status(500).send("Hubo un problema al crear el plan.");
   }
 });
-
+//No proteger
 authRoutes.post("/create-plan-paypal-personalized", async (req, res) => {
   const { name, billing_cycles, payment_preferences, old_id_paypal } = req.body;
 
@@ -404,7 +408,7 @@ authRoutes.post("/create-plan-paypal-personalized", async (req, res) => {
     res.status(500).send("Hubo un problema al crear el plan.");
   }
 });
-
+//No proteger
 authRoutes.post("/create-subscription", async (req, res) => {
   const { plan_id } = req.body; 
 
@@ -451,7 +455,7 @@ authRoutes.post("/create-subscription", async (req, res) => {
     res.status(500).send("Hubo un problema al crear la suscripción.");
   }
 });
-
+//No proteger
 authRoutes.post("/capture-subscription", async (req, res) => {
   const { subscription_id } = req.body; // ID de la suscripción creada
 
@@ -497,7 +501,7 @@ authRoutes.post("/capture-subscription", async (req, res) => {
     res.status(500).send("Hubo un problema al capturar la suscripción.");
   }
 });
-
+//No proteger
 authRoutes.post("/cancel-subscription", async (req, res) => {
   const { subscription_id } = req.body;
 
@@ -534,6 +538,7 @@ authRoutes.post("/cancel-subscription", async (req, res) => {
   }
 });
 //FIN DE METODOS DE PAYPAL
+//No proteger
 authRoutes.get('/get_plans', async (req, res) => {
   try {
     const query = 'SELECT * FROM plans';
@@ -617,7 +622,9 @@ authRoutes.get('/facebook/callback', passport.authenticate('facebook', { failure
   }
 );
 
-authRoutes.delete('/deleteToken/:id', async (req, res) => {
+authRoutes.delete('/deleteToken/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'CONFIG']),
+  async (req, res) => {
   const { id } = req.params;
 
   try {

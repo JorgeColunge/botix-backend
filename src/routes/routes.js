@@ -32,7 +32,9 @@ export default function createRouter(io) {
 const router = express.Router();
 
 
-router.post('/new-message', async (req, res) => {
+router.post('/new-message', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  async (req, res) => {
   const { senderId, messageData } = req.body;
   try {
     await processMessage(io, senderId, messageData);
@@ -329,7 +331,7 @@ router.get('/privileges-role/:roleId', async (req, res) => {
 });
 
 router.get("/privileges-all", 
-  authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', "USER_WRITE", 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ["ADMIN_ROLES", 'CONFIG']),
   async (req, res) => {
     
     try {
@@ -344,7 +346,9 @@ router.get("/privileges-all",
     }
   });
 
-router.get('/messages/:id', async (req, res) => {
+router.get('/messages/:id', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  async (req, res) => {
   const { id } = req.params;
   const { offset = 0 } = req.query; // offset indica desde qué mensaje empezar
 
@@ -492,29 +496,57 @@ router.put('/contacts/:phoneNumber', async (req, res) => {
   }
 });
 
-router.get('/users', async (req, res) => {
-  const { company_id } = req.query;
+router.get(
+  '/users',
+  authorize(
+    ['ADMIN', 'SUPERADMIN'],
+    ['USER_UPDATE', 'USER_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']
+  ),
+  async (req, res) => {
+    const { company_id } = req.query;
+    const token = req.headers['x-token'];
 
-  try {
-    const users = await User.findAll({
-      where: { company_id }, // Filtra por company_id
-      attributes: { exclude: ['contraseña'] }, // Excluye el atributo contraseña
-      include: [
-        {
-          model: Type_user, // Incluye Type_user
-          as: 'Type_user', // Alias definido en la asociación
-        },
-      ],
-    });
+    if (!token) {
+      return res.status(401).send('No se proporcionó un token');
+    }
 
-    res.json(users);
-  } catch (error) {
-    console.error('Error fetching users:', error);
-    res.status(500).send('Internal Server Error');
+    const decoded = jwt.verify(token, process.env.JWT_SECRET);
+
+    try {
+      const users = await User.findAll({
+        where: { company_id }, // Filtra por company_id
+        attributes: { exclude: ['contraseña'] }, // Excluye el atributo contraseña
+        include: [
+          {
+            model: Type_user, // Incluye Type_user
+            as: 'Type_user', // Alias definido en la asociación
+          },
+          {
+            model: Privilege, // Incluye los privilegios
+            as: 'Privileges', // Alias definido en la asociación
+            through: { attributes: [] }, // Excluye la tabla intermedia
+            attributes: ['id'], // Selecciona solo el ID del privilegio
+          },
+        ],
+      });
+
+      // Mapear los privilegios para devolver un array de IDs
+      const usersWithMappedPrivileges = users.map(user => ({
+        ...user.toJSON(),
+        Privileges: user.Privileges.map(privilege => privilege.id), // Extraer solo los IDs
+      }));
+
+      res.json(usersWithMappedPrivileges);
+    } catch (error) {
+      console.error('Error fetching users:', error);
+      res.status(500).send('Internal Server Error');
+    }
   }
-});
+);
 
-router.get('/colaboradores', async (req, res) => {
+router.get('/colaboradores', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['CONTACT_WRITE', 'CONFIG']),
+  async (req, res) => {
   const { company_id } = req.query;
   try {
     const query = 'SELECT * FROM colaboradores WHERE company_id = $1';
@@ -539,7 +571,7 @@ router.get('/instalaciones', async (req, res) => {
 });
 
 router.get('/roles',
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
+  authorize(['ADMIN', 'SUPERADMIN'], []),
   async (req, res) => {
     const token = req.headers['x-token'];
     if (!token) {
@@ -589,19 +621,65 @@ router.get('/departments/:companyId', async (req, res) => {
 });
 
 router.post('/api/users', async (req, res) => {
-  const { nombre, apellido, telefono, email, rol, department_id, company_id } = req.body;
+  const {
+    nombre,
+    apellido,
+    telefono,
+    email,
+    rol,
+    department_id,
+    company_id,
+    privileges // Lista de privilegios a asignar
+  } = req.body;
 
   try {
-    const result = await pool.query(
-      'INSERT INTO users (nombre, apellido, telefono, email, rol, department_id, company_id) VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *',
-      [nombre, apellido, telefono, email, rol, department_id, company_id]
-    );
-    res.json(result.rows[0]);
+    // Crear el usuario
+    const newUser = await User.create({
+      nombre,
+      apellido,
+      telefono,
+      email,
+      rol,
+      department_id,
+      company_id,
+    });
+
+    // Asignar privilegios al usuario si se proporcionan
+    if (privileges && Array.isArray(privileges)) {
+      const privilegeRecords = await Privilege.findAll({
+        where: {
+          name: privileges, // Buscar los privilegios por nombre
+        },
+      });
+
+      await newUser.addPrivileges(privilegeRecords); // Asocia los privilegios al usuario
+    }
+
+    // Obtener al usuario con sus privilegios actualizados
+    const userWithPrivileges = await User.findByPk(newUser.id, {
+      include: [
+        {
+          model: Privilege,
+          as: 'Privileges',
+          through: { attributes: [] }, // Excluir datos de la tabla intermedia
+          attributes: ['name'],
+        },
+      ],
+    });
+
+    const usersWithMappedPrivilegesUp = {
+        ...userWithPrivileges,
+        Privileges: userWithPrivileges.Privileges.map(privilege => privilege.id),
+      }
+
+
+    res.status(201).json(usersWithMappedPrivilegesUp);
   } catch (error) {
     console.error('Error creating new user:', error);
     res.status(500).send('Internal Server Error');
   }
 });
+
 
 router.post('/colaboradores', async (req, res) => {
   const { nombre, apellido, telefono, email, link_foto, rol, department_id, company_id } = req.body;
@@ -666,7 +744,7 @@ router.put('/colaboradores/:id', async (req, res) => {
 });
 
 
-router.put('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'CONFIG']),
+router.put('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'BOT_UPDATE', 'CONFIG']),
 async (req, res) => {
   const { id } = req.params;
   const { nombre, apellido, telefono, email, link_foto, rol, department_id } = req.body;
@@ -729,7 +807,7 @@ console.log("nunca se llama")
    }
  })
 
-router.delete('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_DELETE', 'CONFIG']),
+router.delete('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_DELETE', 'BOT_DELETE', 'CONFIG']),
   async (req, res) => {
   const { id } = req.params;
 
@@ -788,9 +866,9 @@ const profileStorageContact = multer.diskStorage({
   }
 });
 
-const uploadProfileContact = multer({ storage: profileStorageContact });
+  const uploadProfileContact = multer({ storage: profileStorageContact });
 
- router.post('/upload-profile', 
+  router.post('/upload-profile', 
   authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'USER_UPDATE', 'CONFIG']),
   uploadProfile.single('profile'),
   async (req, res) => {
@@ -854,10 +932,12 @@ const uploadProfileContact = multer({ storage: profileStorageContact });
       console.error('Error handling profile upload:', error);
       res.status(500).json({ message: 'Error processing profile upload', error: error.message });
     }
-  }
-);
+  });
 
-router.post('/upload-profileContact', uploadProfileContact.single('profile'), (req, res) => {
+router.post('/upload-profileContact',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONFIG']), 
+  uploadProfileContact.single('profile'), 
+  async(req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded');
   }
@@ -1259,7 +1339,10 @@ router.post('/automations', async (req, res) => {
   }
 });
 
-router.post('/create-contact', uploadProfileContact.single('profile'), async (req, res) => {
+router.post('/create-contact', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_WRITE', 'CONFIG']),
+  uploadProfileContact.single('profile'), 
+  async (req, res) => {
   const {
     phone_number, first_name, last_name, organization, label, edad_approx, fecha_nacimiento,
     nacionalidad, ciudad_residencia, direccion_completa, email, genero, pagina_web,
@@ -1272,18 +1355,18 @@ router.post('/create-contact', uploadProfileContact.single('profile'), async (re
   const profile_url = req.file ? `/media/contacts/profile/${req.file.filename}` : null;
 
   // Convertir cadenas vacías a null o valores por defecto para campos enteros
-const convertToIntegerOrNull = (value) => {
-  // Verificar si el valor es un número válido antes de convertirlo
-  const parsed = parseInt(value, 10);
-  return isNaN(parsed) ? null : parsed;
-};
+  const convertToIntegerOrNull = (value) => {
+    // Verificar si el valor es un número válido antes de convertirlo
+    const parsed = parseInt(value, 10);
+    return isNaN(parsed) ? null : parsed;
+  };
 
-// Convertir cadenas vacías a null para fechas
-const convertToDateOrNull = (value) => {
-  // Verificar si el valor puede ser convertido en una fecha válida
-  const date = new Date(value);
-  return isNaN(date.getTime()) ? null : value;
-};
+  // Convertir cadenas vacías a null para fechas
+  const convertToDateOrNull = (value) => {
+    // Verificar si el valor puede ser convertido en una fecha válida
+    const date = new Date(value);
+    return isNaN(date.getTime()) ? null : value;
+  };
 
   // Construir dinámicamente la consulta INSERT y la lista de valores
   const fields = [
@@ -1338,7 +1421,9 @@ const storageCSV = multer.diskStorage({
 const upload = multer({ storage: storageCSV });
 
 // Ruta para cargar un archivo CSV con contactos
-router.post('/contacts/upload-csv', upload.single('csv'), async (req, res) => {
+router.post('/contacts/upload-csv',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_WRITE', 'CONFIG']),
+  upload.single('csv'), async (req, res) => {
   if (!req.file) {
     return res.status(400).send('No file uploaded');
   }
@@ -1398,7 +1483,9 @@ router.get('/organizations/count/:companyId', async (req, res) => {
   }
 });
 
-router.post('/organizations', async (req, res) => {
+router.post('/organizations', 
+  authorize(['SUPERADMIN'], []), 
+  async (req, res) => {
   const {
     name, document_type, document_number, address, city, country,
     postal_code, email, phone, company_id
@@ -1451,7 +1538,9 @@ router.post('/roles', async (req, res) => {
   }
 });
 
-router.post('/departments', async (req, res) => {
+router.post('/departments',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
   const { name, description, company_id } = req.body;
 
   try {
@@ -1504,7 +1593,9 @@ router.put('/departments/phases/:id', async (req, res) => {
   }
 });
 
-router.post('/integrations', async (req, res) => {
+router.post('/integrations',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']), 
+  async (req, res) => {
   const { type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID } = req.body;
 
   try {
@@ -1517,7 +1608,10 @@ router.post('/integrations', async (req, res) => {
   }
 });
 
-router.put('/edit-contact/:id', uploadProfileContact.single('profile'), async (req, res) => {
+router.put('/edit-contact/:id', 
+   authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'CONFIG']),
+   uploadProfileContact.single('profile'), 
+   async (req, res) => {
   const { id } = req.params;
   const contactData = req.body;
 
@@ -1620,7 +1714,9 @@ router.get('/users/conversation-stats/:companyId', async (req, res) => {
   }
 });
 
-router.get('/contacts', async (req, res) => {
+router.get('/contacts', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  async (req, res) => {
   const companyId = req.query.company_id;
 
   try {

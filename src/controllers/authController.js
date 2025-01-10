@@ -138,9 +138,9 @@ export const login = async (req, res) => {
 
 // Función para editar usuario
 export const edit = async (req, res) => {
-  const { id } = req.params;
-  const { nombre, apellido, telefono, email, link_foto, rol, department_id } = req.body;
-   
+  const { id } = req.params; // ID del usuario a editar
+  const { nombre, apellido, telefono, email, link_foto, rol, department_id, Privileges } = req.body;
+
   try {
     // Buscar al usuario por su ID
     const user = await User.findOne({
@@ -170,33 +170,53 @@ export const edit = async (req, res) => {
     user.role = rol || user.role;
     user.department_id = department_id || user.department_id;
 
-    // Guardar los cambios
+    // Guardar los cambios del usuario
     await user.save();
 
-    // Devolver el usuario actualizado (sin la contraseña)
-    const userWithType = await User.findOne({
+    // Actualizar los privilegios
+    if (Privileges && Privileges.length > 0) {
+      // Buscar los privilegios por sus IDs
+      const privilegesToAdd = await Privilege.findAll({
+        where: {
+          id: Privileges,
+        },
+      });
+
+      if (Privileges.length > 0) {
+        // Establecer los nuevos privilegios (reemplaza los existentes)
+        await user.setPrivileges(privilegesToAdd);
+      }
+    }
+
+    // Recuperar el usuario actualizado con sus privilegios mapeados
+    const updatedUser = await User.findOne({
       where: { id_usuario: user.id_usuario },
+      attributes: { exclude: ['contraseña'] }, // Excluye la contraseña
       include: [
         {
-          model: Type_user, // Incluye Type_user
+          model: Type_user,
           as: 'Type_user',
         },
         {
-          model: Privilege, // Incluye Privileges
+          model: Privilege,
           as: 'Privileges',
         },
       ],
-      attributes: { exclude: ['contraseña'] }, // Excluimos la contraseña
     });
+
+    const usersWithMappedPrivilegesUp = {
+      ...updatedUser.toJSON(),
+      Privileges: updatedUser.Privileges.map(privilege => privilege.id),
+    };
 
     res.json({
       message: 'Usuario actualizado exitosamente',
-      user: userWithType,
+      user: usersWithMappedPrivilegesUp,
     });
   } catch (err) {
     console.error('Error al actualizar el usuario:', err);
     res.status(500).json({ message: 'Error al actualizar al usuario', error: err.message });
-   }
+  }
 };
 
 export const registerUser = [
@@ -270,9 +290,14 @@ export const registerUser = [
         ],
       });
 
+      const usersWithMappedPrivilegesUp = {
+        ...userWithType,
+        Privileges: userWithType.Privileges.map(privilege => privilege.id),
+      }
+
       res.status(201).json({
         message: 'Usuario creado exitosamente',
-        user: userWithType,
+        user: usersWithMappedPrivilegesUp,
       });
     } catch (err) {
       console.error('Error al registrar usuario:', err);
@@ -282,7 +307,9 @@ export const registerUser = [
 ];
 
 // Función para registrar un bot
-export const registerBot = async (req, res) => {
+export const registerBot = [
+  authorize(['ADMIN', 'SUPERADMIN'], ['BOT_WRITE', 'CONFIG']),
+  async (req, res) => {
   const { id_usuario, nombre, apellido, telefono, email, link_foto, contraseña, company_id, department_id, tipoBot } = req.body;
   console.log(`Bot a registrar de tipo ${tipoBot}`);
 
@@ -356,4 +383,5 @@ export const registerBot = async (req, res) => {
     console.error(err);
     res.status(500).send('Error al registrar al bot: ' + err.message);
   }
-};
+ }
+];

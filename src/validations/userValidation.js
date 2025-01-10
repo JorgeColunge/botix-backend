@@ -141,6 +141,7 @@ const registerValidation = (data) => {
     company_id: Joi.number().required(),
     token_firebase: Joi.optional(),
     privileges: Joi.optional(),
+    Privileges: Joi.optional(),
     type_user_id: Joi.optional(),
     Type_user: Joi.optional()
   });

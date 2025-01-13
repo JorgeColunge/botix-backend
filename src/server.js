@@ -25,6 +25,7 @@ import { processMessage, updateConversationState, getOrCreateContact, getContact
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from './handlers/repliesHandler.js';
 import db from './models/index.js';
 import { authorize } from './middlewares/authorizationMiddleware.js';
+import jwt from 'jsonwebtoken';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -174,10 +175,33 @@ app.use('/api/protected-route', verifyToken, (req, res) => {
 
 // Inicializar rutas con io
 const router = createRouter(io);
+
+const staticFileMiddleware = (folder) => {
+  return async (req, res, next) => {
+    try {
+      const token = req.query.token;
+      if (!token) throw new Error('Token no proporcionado');
+
+      const decoded = jwt.verify(token, process.env.JWT_SECRET); // Ajusta tu clave secreta
+      const filePath = path.join(__dirname, 'public', folder, req.path);
+
+      // Si el token es válido, sirve el archivo estático
+      res.sendFile(filePath, (err) => {
+        if (err) {
+          next(); // Llama a next si no se encuentra el archivo
+        }
+      });
+    } catch (error) {
+      console.error('Error al autorizar acceso a archivo:', error.message);
+      res.status(403).json({ message: 'Acceso denegado' });
+    }
+  };
+};
+
 app.use('/api', router);
-app.use('/images', authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []), express.static('public/image'));
-app.use('/media', authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []), express.static('public/media'));
-app.use('/thumbnail', authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []), express.static('public/thumbnail'));
+app.use('/images', staticFileMiddleware('image'), express.static('public/image'));
+app.use('/media', staticFileMiddleware('media'), express.static('public/media'));
+app.use('/thumbnail', staticFileMiddleware('thumbnail'), express.static('public/thumbnail'));
 app.use('/api/auth', authRoutes);
 
 // Función para responder inmediatamente a WhatsApp

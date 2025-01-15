@@ -475,7 +475,7 @@ app.post('/upload-template-media',
   }
 });
 
-app.post('/create-template', 
+app.post('/api/create-template', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id } = req.body;
@@ -929,7 +929,7 @@ app.post('/create-template',
   }
 });
 
-app.put('/edit-template', 
+app.put('/api/edit-template', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
   const { name, language, category, components, componentsWithSourceAndVariable, company_id, id_plantilla } = req.body;

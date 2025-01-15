@@ -171,7 +171,7 @@ router.get('/conversations',
   authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
   async (req, res) => {
   const userId = req.query.id_usuario;
-  const userRole = req.query.role_id;
+  const userRole = req.query.rol;
   const companyId = req.query.company_id;
 
   const query = 'SELECT * FROM integrations WHERE type = $1 LIMIT 1';
@@ -197,6 +197,7 @@ router.get('/conversations',
   try {
     const privileges = await getUserRole(userRole);
   
+    console.log("este es el privilegio", privileges)
     let query = `
       SELECT
         c.conversation_id,
@@ -1937,15 +1938,15 @@ router.get('/campaigns',
 router.post('/campaigns', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
-  const { name, objective, type, template_id, scheduled_launch, state_conversation, company_id } = req.body;
+  const { name, objective, type, template_id, scheduled_launch, state_conversation, company_id, type_responsible } = req.body;
 
   try {
     const query = `
-      INSERT INTO campaigns (name, objective, type, template_id, scheduled_launch, state_conversation, company_id) 
-      VALUES ($1, $2, $3, $4, $5, $6, $7) 
+      INSERT INTO campaigns (name, objective, type, template_id, scheduled_launch, state_conversation, company_id, type_responsible) 
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8) 
       RETURNING *
     `;
-    const values = [name, objective, type, template_id, scheduled_launch || null, state_conversation, company_id];
+    const values = [name, objective, type, template_id, scheduled_launch || null, state_conversation, company_id, type_responsible];
     const result = await pool.query(query, values);
     res.status(201).send(result.rows[0]);
   } catch (error) {
@@ -2045,12 +2046,15 @@ router.post('/campaigns/:campaignId/contacts',
   const { campaignId } = req.params;
   const { contact_ids } = req.body;
 
+  const insertedIds = [];
+
   try {
     const query = 'INSERT INTO campaign_contacts (campaign_id, contact_id) VALUES ($1, $2)';
     for (let contactId of contact_ids) {
       await pool.query(query, [campaignId, contactId]);
+      insertedIds.push(contactId);
     }
-    res.status(200).send({ message: 'Contacts associated with campaign successfully.' });
+    res.status(200).send({ message: 'Contacts associated with campaign successfully.', insertedIds });
   } catch (error) {
     console.error('Error associating contacts with campaign:', error.message);
     res.status(500).send({ error: error.message });

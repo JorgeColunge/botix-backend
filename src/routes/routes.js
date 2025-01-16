@@ -486,19 +486,32 @@ router.get('/contacts/:phoneNumber',
 });
 
 router.delete('/contacts/:id', 
-  authorize(['ADMIN', 'SUPERADMIN'], [ 'CONTACT_DELETE', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'CONTACT_WRITE', 'CONTACT_UPDATE']),
   async (req, res) => {
     const { id } = req.params;
+
     try {
-      // Intentar eliminar el contacto por su ID
-      const deleteResult = await pool.query('DELETE FROM contacts WHERE id = $1', [id]);
-      
+      // Iniciar una transacción para garantizar consistencia
+      await pool.query('BEGIN');
+
+      // Eliminar las relaciones del contacto en campaign_contacts
+      await pool.query('DELETE FROM campaign_contacts WHERE contact_id = $1', [id]);
+
+      // Eliminar el contacto de la tabla contacts
+      const deleteResult = await pool.query('DELETE FROM contacts WHERE id = $1 RETURNING *', [id]);
+
       if (deleteResult.rowCount > 0) {
-        res.json({ message: 'Contact deleted successfully' });
+        // Confirmar la transacción
+        await pool.query('COMMIT');
+        res.json({ message: 'Contact deleted successfully', deletedContact: deleteResult.rows[0] });
       } else {
+        // Revertir la transacción en caso de que el contacto no exista
+        await pool.query('ROLLBACK');
         res.status(404).send('Contact not found');
       }
     } catch (err) {
+      // Revertir la transacción en caso de error
+      await pool.query('ROLLBACK');
       console.error('Error deleting contact:', err);
       res.status(500).send('Internal Server Error');
     }

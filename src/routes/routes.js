@@ -485,25 +485,83 @@ router.get('/contacts/:phoneNumber',
   }
 });
 
-// Ruta para actualizar los datos de contacto
-router.put('/contacts/:phoneNumber', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE']),
+router.delete('/contacts/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], [ 'CONTACT_DELETE', 'CONFIG']),
   async (req, res) => {
-  const { phoneNumber } = req.params;
-  const { first_name, last_name, organization, label } = req.body;
-  try {
-    const updateResult = await pool.query('UPDATE contacts SET first_name = $1, last_name = $2, organization = $3, label = $4 WHERE phone_number = $5',
-    [first_name, last_name, organization, label, phoneNumber]);
-    if (updateResult.rowCount > 0) {
-      res.json({ message: 'Contact updated successfully' });
-    } else {
-      res.status(404).send('Contact not found');
+    const { id } = req.params;
+    try {
+      // Intentar eliminar el contacto por su ID
+      const deleteResult = await pool.query('DELETE FROM contacts WHERE id = $1', [id]);
+      
+      if (deleteResult.rowCount > 0) {
+        res.json({ message: 'Contact deleted successfully' });
+      } else {
+        res.status(404).send('Contact not found');
+      }
+    } catch (err) {
+      console.error('Error deleting contact:', err);
+      res.status(500).send('Internal Server Error');
     }
-  } catch (err) {
-    console.error('Error updating contact:', err);
-    res.status(500).send('Internal Server Error');
   }
-});
+);
+
+// Ruta para actualizar los datos de contacto
+router.put('/contacts/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONFIG']),
+  async (req, res) => {
+    const { id } = req.params;
+    const {
+      first_name,
+      last_name,
+      phone_number,
+      organization,
+      label,
+      email,
+      direccion_completa,
+      ciudad_residencia,
+      nacionalidad
+    } = req.body;
+
+    try {
+      // Actualizar el contacto y devolver los datos actualizados
+      const updateResult = await pool.query(
+        `UPDATE contacts 
+         SET first_name = $1, 
+             last_name = $2, 
+             phone_number = $3, 
+             organization = $4, 
+             label = $5, 
+             email = $6, 
+             direccion_completa = $7, 
+             ciudad_residencia = $8, 
+             nacionalidad = $9
+         WHERE id = $10
+         RETURNING *`,
+        [
+          first_name,
+          last_name,
+          phone_number,
+          organization,
+          label,
+          email,
+          direccion_completa,
+          ciudad_residencia,
+          nacionalidad,
+          id
+        ]
+      );
+
+      if (updateResult.rowCount > 0) {
+        res.json(updateResult.rows[0]); // Devuelve todos los datos del contacto actualizado
+      } else {
+        res.status(404).send('Contact not found');
+      }
+    } catch (err) {
+      console.error('Error updating contact:', err);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+);
 
 router.get(
   '/users',

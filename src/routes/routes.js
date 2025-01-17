@@ -282,9 +282,7 @@ router.get('/conversations',
       ) last_message_info ON true
     `;
   
-    if (privileges === "SUPERADMIN") {
-       console.log("super admin")
-    } else if (privileges === "ADMIN") {
+    if (((privileges === "ADMIN") || (privileges === "SUPERADMIN"))) {
       query += ` WHERE u.company_id = $1`;
       const { rows } = await pool.query(query, [companyId]);
       res.json(rows);
@@ -623,7 +621,7 @@ router.get(
 );
 
 router.get('/colaboradores', 
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], ['USER_WRITE', 'USER_UPDATE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN',], ['USER_WRITE', 'USER_UPDATE', 'READ_USERS_CONTACTS', 'CONFIG']),
   async (req, res) => {
   const { company_id } = req.query;
   try {
@@ -2562,7 +2560,7 @@ router.post('/consumptions',
 
 
 router.put('/consumptionsCompany',
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT','CONFIG']),
   async (req, res) => {
   const { company_id, month, year } = req.body;
 
@@ -2666,7 +2664,7 @@ router.get('/events',
 
 // Ruta para crear un nuevo evento
 router.post('/events', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
   const { titulo, descripcion, all_day, tipo_asignacion, id_asignacion, company_id } = req.body;
   const clientTimezone = req.body.timezone || 'America/Bogota'; // Usa la zona horaria proporcionada o una predeterminada
@@ -2704,7 +2702,7 @@ router.post('/events',
 
 // Ruta para obtener horarios por tipo de asignación e ID de asignación
 router.get('/schedules', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT','CONFIG']),
   async (req, res) => {
   const { tipo_asignacion, id_asignacion, company_id } = req.query;
 

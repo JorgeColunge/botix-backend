@@ -233,7 +233,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
 //Funciones de tipos de mensaje:
 const InternalMessageSend = async (io, res, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
 
-  if (!conversationId) {
+  if (!conversationId ||(conversationId == "nuevo")) {
     let isUnique = false;
   
     // Intentar generar un ID numérico único
@@ -343,7 +343,7 @@ const InternalMessageSend = async (io, res, messageText, conversationId, usuario
       id: newMessage.id,
       conversation_fk: newConversationId,
       timestamp: newMessage.created_at,
-      senderId: usuario_send,
+      sender_id: id_usuario,
       message_type: 'text',
       text: messageText || null,
       mediaUrl: null,
@@ -632,7 +632,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
       id: newMessage.replies_id,
       conversation_fk: conversationId,
       timestamp: newMessage.created_at,
-      senderId: usuario_send,
+      sender_id: id_usuario,
       type: 'reply',
       message_type: 'audio',
       text: null,
@@ -913,11 +913,11 @@ const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, 
       id: newMessage.replies_id,
       conversation_fk: conversationId,
       timestamp: newMessage.created_at,
-      senderId: usuario_send,
+      sender_id: id_usuario,
       type: 'reply',
       message_type: 'image',
       text: messageText || '',
-      url: backendUrl+imageUrl,
+      media_url: imageUrl,
       thumbnail_url: null,
       duration: null,
       latitude: null,
@@ -1177,7 +1177,7 @@ const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoD
       id: newMessage.replies_id,
       conversation_fk: conversationId,
       timestamp: newMessage.created_at,
-      senderId: usuario_send,
+      sender_id: id_usuario,
       type: 'reply',
       message_type: 'video',
       text: messageText,
@@ -1188,7 +1188,7 @@ const InternalVideoSend = async(io, res, phone, videoUrl, videoThumbnail, videoD
       longitude: null,
       unread_messages: unreadMessages,
       responsibleUserId: id_usuario,
-      company_id: integrationDetails.company_id,
+      company_id: companyId,
       destino_nombre: usuario_remitent.rows[0].nombre || '',
       destino_apellido: usuario_remitent.rows[0].apellido || '',
       destino_foto: usuario_remitent.rows[0].link_foto || '',
@@ -1433,7 +1433,7 @@ const InternalDocumentSend = async(io, res, phone, documentUrl, documentName, co
       id: newMessage.replies_id,
       conversation_fk: conversationId,
       timestamp: newMessage.created_at,
-      senderId: usuario_send,
+      sender_id: id_usuario,
       type: 'reply',
       message_type: 'document',
       text: null,
@@ -1445,7 +1445,7 @@ const InternalDocumentSend = async(io, res, phone, documentUrl, documentName, co
       unread_messages: unreadMessages,
       responsibleUserId: id_usuario,
       file_name: documentName,
-      company_id: integrationDetails.company_id,
+      company_id: companyId,
       destino_nombre: usuario_remitent.rows[0].nombre || '',
       destino_apellido: usuario_remitent.rows[0].apellido || '',
       destino_foto: usuario_remitent.rows[0].link_foto || '',
@@ -1761,12 +1761,11 @@ export async function sendTextMessage(io, req, res) {
 
 export async function sendImageMessage(io, req, res) {
   const { phone, imageUrl, conversationId, integration_name, messageText, usuario_send, id_usuario, integration_id, companyId, remitent, reply_from } = req.body;
-  
+    console.log("body", req.body)
     switch (integration_name) {
-      case 'Internal':
+      case 'Interno':
           await InternalImageSend(io, res, imageUrl, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from)
-        break;
-    
+        break; 
       default:
         await WhatsAppImageSend(io, res, imageUrl, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from)
         break;

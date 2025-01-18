@@ -28,6 +28,7 @@ export const authorize = (allowedRoles = [], allowedPrivileges = []) => {
   
             const userPrivileges = rows.map(row => row.name);
   
+            console.log("privilegios:", userPrivileges)
             // Verificar si el usuario tiene al menos uno de los privilegios requeridos
             const hasRequiredPrivilege = allowedPrivileges.some(privilege =>
               userPrivileges.includes(privilege)
@@ -36,9 +37,7 @@ export const authorize = (allowedRoles = [], allowedPrivileges = []) => {
             if (!hasRequiredPrivilege) {
               return res.status(403).send('Acceso denegado: Privilegios insuficientes');
             }
-          }
-          
-          return res.status(403).send('Acceso denegado: Rol no autorizado');
+          }          
         }
   
         // Si el rol es válido, pasamos directamente al siguiente middleware

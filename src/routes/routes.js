@@ -48,7 +48,7 @@ router.post('/new-message',
 });
  
 router.post('/reset-unread/:conversationId', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']),
   async (req, res) => {
   const { conversationId } = req.params;
   try {
@@ -62,7 +62,7 @@ router.post('/reset-unread/:conversationId',
 });
 
 router.get('/conversations/:conversationId', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE', 'CONTACT_WRITE', 'CONTACT_UPDATE', 'CONTACT_DELETE']),
   async (req, res) => {
   const { conversationId } = req.params;
   console.log(`Solicitud de conversación con id ${conversationId}`);
@@ -168,7 +168,7 @@ router.get('/conversations/:conversationId',
 });
 
 router.get('/conversations',
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE', 'CONTACT_WRITE', 'CONTACT_UPDATE', 'CONTACT_DELETE']),
   async (req, res) => {
   const userId = req.query.id_usuario;
   const userRole = req.query.rol;
@@ -350,7 +350,7 @@ router.get("/privileges-all",
   });
 
 router.get('/messages/:id', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE', 'CONTACT_WRITE', 'CONTACT_UPDATE', 'CONTACT_DELETE']),
   async (req, res) => {
   const { id } = req.params;
   const { offset = 0 } = req.query; // offset indica desde qué mensaje empezar
@@ -1032,7 +1032,7 @@ router.post('/upload-profileContact',
 });
 
 router.post('/messages/send-text', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']), 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   async(req, res) => {
   sendTextMessage(io, req, res);
 });
@@ -1117,7 +1117,7 @@ const uploadAudio = multer({
 
 // Ruta para manejar la subida de imágenes
 router.post('/upload-image', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   uploadImage.single('image'), (req, res) => {
   try {
     const imageUrl = '/media/images/' + req.file.filename;
@@ -1178,7 +1178,7 @@ const getVideoDurationInSeconds = (videoPath) => new Promise((resolve, reject) =
 
 // Ruta para manejar la subida de documentos
 router.post('/upload-document', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   uploadDocument.single('document'), (req, res) => {
   try {
     const documentUrl = '/media/documents/' + req.file.filename;
@@ -1191,7 +1191,7 @@ router.post('/upload-document',
 
 // Ruta para manejar la subida de audios
 router.post('/upload-audio', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   uploadAudio.single('audio'), (req, res) => {
   const tempFilePath = req.file.path;
   const duration = req.body.duration;
@@ -1232,25 +1232,25 @@ router.post('/upload-audio',
 });
 
 router.post('/messages/send-image', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   async(req, res) => {
   sendImageMessage(io, req, res);
 });
 
 router.post('/messages/send-video', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   async(req, res) => {
   sendVideoMessage(io, req, res);
 });
 
 router.post('/messages/send-document', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   async(req, res) => {
   sendDocumentMessage(io, req, res);
 });
 
 router.post('/messages/send-audio', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
   async(req, res) => {
   sendAudioMessage(io, req, res);
 });

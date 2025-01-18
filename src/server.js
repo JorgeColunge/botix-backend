@@ -1,6 +1,7 @@
 import dotenv from 'dotenv';
 import express from 'express';
-import { createServer } from 'http';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import { Server as SocketIOServer } from 'socket.io';
 import bodyParser from 'body-parser';
 import cors from 'cors';
@@ -23,9 +24,6 @@ import geoip from 'geoip-lite';
 import moment from 'moment-timezone';
 import { processMessage, updateConversationState, getOrCreateContact, getContactInfo, updateContactName, createContact, updateContactCompany, getReverseGeocoding, getGeocoding, assignResponsibleUser } from './handlers/messageHandler.js'
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendLocationMessage } from './handlers/repliesHandler.js';
-import db from './models/index.js';
-import { authorize } from './middlewares/authorizationMiddleware.js';
-import jwt from 'jsonwebtoken';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -34,9 +32,24 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Cargar certificados SSL
+const privateKeyPath = '/home/ec2-user/certificates/privkey.pem';
+const certificatePath = '/home/ec2-user/certificates/fullchain.pem';
+const caPath = '/home/ec2-user/certificates/chain.pem';
+
+// Leer los archivos de certificados SSL
+const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+const certificate = fs.readFileSync(certificatePath, 'utf8');
+const ca = fs.readFileSync(caPath, 'utf8');
+
+const credentials = { key: privateKey, cert: certificate, ca: ca };
+
+console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+console.log('BACKEND_URL:', process.env.BACKEND_URL);
+
 // Configuración de CORS y otros middleware
 app.use(cors({
-  origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
+  origin: [process.env.FRONTEND_URL, 'https://localhost'],
   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   credentials: true
 }));
@@ -47,11 +60,11 @@ app.use((req, res, next) => {
   next();
 });
 
-// Configuración del servidor HTTP y Socket.IO
-const server = createServer(app);
-const io = new SocketIOServer(server, {
+// Configuración del servidor HTTPS y Socket.IO
+const httpsServer = createHttpsServer(credentials, app);
+const io = new SocketIOServer(httpsServer, {
   cors: {
-    origin: [process.env.FRONTEND_URL, 'https://localhost'], // Asegúrate de que coincide con el puerto y host del cliente
+    origin: [process.env.FRONTEND_URL, 'https://localhost'],
     methods: ['GET', 'POST'],
     credentials: true
   }
@@ -1747,18 +1760,11 @@ app.post('/bot',
   }
 });
 
-// Iniciar el servidor HTTP y WebSocket
-db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
-  .then(() => {
-    console.log('Modelos sincronizados correctamente.');
-    // Iniciar el servidor solo después de que la base de datos esté lista
-    server.listen(PORT, () => {
-      console.log(`Servidor escuchando en el puerto ${PORT}`);
-    });
-  })
-  .catch((error) => {
-    console.error('Error al sincronizar los modelos:', error);
-  });
+
+// Iniciar el servidor HTTPS y WebSocket
+httpsServer.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
+});
 
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

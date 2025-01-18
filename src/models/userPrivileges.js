@@ -12,7 +12,7 @@ const defineUserPrivileges = (sequelize) => {
       allowNull: false,
       references: {
         model: 'Users',
-        key: 'id',
+        key: 'id_usuario',
       },
       onDelete: 'CASCADE', // Eliminar solo la relación si el usuario es eliminado
       onUpdate: 'CASCADE', // Si se actualiza el usuario, actualizar la relación también

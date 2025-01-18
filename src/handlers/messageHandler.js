@@ -356,7 +356,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       const adminQuery = `
         SELECT id_usuario FROM users 
         WHERE company_id = $1 
-          AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+          AND role_id IN (SELECT id FROM role WHERE name = 'ADMIN')
       `;
       const adminResult = await pool.query(adminQuery, [company_id]);
 
@@ -431,12 +431,12 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
      }
 
       // Obtener el rol del usuario responsable y procesar según su tipo
-      const roleQuery = 'SELECT rol FROM users WHERE id_usuario = $1';
+      const roleQuery = 'SELECT role_id FROM users WHERE id_usuario = $1';
       const roleResult = await pool.query(roleQuery, [responsibleUserId]);
       if (roleResult.rows.length > 0) {
         const userRole = roleResult.rows[0].rol;
 
-        const typeQuery = 'SELECT type FROM roles WHERE id = $1';
+        const typeQuery = 'SELECT type FROM role WHERE id = $1';
         const typeResult = await pool.query(typeQuery, [userRole]);
         if (typeResult.rows.length > 0) {
           const roleType = typeResult.rows[0].type;

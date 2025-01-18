@@ -474,7 +474,7 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
      const adminQuery = `
      SELECT id_usuario FROM users 
      WHERE company_id = $1 
-       AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+       AND rol IN (SELECT id FROM role WHERE name = 'ADMIN')
    `;
    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
@@ -2429,7 +2429,7 @@ const sendWhatsAppMessage = async (phone, template, parameters, token, phoneNumb
       payload,
       {
         headers: {
-          Authorization: `Bearer ${token}`,
+          Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
           "Content-Type": "application/json",
         },
       }
@@ -2674,13 +2674,14 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
      const adminQuery = `
      SELECT id_usuario FROM users 
      WHERE company_id = $1 
-       AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
+       AND role_id IN (SELECT id FROM role WHERE name = 'ADMIN')
    `;
    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 
    const adminIds = adminResult.rows.map(row => row.id_usuario);
 
+   console.log("correspondientes", adminIds)
    // Emitir el mensaje al usuario responsable y a los administradores
    const recipients = adminIds.includes(responsibleUserId) 
       ? adminIds 

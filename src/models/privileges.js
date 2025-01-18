@@ -3,7 +3,7 @@ import { DataTypes } from 'sequelize';
 const definePrivilege = (sequelize) => {
     const Privilege = sequelize.define('Privilege', {
       id: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         autoIncrement: true,
         primaryKey: true,
       },

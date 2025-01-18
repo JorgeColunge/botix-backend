@@ -8,7 +8,7 @@ const defineUserPrivileges = (sequelize) => {
         primaryKey: true,
       },
       userId: {
-        type: DataTypes.DOUBLE,
+        type: DataTypes.BIGINT,
         allowNull: false,
         references: {
           model: 'users',
@@ -16,7 +16,7 @@ const defineUserPrivileges = (sequelize) => {
         },
       },
       privilegeId: {
-        type: DataTypes.INTEGER,
+        type: DataTypes.BIGINT,
         allowNull: false,
         references: {
           model: 'Privileges',

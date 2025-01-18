@@ -3,7 +3,7 @@ import { DataTypes } from 'sequelize';
 const defineUser = (sequelize) => {
     const User = sequelize.define('User', {
       id_usuario: {
-        type: DataTypes.DOUBLE,
+        type: DataTypes.BIGINT,
         primaryKey: true,
         autoIncrement: true,
       },

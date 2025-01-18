@@ -1769,7 +1769,7 @@ db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas 
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
     // Iniciar el servidor solo después de que la base de datos esté lista
-    server.listen(PORT, () => {
+    io.listen(PORT, () => {
       console.log(`Servidor escuchando en el puerto ${PORT}`);
     });
   })

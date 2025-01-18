@@ -12,7 +12,7 @@ const defineUserPrivileges = (sequelize) => {
         allowNull: false,
         references: {
           model: 'users',
-          key: 'id',
+          key: 'id_usuario',
         },
       },
       privilegeId: {

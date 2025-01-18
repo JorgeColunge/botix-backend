@@ -2,6 +2,8 @@ import dotenv from 'dotenv';
 import express from 'express';
 import { createServer } from 'http';
 import { Server as SocketIOServer } from 'socket.io';
+import { createServer as createHttpServer } from 'http';
+import { createServer as createHttpsServer } from 'https';
 import bodyParser from 'body-parser';
 import cors from 'cors';
 import { executeBotCode } from './handlers/botExecutor.js';
@@ -34,6 +36,22 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
+// Cargar certificados SSL
+const privateKeyPath = '/home/ec2-user/certificates/privkey.pem';
+const certificatePath = '/home/ec2-user/certificates/fullchain.pem';
+const caPath = '/home/ec2-user/certificates/chain.pem';
+
+// Leer los archivos de certificados SSL
+const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+const certificate = fs.readFileSync(certificatePath, 'utf8');
+const ca = fs.readFileSync(caPath, 'utf8');
+
+const credentials = { key: privateKey, cert: certificate, ca: ca };
+
+console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+console.log('BACKEND_URL:', process.env.BACKEND_URL);
+
+
 // Configuración de CORS y otros middleware
 app.use(cors({
   origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
@@ -48,15 +66,14 @@ app.use((req, res, next) => {
 });
 
 // Configuración del servidor HTTP y Socket.IO
-const server = createServer(app);
-const io = new SocketIOServer(server, {
+const httpsServer = createHttpsServer(credentials, app);
+const io = new SocketIOServer(httpsServer, {
   cors: {
-    origin: [process.env.FRONTEND_URL, 'https://localhost'], // Asegúrate de que coincide con el puerto y host del cliente
+    origin: [process.env.FRONTEND_URL, 'https://localhost'],
     methods: ['GET', 'POST'],
     credentials: true
   }
 });
-
 io.on('connection', (socket) => {
   console.log('Un cliente se ha conectado, ID del socket:', socket.id);
 

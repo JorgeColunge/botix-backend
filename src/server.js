@@ -1764,19 +1764,17 @@ app.post('/bot',
   }
 });
 
-// Iniciar el servidor HTTP y WebSocket
 db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
     // Iniciar el servidor solo después de que la base de datos esté lista
-    io.listen(PORT, () => {
-      console.log(`Servidor escuchando en el puerto ${PORT}`);
+    httpsServer.listen(PORT, () => {
+      console.log(`Servidor HTTPS escuchando en el puerto ${PORT}`);
     });
   })
   .catch((error) => {
     console.error('Error al sincronizar los modelos:', error);
   });
-
 
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

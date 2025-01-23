@@ -670,44 +670,49 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
   }
 }
 
-const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudioUrl, fileName, conversationId, integration_id, reply_from) => {
+const WhatAppAudioSend = async (io, res, phone, tokenAudio, audioDuration, audioUrl, fullAudioUrl, fileName, conversationId, integration_id, reply_from) => {
   // Obtén los detalles de la integración
   const integrationDetails = await getIntegrationDetailsByConversationId(conversationId);
   const { whatsapp_api_token, whatsapp_phone_number_id } = integrationDetails;
-
+   
   try {
-     // Paso 1: Descargar el archivo de audio desde la URL
-     const audioResponse = await axios.get(fullAudioUrl, { responseType: 'arraybuffer' });
-     const audioBuffer = Buffer.from(audioResponse.data, 'binary');
- 
-     // Convertir el buffer a un stream
-     const audioStream = new PassThrough();
-     audioStream.end(audioBuffer); // Pasa el buffer directamente al stream
- 
-     // Paso 2: Crear un FormData para subir el archivo
-       const formData = new FormData();
-       formData.append('file', audioStream, {
-        filename: `${fileName}`,
-        contentType: 'audio/ogg; codecs=opus' // Incluye el tipo de contenido con el codec
-      });
-       formData.append('messaging_product', 'whatsapp');
-       formData.append('type', 'audio/ogg')
- 
-     // Subir archivo multimedia
-     const mediaUploadResponse = await axios(
-      {url: `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/media`,
-        method: 'post',
-       data: formData,
-         headers: {
-           'Authorization': `Bearer ${whatsapp_api_token}`,
-           ...formData.getHeaders(),  // Obtener los headers necesarios para multipart/form-data
-         },
-       }
-     );
+    // Asegúrate de que se incluye el token de autorización en la solicitud GET para el archivo de audio
+    const audioResponse = await axios.get(fullAudioUrl, {
+      responseType: 'arraybuffer',
+      headers: {
+        'x-token': tokenAudio // Aquí es donde agregas el token
+      }
+    });
 
-     const mediaId = mediaUploadResponse.data.id;
-     console.log("ID del medio:", mediaId);
- 
+    const audioBuffer = Buffer.from(audioResponse.data, 'binary');
+  
+    // Convertir el buffer a un stream
+    const audioStream = new PassThrough();
+    audioStream.end(audioBuffer); // Pasa el buffer directamente al stream
+  
+    // Paso 2: Crear un FormData para subir el archivo
+    const formData = new FormData();
+    formData.append('file', audioStream, {
+      filename: `${fileName}`,
+      contentType: 'audio/ogg; codecs=opus', // Incluye el tipo de contenido con el codec
+    });
+    formData.append('messaging_product', 'whatsapp');
+    formData.append('type', 'audio/ogg');
+  
+    // Subir archivo multimedia
+    const mediaUploadResponse = await axios({
+      url: `https://graph.facebook.com/v20.0/${whatsapp_phone_number_id}/media`,
+      method: 'post',
+      data: formData,
+      headers: {
+        'Authorization': `Bearer ${whatsapp_api_token}`,
+        ...formData.getHeaders(), // Obtener los headers necesarios para multipart/form-data
+      },
+    });
+
+    const mediaId = mediaUploadResponse.data.id;
+    console.log("ID del medio:", mediaId);
+  
     const messagePayload = {
       messaging_product: 'whatsapp',
       to: phone,
@@ -728,8 +733,18 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
       }
     );
 
-    console.log('Mensaje enviado correctamente:', sendMessageResponse.data);
-
+    let responseData;
+    try {
+      responseData = Buffer.isBuffer(sendMessageResponse.data)
+        ? JSON.parse(sendMessageResponse.data.toString()) // Convertir Buffer a string y luego JSON
+        : sendMessageResponse.data;
+      console.log('Mensaje enviado correctamente:', responseData);
+    } catch (err) {
+      console.error('Error al procesar la respuesta de WhatsApp:', err);
+      res.status(500).json({ error: 'Error al procesar la respuesta de WhatsApp' });
+      return;
+    }
+  
     // Intenta insertar en la base de datos
     const insertQuery = `
       INSERT INTO replies (
@@ -746,7 +761,7 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
       ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING *;
     `;
     const messageValues = [
-      sendMessageResponse.data.messages[0].id,
+      responseData.messages[0].id,
       phone,
       conversationId,
       'audio',
@@ -764,45 +779,43 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
     const responsibleUserId = result.rows[0].id_usuario;
 
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
-    // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario 
-    FROM users 
-    WHERE company_id = $1 
-      AND role_id IN (
-        SELECT id 
-        FROM role 
-        WHERE name IN ('ADMIN', 'SUPERADMIN')
-      )`;
-  const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+      SELECT id_usuario 
+      FROM users 
+      WHERE company_id = $1 
+        AND role_id IN (
+          SELECT id 
+          FROM role 
+          WHERE name IN ('ADMIN', 'SUPERADMIN')
+        )`;
+    
+    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+    const adminIds = adminResult.rows.map(row => row.id_usuario);
 
-
-  const adminIds = adminResult.rows.map(row => row.id_usuario);
-
-  // Emitir el mensaje al usuario responsable y a los administradores
-  const recipients = adminIds.includes(responsibleUserId) 
+    // Emitir el mensaje al usuario responsable y a los administradores
+    const recipients = adminIds.includes(responsibleUserId) 
       ? adminIds 
       : [responsibleUserId, ...adminIds];
 
-  recipients.forEach(userId => {
-    io.to(`user-${userId}`).emit('newMessage', {
-      id: newMessage.replies_id,
-      conversation_fk: conversationId,
-      timestamp: newMessage.created_at,
-      senderId: phone,
-      type: 'reply',
-      message_type: 'audio',
-      text: null,
-      url: process.env.BACKEND_URL+audioUrl,
-      duration: audioDuration,
-      latitude: null,
-      longitude: null,
-      unread_messages: unreadMessages,
-      responsibleUserId: responsibleUserId,
-      reply_from: newMessage.reply_from,
-      company_id: integrationDetails.company_id, // Añadir company_id aquí
+    recipients.forEach(userId => {
+      io.to(`user-${userId}`).emit('newMessage', {
+        id: newMessage.replies_id,
+        conversation_fk: conversationId,
+        timestamp: newMessage.created_at,
+        senderId: phone,
+        type: 'reply',
+        message_type: 'audio',
+        text: null,
+        url: process.env.BACKEND_URL + audioUrl,
+        duration: audioDuration,
+        latitude: null,
+        longitude: null,
+        unread_messages: unreadMessages,
+        responsibleUserId: responsibleUserId,
+        reply_from: newMessage.reply_from,
+        company_id: integrationDetails.company_id, // Añadir company_id aquí
+      });
     });
-  });
     console.log('Mensaje emitido:', newMessage.replies_id);
 
   } catch (error) {
@@ -810,6 +823,7 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
     res.status(500).json({ error: error.message });
   }
 }
+
  
 //Funciones de tipo image:
 const InternalImageSend = async(io, res, imageUrl, messageText, conversationId, usuario_send, id_usuario, integration_id, phone, companyId, remitent, reply_from) => {
@@ -1825,7 +1839,7 @@ export async function sendAudioMessage(io, req, res) {
   const { phone, audioUrl, audioDuration, conversationId, usuario_send, id_usuario, companyId, remitent, reply_from, integration_name, integration_id } = req.body;
   const fullAudioUrl = `${process.env.BACKEND_URL}${audioUrl}`;
   const fileName = audioUrl.split('/media/audios/')[1]; 
-  
+  const token = req.headers['x-token']
   
 try {
     switch (integration_name) {
@@ -1834,7 +1848,7 @@ try {
         break;
     
       default:
-        await WhatAppAudioSend(io, res, phone, audioDuration, audioUrl, fullAudioUrl, fileName, conversationId, integration_id, reply_from)
+        await WhatAppAudioSend(io, res, phone, token, audioDuration, audioUrl, fullAudioUrl, fileName, conversationId, integration_id, reply_from)
         break;
     }
 } catch (error) {

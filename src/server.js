@@ -51,6 +51,7 @@ const credentials = { key: privateKey, cert: certificate, ca: ca };
 console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
 console.log('BACKEND_URL:', process.env.BACKEND_URL);
 
+
 // Configuración de CORS y otros middleware
 app.use(cors({
   origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
@@ -63,7 +64,6 @@ app.use((req, res, next) => {
   console.log(`Received ${req.method} request to ${req.path}`);
   next();
 });
-
 
 // Configuración del servidor HTTP y Socket.IO
 const httpsServer = createHttpsServer(credentials, app);
@@ -197,7 +197,8 @@ const router = createRouter(io);
 const staticFileMiddleware = (folder) => {
   return async (req, res, next) => {
     try {
-      const token = req.query.token;
+      const token = req.query.token || req.headers['x-token'];
+
       if (!token) throw new Error('Token no proporcionado');
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET); // Ajusta tu clave secreta
@@ -241,6 +242,7 @@ app.post('/webhook', async (req, res) => {
       console.log('No entries in request');
       return;
     }
+
     const entries = req.body.entry;
     for (const entryItem of entries) {
       if (!entryItem.changes) {
@@ -1769,12 +1771,13 @@ db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas 
     console.log('Modelos sincronizados correctamente.');
     // Iniciar el servidor solo después de que la base de datos esté lista
     httpsServer.listen(PORT, () => {
-      console.log(`Servidor HTTPS escuchando en el puerto ${PORT}`);
+      console.log(`Servidor escuchando en el puerto ${PORT}`);
     });
   })
   .catch((error) => {
     console.error('Error al sincronizar los modelos:', error);
   });
+
 
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

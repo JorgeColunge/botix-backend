@@ -641,7 +641,7 @@ const InternalAudioSend = async(io, res, fileName, audioUrl, audioDuration, conv
       type: 'reply',
       message_type: 'audio',
       text: null,
-      url: audioUrl,
+      media_url: audioUrl,
       duration: audioDuration,
       latitude: null,
       longitude: null,

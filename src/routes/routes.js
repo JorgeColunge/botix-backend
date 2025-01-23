@@ -1137,15 +1137,31 @@ router.post('/upload-image',
 
 // Ruta para manejar la subida de videos
 router.post('/upload-video', uploadVideo.single('video'), 
-authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG']),
+authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE']), 
 async (req, res) => {
   try {
-    const videoUrl = '/media/videos/' + req.file.filename;
-    const videoDuration = await getVideoDurationInSeconds(req.file.path);
-    const videoThumbnail = await createThumbnail(req.file.path);
-    res.json({ videoUrl, videoDuration, videoThumbnail });
-    console.log(`duración: ${videoDuration}`)
-    console.log(`miniatura: ${videoThumbnail}`)
+    const inputPath = req.file.path;
+    const outputFileName = `converted-${req.file.filename}`;
+    const outputPath = path.join(req.file.destination, outputFileName);
+
+    // Convertir el video a H.264
+    ffmpeg(inputPath)
+      .videoCodec('libx264')
+      .audioCodec('aac')
+      .outputOptions(['-strict -2'])
+      .save(outputPath)
+      .on('end', async () => {
+        const videoUrl = '/media/videos/' + outputFileName;
+        const videoDuration = await getVideoDurationInSeconds(outputPath);
+        const videoThumbnail = await createThumbnail(outputPath);
+        res.json({ videoUrl, videoDuration, videoThumbnail });
+        console.log(`Duración: ${videoDuration}`);
+        console.log(`Miniatura: ${videoThumbnail}`);
+      })
+      .on('error', (error) => {
+        console.error('Error converting video:', error);
+        res.status(500).json({ error: 'Internal server error' });
+      });
   } catch (error) {
     console.error('Error uploading video:', error);
     res.status(500).json({ error: 'Internal server error' });

@@ -281,8 +281,10 @@ router.get('/conversations',
         LIMIT 1
       ) last_message_info ON true
     `;
-  
-    if (((privileges === "ADMIN") || (privileges === "SUPERADMIN"))) {
+  if (privileges === "SUPERADMIN") {
+    const { rows } = await pool.query(query);
+    res.json(rows);
+  }else if (privileges === "ADMIN") {
       query += ` WHERE u.company_id = $1`;
       const { rows } = await pool.query(query, [companyId]);
       res.json(rows);

@@ -51,7 +51,6 @@ const credentials = { key: privateKey, cert: certificate, ca: ca };
 console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
 console.log('BACKEND_URL:', process.env.BACKEND_URL);
 
-
 // Configuración de CORS y otros middleware
 app.use(cors({
   origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
@@ -65,6 +64,7 @@ app.use((req, res, next) => {
   next();
 });
 
+
 // Configuración del servidor HTTP y Socket.IO
 const httpsServer = createHttpsServer(credentials, app);
 const io = new SocketIOServer(httpsServer, {
@@ -74,6 +74,7 @@ const io = new SocketIOServer(httpsServer, {
     credentials: true
   }
 });
+
 io.on('connection', (socket) => {
   console.log('Un cliente se ha conectado, ID del socket:', socket.id);
 
@@ -240,7 +241,6 @@ app.post('/webhook', async (req, res) => {
       console.log('No entries in request');
       return;
     }
-
     const entries = req.body.entry;
     for (const entryItem of entries) {
       if (!entryItem.changes) {
@@ -1764,21 +1764,19 @@ app.post('/bot',
   }
 });
 
-db.sequelize.sync({ alter: true })  // Usa `alter: true` para ajustar las tablas existentes sin perder datos
+// Iniciar el servidor HTTP y WebSocket
+db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
-
-    // Iniciar el servidor HTTPS y WebSocket solo después de la sincronización
-    httpsServer.listen(PORT, () => {
-      console.log(`Servidor HTTPS y WebSocket escuchando en el puerto ${PORT}`);
+    // Iniciar el servidor solo después de que la base de datos esté lista
+    server.listen(PORT, () => {
+      console.log(`Servidor escuchando en el puerto ${PORT}`);
     });
-
-    // O si prefieres que el servidor de WebSocket se inicie en otro puerto, puedes usar:
-    // io.listen(ANOTHER_PORT, () => { console.log(`WebSocket listening on port ${ANOTHER_PORT}`); });
   })
   .catch((error) => {
     console.error('Error al sincronizar los modelos:', error);
-  })
+  });
+
 
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

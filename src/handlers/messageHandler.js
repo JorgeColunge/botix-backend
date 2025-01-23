@@ -356,8 +356,11 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       const adminQuery = `
         SELECT id_usuario FROM users 
         WHERE company_id = $1 
-          AND role_id IN (SELECT id FROM role WHERE name = 'ADMIN')
+          AND role_id IN (
+            SELECT id FROM role WHERE name IN ('ADMIN', 'SUPERADMIN')
+          )
       `;
+    
       const adminResult = await pool.query(adminQuery, [company_id]);
 
 
@@ -371,7 +374,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       recipients.forEach(userId => {
         io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.id,
-          conversationId: conversationId,
+          conversation_fk: conversationId,
           timestamp: newMessage.received_at,
           senderId: senderId,
           message_type: messageData.type,

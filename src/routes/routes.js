@@ -415,17 +415,15 @@ router.get('/messages/:id',
     const messagesWithMedia = result.rows.map(row => {
       let parsedReplyButton = null;
       try {
-        // Registra el valor sin procesar de 'reply_button' para depuración
         console.log('Raw reply_button:', row?.reply_button);
     
-        // Intenta parsear 'reply_button' solo si tiene un formato válido de JSON
-        parsedReplyButton = row?.reply_button ? JSON.parse(row?.reply_button) : null;
+        // Verifica si el valor de reply_button es un JSON válido
+        parsedReplyButton = (typeof row?.reply_button === 'string' && row.reply_button.startsWith('{')) ? JSON.parse(row.reply_button) : row.reply_button;
       } catch (e) {
-        // Registra el error y el valor problemático
         console.error('Error parsing reply_button:', e);
         console.error('Problematic reply_button value:', row?.reply_button);
     
-        // Devuelve el valor original de 'reply_button'
+        // Devuelve el valor original de reply_button en caso de error
         parsedReplyButton = row?.reply_button;
       }
     
@@ -435,7 +433,7 @@ router.get('/messages/:id',
         url: getMediaUrl(row.message_type, row.media_url, row.latitude, row.longitude),
         thumbnail_url: getThumbnailUrl(row.message_type, row.thumbnail_url)
       };
-    });
+    });    
     
     res.json(messagesWithMedia);
   } catch (err) {

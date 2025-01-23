@@ -472,10 +472,15 @@ const WhatsAppMessageSend = async(io, res, phone, messageText, conversationId, i
     console.log("remitente: ", usuario_send.rows[0])
      // Consulta para obtener los administradores
      const adminQuery = `
-     SELECT id_usuario FROM users 
+     SELECT id_usuario 
+     FROM users 
      WHERE company_id = $1 
-       AND rol IN (SELECT id FROM role WHERE name = 'ADMIN')
-   `;
+       AND role_id IN (
+         SELECT id 
+         FROM role 
+         WHERE name IN ('ADMIN', 'SUPERADMIN')
+       )`;
+   
    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 
@@ -761,10 +766,14 @@ const WhatAppAudioSend = async(io, res, phone, audioDuration, audioUrl, fullAudi
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario FROM users 
+    SELECT id_usuario 
+    FROM users 
     WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
+      AND role_id IN (
+        SELECT id 
+        FROM role 
+        WHERE name IN ('ADMIN', 'SUPERADMIN')
+      )`;
   const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 
@@ -1015,10 +1024,14 @@ const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, 
     const newMessage = result.rows[0];
     // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario FROM users 
+    SELECT id_usuario 
+    FROM users 
     WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
+      AND role_id IN (
+        SELECT id 
+        FROM role 
+        WHERE name IN ('ADMIN', 'SUPERADMIN')
+      )`;
   const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 
@@ -1276,10 +1289,14 @@ const WhatsAppsVideoSend = async(io, res, phone, videoUrl, videoThumbnail, video
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario FROM users 
+    SELECT id_usuario 
+    FROM users 
     WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
+      AND role_id IN (
+        SELECT id 
+        FROM role 
+        WHERE name IN ('ADMIN', 'SUPERADMIN')
+      )`;
   const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 
@@ -1535,10 +1552,14 @@ const WhatsAppsDocumentSend = async(io, res, phone, documentUrl, documentName, c
     // Emit the processed message to clients subscribed to that conversation
     // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario FROM users 
+    SELECT id_usuario 
+    FROM users 
     WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
+      AND role_id IN (
+        SELECT id 
+        FROM role 
+        WHERE name IN ('ADMIN', 'SUPERADMIN')
+      )`;
   const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 

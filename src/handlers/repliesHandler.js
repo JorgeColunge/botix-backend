@@ -6,6 +6,7 @@ import { PassThrough } from 'stream';
 import FormData from 'form-data';
 import serviceAccount from '../../crm-android-system.json' assert { type: 'json' };
 import { GoogleAuth } from 'google-auth-library';
+import jwt from 'jsonwebtoken';
 
 const backendUrl = process.env.BACKEND_URL;
 

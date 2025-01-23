@@ -36,7 +36,6 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-// Cargar certificados SSL
 const privateKeyPath = '/home/ec2-user/certificates/privkey.pem';
 const certificatePath = '/home/ec2-user/certificates/fullchain.pem';
 const caPath = '/home/ec2-user/certificates/chain.pem';
@@ -198,7 +197,7 @@ const staticFileMiddleware = (folder) => {
   return async (req, res, next) => {
     try {
       const token = req.query.token || req.headers['x-token'];
-
+      
       if (!token) throw new Error('Token no proporcionado');
 
       const decoded = jwt.verify(token, process.env.JWT_SECRET); // Ajusta tu clave secreta
@@ -1776,8 +1775,7 @@ db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas 
   })
   .catch((error) => {
     console.error('Error al sincronizar los modelos:', error);
-  });
-
+  })
 
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

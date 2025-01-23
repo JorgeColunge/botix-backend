@@ -415,14 +415,20 @@ router.get('/messages/:id',
     const messagesWithMedia = result.rows.map(row => {
       let parsedReplyButton = null;
       try {
+        // Registra el valor sin procesar de 'reply_button' para depuración
+        console.log('Raw reply_button:', row?.reply_button);
+    
         // Intenta parsear 'reply_button' solo si tiene un formato válido de JSON
         parsedReplyButton = row?.reply_button ? JSON.parse(row?.reply_button) : null;
       } catch (e) {
-        // Si ocurre un error, simplemente devolvemos el valor original de 'reply_button'
+        // Registra el error y el valor problemático
         console.error('Error parsing reply_button:', e);
-        parsedReplyButton = row?.reply_button; // Devolvemos el valor tal cual
+        console.error('Problematic reply_button value:', row?.reply_button);
+    
+        // Devuelve el valor original de 'reply_button'
+        parsedReplyButton = row?.reply_button;
       }
-      
+    
       return {
         ...row,
         reply_button: parsedReplyButton,
@@ -430,6 +436,7 @@ router.get('/messages/:id',
         thumbnail_url: getThumbnailUrl(row.message_type, row.thumbnail_url)
       };
     });
+    
     res.json(messagesWithMedia);
   } catch (err) {
     console.error('Error fetching messages:', err);

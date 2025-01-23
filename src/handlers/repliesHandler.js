@@ -983,13 +983,51 @@ const WhatsAppImageSend = async(io, res, imageUrl, messageText, conversationId, 
       throw new Error('Faltan detalles de integración necesarios para enviar el mensaje.');
     }
 
+ //GENERO EL TOKEN PARA QUE LA API DE WHATSAPP PUEDA ENVIAR EL MENSAJE
+    // Consultar el usuario en la base de datos para asegurar que exista
+    const userQuery = await pool.query(
+      'SELECT * FROM users WHERE id_usuario = $1;',
+      [id_usuario]
+  );
+
+  if (userQuery.rows.length === 0) {
+      return res.status(404).send('Usuario no encontrado');
+  }
+
+  const user = userQuery.rows[0];
+
+    const privilegesQuery = `
+    SELECT p.name 
+    FROM public."Privileges" p
+    JOIN public."UserPrivileges" up ON p.id = up."privilegeId"  -- Cambié privilege_id por privilegeId
+    WHERE up."userId" = $1;  -- Cambié user_id por userId
+  `;
+
+    const roleQuery = `
+      SELECT r.name 
+      FROM public."role" r
+      WHERE r.id = $1;
+    `;
+    const roleResult = await pool.query(roleQuery, [user.role_id]);
+    if (roleResult.rows.length === 0) {
+      return res.status(404).send('Rol no encontrado');
+    }
+    const roleName = roleResult.rows[0].name;
+    
+  const privilegesResult = await pool.query(privilegesQuery, [user.id_usuario]);
+  const privileges = privilegesResult.rows.map(row => row.name);
+  
+  const newToken = jwt.sign(
+    { id_usuario: user.id_usuario, email: user.email, rol: roleName, privileges },
+    process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+  );
   const url = `https://graph.facebook.com/v19.0/${whatsapp_phone_number_id}/messages`;
   const payload = {
     messaging_product: "whatsapp",
     to: phone,
     type: "image",
     image: { 
-      link: fullImageUrl,
+      link: `${fullImageUrl}?token=${newToken}`,
       caption: messageText
     }
   };

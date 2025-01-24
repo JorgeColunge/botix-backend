@@ -25,7 +25,7 @@ const defineCompanies = (sequelize) => {
       },
       city: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: true,
         unique: false,
       },
       country: {
@@ -39,7 +39,7 @@ const defineCompanies = (sequelize) => {
       },
       email: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: true,
         unique: false,
       },
       phone: {

@@ -2633,7 +2633,6 @@ router.put('/consumptionsCompany',
 
 // Ruta para obtener la tasa de cambio de una moneda
 router.get('/currency/:currencyCode', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_INFO_AUDIT', 'CONFIG']),
   async (req, res) => {
   const { currencyCode } = req.params;
 

@@ -4,11 +4,134 @@ import pool from '../config/dbConfig.js';
 import { newRegisterValidation, registerValidation, botRegisterValidation } from '../validations/userValidation.js';
 import { authorize } from '../middlewares/authorizationMiddleware.js';
 import db from '../models/index.js';
+import nodemailer from 'nodemailer';
+import axios from 'axios';
 
-const {User, Privilege, Type_user} = db;
+const transporter = nodemailer.createTransport({
+  service: 'gmail',
+  auth: {
+    user: process.env.EMAIL_NOTIFICACION, // Tu correo electrónico
+    pass: process.env.EMAIL_NOTIFICACION_PASSWORD, // Contraseña o App Password
+  },
+});
+
+const generateEmailTemplate = (userName, correo, password, companyLogo) => `
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Confirmación de Registro</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      line-height: 1.6;
+      color: #333;
+      background-color: #f9f9f9;
+      margin: 0;
+      padding: 0;
+    }
+    .email-container {
+      max-width: 600px;
+      margin: 20px auto;
+      background: #fff;
+      border: 1px solid #ddd;
+      border-radius: 8px;
+      padding: 20px;
+    }
+    .email-header {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+    .email-header img {
+      max-width: 150px;
+      margin-bottom: 10px;
+    }
+    .email-body {
+      text-align: left;
+      padding: 0 20px;
+    }
+    .email-footer {
+      text-align: center;
+      margin-top: 30px;
+      font-size: 0.9em;
+      color: #777;
+    }
+    .button {
+      display: inline-block;
+      padding: 10px 20px;
+      background: #007BFF;
+      color: #fff;
+      text-decoration: none;
+      border-radius: 5px;
+      margin: 20px 0;
+    }
+    .button:hover {
+      background: #0056b3;
+    }
+  </style>
+</head>
+<body>
+  <div class="email-container">
+    <div class="email-header">
+      <img src="${companyLogo}" alt="Logo de botix">
+      <h2>¡Bienvenido a BOTIX360!</h2>
+    </div>
+    <div class="email-body">
+      <p>Hola <strong>${userName}</strong>,</p>
+      <p>Gracias por registrarte en nuestra plataforma. Estamos emocionados de que te unas a nuestra comunidad.</p>
+      <p>Ya puedes ingresar a la plataforma con tus credenciales:</p>
+      <p>
+        <strong>Correo electrónico:</strong> ${correo}<br>
+      </p>
+      <p>
+        <strong>Contraseña:</strong> ${password}<br>
+      </p>
+    </div>
+    <div class="email-footer">
+      <p>Atentamente,</p>
+      <p>El equipo de AXIOMA ROBOTICS</p>
+    </div>
+  </div>
+</body>
+</html>
+`;
+
+const verifyTransaction = async (autorization) => {
+  const url = `${process.env.PAYPAL_API}/v1/billing/subscriptions/${autorization.id}`; // Para sandbox
+
+  try {
+    // Obtener el token de acceso (OAuth)
+    const auth = await axios.post(
+      `${process.env.PAYPAL_API}/v1/oauth2/token`,
+      "grant_type=client_credentials",
+      {
+        auth: {
+          username: process.env.PAYPAL_CLIENT_ID,
+          password: process.env.PAYPAL_SECRET,
+        },
+      }
+    );
+    const accessToken = auth.data.access_token;
+
+    // Realizamos la llamada a la API de PayPal para obtener detalles de la transacción
+    const {data} = await axios.get(url, {
+      headers: {
+        Authorization: `Bearer ${accessToken}`,
+      },
+    });
+
+    console.log("Transacción verificada:", data);
+    return {status: data.status, id: data.id}; // Retorna la transacción completa con todos los detalles
+  } catch (error) {
+    console.error("Error verificando la transacción:", error.response?.data || error.message);
+    throw new Error("No se pudo verificar la transacción.");
+  }
+};
+
+const {User, Privilege, Type_user, company} = db;
 // Función para registrar un nuevo usuario
 export const register = [
-  authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'CONFIG']),
   async (req, res) => {
   const { id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, empresa, plan } = req.body;
 
@@ -73,6 +196,119 @@ export const register = [
  }
 ];
 
+export const RegisterCompany= [
+  async (req, res) => {
+    const {empresa, plan, authorization } = req.body;
+     var operation = null
+    try {
+      operation = await verifyTransaction(authorization);
+    } catch (error) {
+      console.error(error);
+      return res.status(400).send('Error al verificar la transacción, datos incorrectos');
+    }
+    try {
+      // Verificar si la empresa ya existe
+      const companyExists = await pool.query('SELECT * FROM companies WHERE document_number = $1;', [empresa.document_number]);
+      if (companyExists.rows.length > 0) {
+        return res.status(409).send('El número de documento de la empresa ya está registrado.');
+      }
+  
+      // Crear la empresa si no existe
+      const newCompany = await company.create({
+        name: empresa.empresa,
+        document_type: empresa.documento_tipo,
+        document_number: empresa.documento_numero,
+        andress: empresa.direccion,
+        city: empresa.ciudad,
+        country: empresa.pais,
+        postal_code: empresa.codigo_postal,
+        email: empresa.correo,
+        phone: empresa.telefono,
+        logo: empresa.logo
+      });
+  
+      // Obtener el ID de la compañía creada
+      const createdCompanyId = newCompany.id;
+
+      if (plan?.id !==null) {
+        const planRows = await pool.query('SELECT * FROM plans WHERE id = $1;', [plan.id]);
+        var ia_chat_bot = null;
+        var chat_bot = null;
+        var gestion_chat = null;
+        var usuarios = null;
+
+         switch (planRows.rows[0].plan_nombre) {
+          case 'BASIC':
+            usuarios = 1;
+            chat_bot =1;
+            gestion_chat = 1;
+
+            break;
+          case 'ESTANDAR':
+            usuarios = 2;
+            chat_bot =1;
+            gestion_chat = 1;
+            ia_chat_bot = 1;
+             break;
+
+          case 'PREMIUM':
+            usuarios = 3;
+            chat_bot =2;
+            gestion_chat = 1;
+            ia_chat_bot = 2;
+          break;
+          default:
+            break;
+         }
+
+        // Crear una licencia con las características recibidas en el cuerpo de la solicitud
+        await pool.query(
+          'INSERT INTO licenses (type, contacts, users, ai_messages, ai_analysis, company_id, integrations, automations_crm, automations_rpa, bot_messages, status, transaction_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12);',
+          [planRows.rows[0].plan_nombre, planRows.rows[0].contactos, usuarios, ia_chat_bot, gestion_chat, createdCompanyId, planRows.rows[0].integraciones, planRows.rows[0].automatizaciones_crm, planRows.rows[0].automatizaciones_rpa, chat_bot, operation.status, operation.id]
+        );
+      }
+  
+      // Verificar si el usuario ya existe
+      const role = await pool.query('SELECT * FROM role WHERE name = $1;', ["ADMIN"]);
+     const typeUser = await pool.query('SELECT * FROM "Type_user" WHERE name = $1;', ["HUMANO"]);
+  
+      // Encriptar la contraseña
+      const salt = await bcrypt.genSalt(10);
+      const passwordGenerated =  Math.random().toString(36).slice(-8);
+      const contraseñaHash = bcrypt.hash(passwordGenerated, salt);
+  
+      // Crear el usuario con el rol creado
+      await pool.query(
+        'INSERT INTO users (identificacion, nombre, apellido, telefono, email, type_user_id, role_id, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);',
+        ['', 'nombre', 'apellido', 0, empresa.correo, typeUser.rows[0].id || null, role?.rows[0]?.id || null, contraseñaHash, createdCompanyId, null]
+      );
+  
+      const subject = 'Confirmación de tu registro';
+      const companyLogo = process.env.BACKEND_URL+'/assets/imagePublic/botix_portada.png';
+
+      const htmlContent = generateEmailTemplate(empresa.empresa, empresa.correo, passwordGenerated, companyLogo);
+    
+      const mailOptions = {
+        from: `"AXIOMA ROBOTICS" <${process.env.EMAIL_NOTIFICACION}>`, // Correo del remitente
+        to: empresa.correo, // Correo del destinatario
+        subject,
+        html: htmlContent,
+      };
+    
+      try {
+        await transporter.sendMail(mailOptions);
+        console.log('Correo enviado exitosamente a', empresa.correo);
+      } catch (error) {
+        console.error('Error al enviar el correo:', error);
+      }
+
+      res.status(201).json({ message: `Perfecto. Se envio un correo a ${empresa.correo} con las credenciales de ingreso.`});
+    } catch (err) {
+      console.error(err);
+      res.status(500).send('Error al registrar al usuario, la empresa, la licencia, el rol y el privilegio: ' + err.message);
+    }
+   }
+]
 // Función para iniciar sesión
 export const login = async (req, res) => {
   const { email, contraseña } = req.body;

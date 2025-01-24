@@ -74,6 +74,28 @@ const io = new SocketIOServer(httpsServer, {
   }
 });
 
+// app.use(cors({
+//   origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+//   credentials: true
+// }));
+// app.use(express.json({ limit: '500mb' }));
+// app.use(bodyParser.json({ limit: '500mb' }));
+// app.use((req, res, next) => {
+//   console.log(`Received ${req.method} request to ${req.path}`);
+//   next();
+// });
+
+// // Configuración del servidor HTTP y Socket.IO
+// const server = createServer(app);
+// const io = new SocketIOServer(server, {
+//   cors: {
+//     origin: [process.env.FRONTEND_URL, 'https://localhost'], // Asegúrate de que coincide con el puerto y host del cliente
+//     methods: ['GET', 'POST'],
+//     credentials: true
+//   }
+// });
+
 io.on('connection', (socket) => {
   console.log('Un cliente se ha conectado, ID del socket:', socket.id);
 
@@ -1765,7 +1787,20 @@ app.post('/bot',
   }
 });
 
-db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
+// Iniciar el servidor HTTP y WebSocket
+// db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
+//   .then(() => {
+//     console.log('Modelos sincronizados correctamente.');
+//     // Iniciar el servidor solo después de que la base de datos esté lista
+//     server.listen(PORT, () => {
+//       console.log(`Servidor escuchando en el puerto ${PORT}`);
+//     });
+//   })
+//   .catch((error) => {
+//     console.error('Error al sincronizar los modelos:', error);
+//   });
+
+  db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
     // Iniciar el servidor solo después de que la base de datos esté lista
@@ -1776,6 +1811,5 @@ db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas 
   .catch((error) => {
     console.error('Error al sincronizar los modelos:', error);
   })
-
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

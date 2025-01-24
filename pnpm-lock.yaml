@@ -19,7 +19,7 @@ dependencies:
     version: 1.7.7
   backend:
     specifier: 'file:'
-    version: file:(pg-hstore@2.3.4)
+    version: 'file:'
   bcrypt:
     specifier: ^5.1.1
     version: 5.1.1
@@ -74,6 +74,12 @@ dependencies:
   node-fetch:
     specifier: ^3.3.2
     version: 3.3.2
+  nodemailer:
+    specifier: ^6.9.4
+    version: 6.10.0
+  nodemailer-express-handlebars:
+    specifier: ^4.0.0
+    version: 4.0.0
   passport:
     specifier: ^0.7.0
     version: 0.7.0
@@ -1030,6 +1036,15 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
+  /express-handlebars@4.0.6:
+    resolution: {integrity: sha512-SWwmp4ERN/hPySdRnQYiNcJP/LHAeTz1qq0MXQ2ztZiMC6sKw1WathtVWWY+AUPkjV6eDmQXqybJQwnUsoI9vw==}
+    engines: {node: '>=0.10'}
+    dependencies:
+      glob: 7.2.3
+      graceful-fs: 4.2.11
+      handlebars: 4.7.8
+    dev: false
+
   /express@4.21.0:
     resolution: {integrity: sha512-VqcNGcj/Id5ZT1LZ/cfihi3ttTn+NJmkli2eZADigjq29qTlWi/hAQ43t/VLPq8+UX06FCEx3ByOYet6ZFblng==}
     engines: {node: '>= 0.10.0'}
@@ -1287,6 +1302,10 @@ packages:
       get-intrinsic: 1.2.4
     dev: false
 
+  /graceful-fs@4.2.11:
+    resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
+    dev: false
+
   /gtoken@7.1.0:
     resolution: {integrity: sha512-pCcEwRi+TKpMlxAQObHDQ56KawURgyAf6jtIY046fJ5tIv3zDe/LEIubckAO8fj6JnAxLdmWkUfNyulQ2iKdEw==}
     engines: {node: '>=14.0.0'}
@@ -1296,6 +1315,19 @@ packages:
     transitivePeerDependencies:
       - encoding
       - supports-color
+    dev: false
+
+  /handlebars@4.7.8:
+    resolution: {integrity: sha512-vafaFqs8MZkRrSX7sFVUdo3ap/eNiLnb4IakshzvP56X5Nr1iGKAIqdX6tMlm6HcNRIkr6AxO5jFEoJzzpT8aQ==}
+    engines: {node: '>=0.4.7'}
+    hasBin: true
+    dependencies:
+      minimist: 1.2.8
+      neo-async: 2.6.2
+      source-map: 0.6.1
+      wordwrap: 1.0.0
+    optionalDependencies:
+      uglify-js: 3.19.3
     dev: false
 
   /has-flag@3.0.0:
@@ -1679,6 +1711,10 @@ packages:
     engines: {node: '>= 0.6'}
     dev: false
 
+  /neo-async@2.6.2:
+    resolution: {integrity: sha512-Yd3UES5mWCSqR+qNT93S3UoYUkqAZ9lLg8a7g9rimsWmYGK8cVToA4/sF3RrshdyV3sAGMXVUmpMYOw+dLpOuw==}
+    dev: false
+
   /node-addon-api@5.1.0:
     resolution: {integrity: sha512-eh0GgfEkpnoWDq+VY8OyvYhFEzBk6jIYbRKdIlyTiAXIVJ8PyBaKb0rp7oDtoddbdoHWhq8wwr+XZ81F1rpNdA==}
     dev: false
@@ -1707,6 +1743,17 @@ packages:
       data-uri-to-buffer: 4.0.1
       fetch-blob: 3.2.0
       formdata-polyfill: 4.0.10
+    dev: false
+
+  /nodemailer-express-handlebars@4.0.0:
+    resolution: {integrity: sha512-oUYl2D1AkFNwRe7RXt8iNTtmQGmI4Bt4PXRkE9lX891FHNNUB3I5yRDGL1WQPOujYIHH79uAvD3QzsBStG4SFA==}
+    dependencies:
+      express-handlebars: 4.0.6
+    dev: false
+
+  /nodemailer@6.10.0:
+    resolution: {integrity: sha512-SQ3wZCExjeSatLE/HBaXS5vqUOQk6GtBdIIKxiFdmm01mOQZX/POJkO3SUX1wDiYcwUOJwT23scFSC9fY2H8IA==}
+    engines: {node: '>=6.0.0'}
     dev: false
 
   /nodemon@3.1.5:
@@ -2253,6 +2300,11 @@ packages:
       - utf-8-validate
     dev: false
 
+  /source-map@0.6.1:
+    resolution: {integrity: sha512-UjgapumWlbMhkBgzT7Ykc5YXUT46F0iKu8SGXq0bcwP5dz/h0Plj6enJqjz1Zbq2l5WaqYnrVbwWOWMyF3F47g==}
+    engines: {node: '>=0.10.0'}
+    dev: false
+
   /split2@4.2.0:
     resolution: {integrity: sha512-UcjcJOWknrNkF6PLX83qcHM6KHgVKNkV62Y8a5uYDVv9ydGQVwAHMKqHdJje1VTWpljG0WYpCDhrCdAOYH4TWg==}
     engines: {node: '>= 10.x'}
@@ -2368,6 +2420,14 @@ packages:
     resolution: {integrity: sha512-/aCDEGatGvZ2BIk+HmLf4ifCJFwvKFNb9/JeZPMulfgFracn9QFcAf5GO8B/mweUjSoblS5In0cWhqpfs/5PQA==}
     dev: false
 
+  /uglify-js@3.19.3:
+    resolution: {integrity: sha512-v3Xu+yuwBXisp6QYTcH4UbH+xYJXqnq2m/LtQVWKWzYc1iehYnLixoQDN9FH6/j9/oybfd6W9Ghwkl8+UMKTKQ==}
+    engines: {node: '>=0.8.0'}
+    hasBin: true
+    requiresBuild: true
+    dev: false
+    optional: true
+
   /uid2@0.0.4:
     resolution: {integrity: sha512-IevTus0SbGwQzYh3+fRsAMTVVPOoIVufzacXcHPmdlle1jUpq7BRL+mw3dgeLanvGZdwwbWhRV6XrcFNdBmjWA==}
     dev: false
@@ -2457,6 +2517,10 @@ packages:
       '@types/node': 22.5.5
     dev: false
 
+  /wordwrap@1.0.0:
+    resolution: {integrity: sha512-gvVzJFlPycKc5dZN4yPkP8w7Dc37BtP1yczEneOb4uq34pXZcvrtRTmWV8W+Ume+XCxKgbjM+nevkyFPMybd4Q==}
+    dev: false
+
   /wrappy@1.0.2:
     resolution: {integrity: sha512-l4Sp/DRseor9wL6EvV2+TuQn63dMkPjZ/sp9XkghTEbV9KlPS1xUsZ3u7/IQO4wxtcFB4bgpQPRcR3QCvezPcQ==}
     dev: false
@@ -2490,9 +2554,8 @@ packages:
       fd-slicer: 1.1.0
     dev: false
 
-  file:(pg-hstore@2.3.4):
+  'file:':
     resolution: {directory: '', type: directory}
-    id: 'file:'
     name: backend
     dependencies:
       '@ffmpeg-installer/ffmpeg': 1.1.0
@@ -2517,10 +2580,13 @@ packages:
       moment-timezone: 0.5.45
       multer: 1.4.5-lts.1
       node-fetch: 3.3.2
+      nodemailer: 6.10.0
+      nodemailer-express-handlebars: 4.0.0
       passport: 0.7.0
       passport-facebook: 3.0.0
       passport-google-oauth20: 2.0.0
       pg: 8.13.0
+      pg-hstore: 2.3.4
       sequelize: 6.37.5(pg-hstore@2.3.4)(pg@8.13.0)
       sharp: 0.33.5
       socket.io: 4.7.5
@@ -2532,7 +2598,6 @@ packages:
       - mariadb
       - mysql2
       - oracledb
-      - pg-hstore
       - pg-native
       - snowflake-sdk
       - sqlite3

@@ -7,6 +7,10 @@ const defineUser = (sequelize) => {
         primaryKey: true,
         autoIncrement: true,
       },
+      identificacion: {
+        type: DataTypes.STRING(100),
+        allowNull: true,
+      },
       nombre: {
         type: DataTypes.STRING(100),
         allowNull: false,

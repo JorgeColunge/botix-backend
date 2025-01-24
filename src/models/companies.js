@@ -44,7 +44,7 @@ const defineCompanies = (sequelize) => {
       },
       phone: {
         type: DataTypes.STRING(100),
-        allowNull: false,
+        allowNull: true,
       },
       logo: {
         type: DataTypes.STRING(100),

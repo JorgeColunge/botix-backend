@@ -2138,9 +2138,16 @@ const getVariableValue = async (variable, contact, responsibleUser, companyId) =
 };
 
 const replacePlaceholders = (text, parameters) => {
-  if (!text) return ''; // Manejar caso donde text sea null o undefined
+  // Validar que `text` sea un string
+  if (typeof text !== 'string') {
+      console.warn('El texto proporcionado no es un string:', text);
+      return ''; // Retornar un string vacío como valor predeterminado
+  }
+
+  // Reemplazar los placeholders en el texto
   return text.replace(/\{\{(\d+)\}\}/g, (_, index) => parameters[index - 1] || '');
 };
+
 
 const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUserId, res, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id, whatsappIntegrationID) => {
 
@@ -2771,15 +2778,16 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
   const buttonParameters = parameters.slice(4); // Ajusta según la cantidad de variables del botón
 
   // Reemplazar los placeholders en cada componente
-  const headerText = replacePlaceholders(template.header_text, headerParameters);
-  const bodyText = replacePlaceholders(template.body_text, bodyParameters);
-  var buttonText = ''
-  if (template.buttonVariables.length > 0) { 
-   buttonText = replacePlaceholders(template.buttons, buttonParameters);
-   
+  const headerText = replacePlaceholders(template.header_text || '', headerParameters);
+  const bodyText = replacePlaceholders(template.body_text || '', bodyParameters);
+  let buttonText = '';
+  
+  if (template.buttons) {
+      buttonText = replacePlaceholders(template.buttons, buttonParameters);
   } else if (template.button_text) {
-   buttonText = replacePlaceholders(template.button_text, buttonParameters);
+      buttonText = replacePlaceholders(template.button_text, buttonParameters);
   }
+  
   
   // Agregar el valor del footer si lo tiene
   const footerTextReplaced = footerText ? replacePlaceholders(footerText, parameters) : null;

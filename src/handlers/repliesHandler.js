@@ -2837,6 +2837,22 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
       : [responsibleUserId, ...adminIds];
       
 
+      let parsedButtonText = null;
+
+if (buttonText && typeof buttonText === 'string') {
+  
+    try {
+        parsedButtonText = JSON.parse(buttonText);
+    } catch (error) {
+        console.error('Error parsing buttonText:', error.message, 'buttonText:', buttonText);
+        parsedButtonText = null; // Opcional: Manejar el caso en que no se puede parsear
+    }
+} else {
+    console.warn('buttonText no es un string válido:', buttonText);
+}
+
+console.log("texto",buttonText)
+
    recipients.forEach(userId => {
      io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.replies_id,
@@ -2856,7 +2872,7 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
           reply_type_header: headerType,
           footer: footerTextReplaced,
           reply_header: headerText,
-          reply_button: JSON.parse(buttonText),
+          reply_button: parsedButtonText,
           company_id: integrationDetails.company_id // Añadir company_id aquí
       });
     });

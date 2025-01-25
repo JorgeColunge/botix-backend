@@ -273,16 +273,23 @@ export const RegisterCompany= [
      const typeUser = await pool.query('SELECT * FROM "Type_user" WHERE name = $1;', ["HUMANO"]);
   
       // Encriptar la contraseña
-      const salt = await bcrypt.genSalt(10);
       const passwordGenerated =  Math.random().toString(36).slice(-8);
-      const contraseñaHash = bcrypt.hash(passwordGenerated, salt);
+      const salt = await bcrypt.genSalt(10);
+      const contraseñaHash = await bcrypt.hash(passwordGenerated, salt);
   
-      // Crear el usuario con el rol creado
-      await pool.query(
-        'INSERT INTO users (identificacion, nombre, apellido, telefono, email, type_user_id, role_id, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10);',
-        ['', 'nombre', 'apellido', 0, empresa.correo, typeUser.rows[0].id || null, role?.rows[0]?.id || null, contraseñaHash, createdCompanyId, null]
-      );
-  
+       await User.create({
+        identificacion: null, // Equivalente a ''
+        nombre: "nombre", // Valor fijo según tu ejemplo
+        apellido: "apellido", // Valor fijo según tu ejemplo
+        telefono: 0, // Teléfono con valor 0
+        email: empresa.correo, // Correo electrónico de la empresa
+        type_user_id: typeUser.rows[0].id || null, // ID del tipo de usuario (typeUser.rows[0].id || null)
+        role_id: role?.rows[0]?.id || null, // ID del rol (role?.rows[0]?.id || null)
+        contraseña: contraseñaHash, // Contraseña encriptada
+        company_id: createdCompanyId, // ID de la compañía creada
+        department_id: null, // Null como en tu ejemplo
+      });
+
       const subject = 'Confirmación de tu registro';
       const companyLogo = process.env.BACKEND_URL+'/assets/imagePublic/botix_portada.png';
 

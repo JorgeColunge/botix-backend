@@ -1787,7 +1787,7 @@ app.post('/bot',
   }
 });
 
-// Iniciar el servidor HTTP y WebSocket
+//Iniciar el servidor HTTP y WebSocket
 // db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
 //   .then(() => {
 //     console.log('Modelos sincronizados correctamente.');
@@ -1803,7 +1803,7 @@ app.post('/bot',
   db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
-    // Iniciar el servidor solo después de que la base de datos esté lista
+   // Iniciar el servidor solo después de que la base de datos esté lista
     httpsServer.listen(PORT, () => {
       console.log(`Servidor escuchando en el puerto ${PORT}`);
     });

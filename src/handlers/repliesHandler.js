@@ -2138,16 +2138,9 @@ const getVariableValue = async (variable, contact, responsibleUser, companyId) =
 };
 
 const replacePlaceholders = (text, parameters) => {
-  // Validar que `text` sea un string
-  if (typeof text !== 'string') {
-      console.warn('El texto proporcionado no es un string:', text);
-      return ''; // Retornar un string vacío como valor predeterminado
-  }
-
-  // Reemplazar los placeholders en el texto
+  if (!text) return ''; // Manejar caso donde text sea null o undefined
   return text.replace(/\{\{(\d+)\}\}/g, (_, index) => parameters[index - 1] || '');
 };
-
 
 const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUserId, res, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id, whatsappIntegrationID) => {
 
@@ -2778,16 +2771,22 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
   const buttonParameters = parameters.slice(4); // Ajusta según la cantidad de variables del botón
 
   // Reemplazar los placeholders en cada componente
-  const headerText = replacePlaceholders(template.header_text || '', headerParameters);
-  const bodyText = replacePlaceholders(template.body_text || '', bodyParameters);
+  const headerText = replacePlaceholders(template.header_text, headerParameters);
+  const bodyText = replacePlaceholders(template.body_text, bodyParameters);
   let buttonText = '';
-  
-  if (template.buttons) {
+
+  if (template.buttonVariables.length > 0) {
+      // Si hay variables en el botón, reemplazar placeholders
       buttonText = replacePlaceholders(template.buttons, buttonParameters);
   } else if (template.button_text) {
-      buttonText = replacePlaceholders(template.button_text, buttonParameters);
+      // Si el texto del botón ya es un string, usarlo directamente
+      if (typeof template.button_text === 'string') {
+          buttonText = template.button_text;
+      } else {
+          // En caso de que no sea un string válido, intentar reemplazar placeholders
+          buttonText = replacePlaceholders(template.button_text, buttonParameters);
+      }
   }
-  
   
   // Agregar el valor del footer si lo tiene
   const footerTextReplaced = footerText ? replacePlaceholders(footerText, parameters) : null;

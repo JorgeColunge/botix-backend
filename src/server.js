@@ -434,7 +434,6 @@ app.post('/upload', upload.single('document'), (req, res) => {
 
 // Endpoint para la verificación del webhook
 app.get('/webhook', 
-  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
   (req, res) => {
   const verifyToken = 'W3bh00k4APIV3rifnAut0rizad3';
   const mode = req.query['hub.mode'];

@@ -434,17 +434,17 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
      }
 
       // Obtener el rol del usuario responsable y procesar según su tipo
-      const roleQuery = 'SELECT role_id FROM users WHERE id_usuario = $1';
+      const roleQuery = 'SELECT type_user_id FROM users WHERE id_usuario = $1';
       const roleResult = await pool.query(roleQuery, [responsibleUserId]);
       if (roleResult.rows.length > 0) {
-        const userRole = roleResult.rows[0].rol;
+        const userRole = roleResult.rows[0].type_user_id;
 
-        const typeQuery = 'SELECT type FROM role WHERE id = $1';
+        const typeQuery = 'SELECT type FROM "Type_user" WHERE id = $1';
         const typeResult = await pool.query(typeQuery, [userRole]);
         if (typeResult.rows.length > 0) {
-          const roleType = typeResult.rows[0].type;
+          const roleType = typeResult.rows[0].name;
 
-          if (roleType.includes('Bot')) {
+          if (roleType!= "HUMANO") {
             // Obtener y ejecutar el código del bot
             const botQuery = 'SELECT codigo FROM bots WHERE id_usuario = $1';
             const botResult = await pool.query(botQuery, [responsibleUserId]);

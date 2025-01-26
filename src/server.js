@@ -86,7 +86,7 @@ const io = new SocketIOServer(httpsServer, {
   //   next();
   // });
 
-  // Configuración del servidor HTTP y Socket.IO
+  // // Configuración del servidor HTTP y Socket.IO
   // const server = createServer(app);
   // const io = new SocketIOServer(server, {
   //   cors: {
@@ -434,6 +434,7 @@ app.post('/upload', upload.single('document'), (req, res) => {
 
 // Endpoint para la verificación del webhook
 app.get('/webhook', 
+  authorize(['ADMIN', 'SUPERADMIN', 'REGULAR'], []),
   (req, res) => {
   const verifyToken = 'W3bh00k4APIV3rifnAut0rizad3';
   const mode = req.query['hub.mode'];
@@ -1802,7 +1803,7 @@ app.post('/bot',
   db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
-   // Iniciar el servidor solo después de que la base de datos esté lista
+   //Iniciar el servidor solo después de que la base de datos esté lista
     httpsServer.listen(PORT, () => {
       console.log(`Servidor escuchando en el puerto ${PORT}`);
     });

@@ -439,7 +439,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       if (roleResult.rows.length > 0) {
         const userRole = roleResult.rows[0].type_user_id;
 
-        const typeQuery = 'SELECT type FROM "Type_user" WHERE id = $1';
+        const typeQuery = 'SELECT name FROM "Type_user" WHERE id = $1';
         const typeResult = await pool.query(typeQuery, [userRole]);
         if (typeResult.rows.length > 0) {
           const roleType = typeResult.rows[0].name;

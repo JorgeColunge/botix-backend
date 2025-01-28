@@ -79,8 +79,9 @@ const io = new SocketIOServer(httpsServer, {
   //   methods: ['GET', 'POST', 'PUT', 'DELETE'],
   //   credentials: true
   // }));
-  // app.use(express.json({ limit: '500mb' }));
-  // app.use(bodyParser.json({ limit: '500mb' }));
+  // app.use(express.json({ limit: '1gb' })); // Aumenta el límite si es necesario
+  // app.use(bodyParser.json({ limit: '1gb' }));
+  // app.options('*', cors()); // Habilita CORS para todas las rutas  
   // app.use((req, res, next) => {
   //   console.log(`Received ${req.method} request to ${req.path}`);
   //   next();

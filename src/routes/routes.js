@@ -377,6 +377,7 @@ router.get('/messages/:id',
         NULL as reply_button,
         NULL as reply_type_header,
         reply_from,
+        NULL as footer,
         NULL as state,
         reaction
       FROM messages
@@ -400,6 +401,7 @@ router.get('/messages/:id',
         reply_button,
         reply_type_header,
         reply_from,
+        footer,
         state,
         reaction
       FROM replies

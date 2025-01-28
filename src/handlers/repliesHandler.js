@@ -2787,9 +2787,11 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
           buttonText = replacePlaceholders(template.button_text, buttonParameters);
       }
   }
+
+  console.log("texto de pie", footerText)
   
   // Agregar el valor del footer si lo tiene
-  const footerTextReplaced = footerText ? replacePlaceholders(footerText, parameters) : null;
+  const footerTextReplaced = footerText ? replacePlaceholders(footerText, parameters) : footerText;
 
   try {
       const insertQuery = `
@@ -2830,14 +2832,13 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
      const adminQuery = `
      SELECT id_usuario FROM users 
      WHERE company_id = $1 
-       AND role_id IN (SELECT id FROM role WHERE name = 'ADMIN')
+       AND role_id IN (SELECT id FROM role WHERE name IN ('ADMIN', 'SUPERADMIN'))
    `;
    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
 
 
    const adminIds = adminResult.rows.map(row => row.id_usuario);
 
-   console.log("correspondientes", adminIds)
    // Emitir el mensaje al usuario responsable y a los administradores
    const recipients = adminIds.includes(responsibleUserId) 
       ? adminIds 
@@ -2857,8 +2858,6 @@ if (buttonText && typeof buttonText === 'string') {
 } else {
     console.warn('buttonText no es un string válido:', buttonText);
 }
-
-console.log("texto",buttonText)
 
    recipients.forEach(userId => {
      io.to(`user-${userId}`).emit('newMessage', {
@@ -2943,12 +2942,13 @@ if (conversation.conversation_id) {
         conversation,
         parameters,
         unreadMessages,
-        conversation.responsible_user_id,
+        conversation.id_usuario,
         template,
         io,
         mediaUrl,
         response.messages[0].id,
-        template.header_type
+        template.header_type,
+        template.footer
       );
     }
 

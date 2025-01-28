@@ -545,10 +545,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
     }
       // Consulta para obtener los administradores
       const adminQuery = `
-        SELECT id_usuario FROM users 
-        WHERE company_id = $1 
-          AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-      `;
+      SELECT id_usuario FROM users 
+      WHERE company_id = $1 
+        AND role_id IN (SELECT id FROM role WHERE name IN ('ADMIN', 'SUPERADMIN'))
+    `;
       const adminResult = await pool.query(adminQuery, [company_id]);
       const adminIds = adminResult.rows.map(row => row.id_usuario);
     

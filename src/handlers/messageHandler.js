@@ -379,7 +379,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
           senderId: senderId,
           message_type: messageData.type,
           text: newMessage.message_text,
-          url: newMessage.message_media_url,
+          media_url: newMessage.message_media_url,
           thumbnail_url: newMessage.thumbnail_url,
           duration: mediaDuration,
           latitude: messageData.latitude || null,

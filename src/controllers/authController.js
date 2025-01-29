@@ -361,7 +361,7 @@ export const login = async (req, res) => {
     const token = jwt.sign(
       { id_usuario: user.id_usuario, email: user.email, rol: roleName, privileges },
       process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
-      { expiresIn: '1h' } // Configuración de expiración
+      { expiresIn: '12h' } // Configuración de expiración
     );
 
     // Excluir la contraseña antes de enviar al cliente

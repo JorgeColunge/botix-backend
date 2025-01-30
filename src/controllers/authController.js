@@ -562,25 +562,16 @@ export const registerBot = [
 
   try {
     // Verificar si el rol del tipo correspondiente ya existe para la empresa
-    let roleResult = await pool.query('SELECT * FROM roles WHERE company_id = $1 AND type = $2;', [company_id, tipoBot]);
-
-    // Si no existe, crear el rol
-    if (roleResult.rows.length === 0) {
-      roleResult = await pool.query(
-        'INSERT INTO roles (name, company_id, type) VALUES ($1, $2, $3) RETURNING id;',
-        [tipoBot, company_id, tipoBot]
-      );
-    }
-    const roleId = roleResult.rows[0].id;
-
+    let roleResult = await pool.query('SELECT * FROM role WHERE name = $1;', ['ADMIN']);
+    let typeUserResult = await pool.query('SELECT * FROM "Type_user" WHERE name = $1;', [tipoBot]);
     // Encriptar la contraseña
     const salt = await bcrypt.genSalt(10);
     const contraseñaHash = await bcrypt.hash(contraseña, salt);
 
     // Registrar el bot como usuario en la tabla `users`
     const userResult = await pool.query(
-      'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10) RETURNING id_usuario;',
-      [id_usuario, nombre, apellido, telefono, email, link_foto, roleId, contraseñaHash, company_id, department_id]
+      'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, role_id, contraseña, company_id, department_id, type_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id_usuario;',
+      [id_usuario, nombre, apellido, telefono, email, link_foto, roleResult?.rows[0]?.id, contraseñaHash, company_id, department_id, typeUserResult?.rows[0]?.id]
     );
     const botUserId = userResult.rows[0].id_usuario;
 

@@ -197,10 +197,7 @@ const botRegisterValidation = (data) => {
     department_id: Joi.number().allow(null).messages({
       'number.base': 'El campo department_id debe ser un número.'
     }),
-    tipoBot: Joi.string().valid('Bot de Chat', 'Bot de Chat IA', 'Bot de Gestión').required().messages({
-      'any.required': 'El campo tipo de bot es obligatorio.',
-      'string.valid': 'El campo tipo de bot debe ser uno de los valores permitidos.'
-    })
+    tipoBot: Joi.optional().allow(null),
   });
   return schema.validate(data, { abortEarly: false });
 };

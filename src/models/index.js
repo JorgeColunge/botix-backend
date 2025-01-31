@@ -7,6 +7,7 @@ import defineUserPrivileges from './userPrivileges.js';
 import defineTypeUser from './typeUser.js';
 import defineCompanies from './companies.js';
 import defineLicense from './license.js';
+import definePlans from './Plans.js';
 
 // Extraer las configuraciones de conexión desde el pool
 const config = {
@@ -30,6 +31,7 @@ db.UserPrivileges = defineUserPrivileges(sequelize);
 db.Type_user = defineTypeUser(sequelize);
 db.company = defineCompanies(sequelize);
 db.license = defineLicense(sequelize);
+db.plans = definePlans(sequelize);
 
 // Asociaciones
 Object.values(db).forEach((model) => {

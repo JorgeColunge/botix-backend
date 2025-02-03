@@ -2432,7 +2432,7 @@ export async function sendTemplateMessage(io, req, res) {
         let response;
     
         if (template.header_type === 'TEXT') {
-          response = await sendWhatsAppMessage(contact.phone_number, template.nombre, template.language, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          response = await sendWhatsAppMessage(contact.phone_number, template, parameters, whatsapp_api_token, whatsapp_phone_number_id);
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
           const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);

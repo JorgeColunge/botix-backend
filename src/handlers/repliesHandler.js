@@ -2431,6 +2431,7 @@ export async function sendTemplateMessage(io, req, res) {
         let footer = template.footer || '';
         let response;
     
+        console.log("template", template)
         if (template.header_type === 'TEXT') {
           response = await sendWhatsAppMessage(contact.phone_number, template, parameters, whatsapp_api_token, whatsapp_phone_number_id);
     

@@ -2578,7 +2578,7 @@ const sendWhatsAppMessage = async (phone, template, parameters, token, phoneNumb
       payload,
       {
         headers: {
-          Authorization: `Bearer ${process.env.WHATSAPP_API_TOKEN}`,
+          Authorization: `Bearer ${token}`,
           "Content-Type": "application/json",
         },
       }

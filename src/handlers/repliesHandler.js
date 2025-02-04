@@ -2367,66 +2367,19 @@ export async function sendTemplateMessage(io, req, res) {
       return res.status(404).send({ error: 'Template not found' });
     }
 
-    // Obtener las variables de la plantilla
-    //  const variablesQuery = `
-    //     SELECT *, 'header' AS source FROM variable_headers WHERE template_wa_id = $1
-    //     UNION ALL
-    //     SELECT *, 'body' AS source FROM variable_body WHERE template_wa_id = $1
-    //     UNION ALL
-    //     SELECT *, 'button' AS source FROM variable_button WHERE template_wa_id = $1
-    //   `;
-      
-    //   const variablesResult = await pool.query(variablesQuery, [template.id]);
-      
-    //   // Objeto donde se almacenarán las variables
-    //   const variables = {
-    //     header: [],
-    //     body: [],
-    //     button: [],
-    //   };
-      
-    //   // Asignar las variables según su tipo
-    //   variablesResult.rows.forEach((variable) => {
-    //     variables[variable.source].push(variable);
-    //   });
-
     const variablesQueryHeader = `
     SELECT * 
     FROM variable_headers 
-    WHERE template_wa_id = $1
-    UNION ALL
-    SELECT * 
-    FROM variable_body 
-    WHERE template_wa_id = $1
-    UNION ALL
-    SELECT * 
-    FROM variable_button 
     WHERE template_wa_id = $1
   `;
 
     const variablesQueryBody = `
     SELECT * 
-    FROM variable_headers 
-    WHERE template_wa_id = $1
-    UNION ALL
-    SELECT * 
     FROM variable_body 
-    WHERE template_wa_id = $1
-    UNION ALL
-    SELECT * 
-    FROM variable_button 
     WHERE template_wa_id = $1
   `;
 
   const variablesQueryButton = `
-  SELECT * 
-  FROM variable_headers 
-  WHERE template_wa_id = $1
-  UNION ALL
-  SELECT * 
-  FROM variable_body 
-  WHERE template_wa_id = $1
-  UNION ALL
   SELECT * 
   FROM variable_button 
   WHERE template_wa_id = $1

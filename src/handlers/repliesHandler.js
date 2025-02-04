@@ -3214,16 +3214,16 @@ if (conversation.conversation_id) {
         whatsapp_api_token,
         whatsapp_phone_number_id);
     } else if (template.header_type === 'IMAGE') {
-      const imageUrl = `${backendUrl}${template.medio}?token=${newToken}`
-      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      const imageUrl = `${backendUrl}${template.medio}`
+      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = imageUrl;
     } else if (template.header_type === 'VIDEO') {
-      const videoUrl = `${backendUrl}${template.medio}?token=${newToken}`
-      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      const videoUrl = `${backendUrl}${template.medio}`
+      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = videoUrl;
     } else if (template.header_type === 'DOCUMENT') {
-      const documentUrl = `${backendUrl}${template.medio}?token=${newToken}`
-      const mediaId = await uploadDocumentToWhatsApp(documentUrl);
+      const documentUrl = `${backendUrl}${template.medio}`
+      const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`);
       response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;
     }else{

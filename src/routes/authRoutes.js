@@ -597,8 +597,6 @@ authRoutes.post('/set_token_firebase', async (req, res) => {
 authRoutes.put('/users/:id',
   authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'CONFIG']),
  async (req, res) => {
-  const { error } = registerValidation(req.body);
-  if (error) return res.status(400).send(error.details[0].message);
   edit(req, res);
 });
 

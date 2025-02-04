@@ -530,13 +530,18 @@ export const registerUser = [
             model: Type_user, // Incluye Type_user
             as: 'Type_user',
           },
+          {
+            model: Privilege, // Incluye Privileges
+            as: 'Privileges',
+            through: { attributes: [] }, // No incluir atributos de la tabla intermedia
+          },
         ],
       });
 
       const usersWithMappedPrivilegesUp = {
-        ...userWithType,
-        Privileges: userWithType.Privileges.map(privilege => privilege.id),
-      }
+        ...userWithType.toJSON(), // Convertir a JSON para evitar problemas de Sequelize
+        Privileges: userWithType.Privileges ? userWithType.Privileges.map(privilege => privilege.id) : [],
+      };
 
       res.status(201).json({
         message: 'Usuario creado exitosamente',

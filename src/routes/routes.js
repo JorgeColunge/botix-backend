@@ -2180,10 +2180,8 @@ router.put('/campaigns/:campaignId/contacts',
     // Eliminar los contactos existentes para la campaña que están en la lista de contactos válidos
     const deleteContactsQuery = `
       DELETE FROM campaign_contacts 
-      WHERE campaign_id = $1 
-      AND contact_id = ANY($2::int[])
-    `;
-    await pool.query(deleteContactsQuery, [campaignId, existingContacts]);
+      WHERE campaign_id = $1`;
+    await pool.query(deleteContactsQuery, [campaignId]);
 
     // Insertar los contactos válidos
     const insertContactsQuery = 'INSERT INTO campaign_contacts (campaign_id, contact_id) VALUES ($1, $2)';

@@ -2390,7 +2390,7 @@ export async function sendTemplateMessage(io, req, res) {
     //     variables[variable.source].push(variable);
     //   });
 
-    const variablesQuery = `
+    const variablesQueryHeader = `
     SELECT * 
     FROM variable_headers 
     WHERE template_wa_id = $1
@@ -2403,8 +2403,44 @@ export async function sendTemplateMessage(io, req, res) {
     FROM variable_button 
     WHERE template_wa_id = $1
   `;
-  const variablesResult = await pool.query(variablesQuery, [template.id]);
-  const variables = variablesResult.rows;
+
+    const variablesQueryBody = `
+    SELECT * 
+    FROM variable_headers 
+    WHERE template_wa_id = $1
+    UNION ALL
+    SELECT * 
+    FROM variable_body 
+    WHERE template_wa_id = $1
+    UNION ALL
+    SELECT * 
+    FROM variable_button 
+    WHERE template_wa_id = $1
+  `;
+
+  const variablesQueryButton = `
+  SELECT * 
+  FROM variable_headers 
+  WHERE template_wa_id = $1
+  UNION ALL
+  SELECT * 
+  FROM variable_body 
+  WHERE template_wa_id = $1
+  UNION ALL
+  SELECT * 
+  FROM variable_button 
+  WHERE template_wa_id = $1
+  `;
+  const variablesResultHeader = await pool.query(variablesQueryHeader, [template.id]);
+  const variablesResultBody = await pool.query(variablesQueryBody, [template.id]);
+  const variablesResulButton = await pool.query(variablesQueryButton, [template.id]);
+
+
+  const variables = {
+    header: variablesResultHeader.rows,
+    body: variablesResultBody.rows,
+    button: variablesResulButton.rows
+  }
 
     let responsibleIndex = 0;
 

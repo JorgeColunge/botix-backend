@@ -2446,7 +2446,11 @@ export async function sendTemplateMessage(io, req, res) {
         }
     
         // Reemplazar variables en la plantilla
-        const parameters = {};
+        const parameters = {
+          header: [],
+          body: [],
+          button: []
+        };
         console.log("variables", variables)
         for (const variable of variables.header) {
           const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);

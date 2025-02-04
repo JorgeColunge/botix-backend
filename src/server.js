@@ -525,7 +525,22 @@ app.post('/create-template',
   const whatsappApiToken = whatsapp_api_token;
   const whatsappBusinessAccountId = whatsapp_business_account_id;
 
+  const token = req.headers['x-token'];
+
   const validName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+
+  const decoded = jwt.verify(token,  process.env.JWT_SECRET); // Usa la clave secreta de tu servidor
+
+  const userQuery = await pool.query(
+        'SELECT * FROM users WHERE id_usuario = $1;',
+        [decoded.id_usuario]
+    );
+
+    if (userQuery.rows.length === 0) {
+        return res.status(404).send('Usuario no encontrado');
+    }
+
+    const user = userQuery.rows[0];
 
   if (!Array.isArray(components)) {
     return res.status(400).send({ error: 'The parameter components must be an array.' });
@@ -595,8 +610,13 @@ app.post('/create-template',
         const fileName = path.basename(headerExample);
         const fileExtension = path?.extname(fileName)?.toLowerCase();
 
+        const newToken = jwt.sign(
+          { id_usuario: user.id_usuario, email: user.email, rol: decoded.rol, privileges: decoded.privileges },
+          process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+        );
+
         const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
   
   
         const fileStats = fs.statSync(dd);

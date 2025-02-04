@@ -2310,6 +2310,25 @@ const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUser
 export async function sendTemplateMessage(io, req, res) {
   const { campaignId } = req.params;
 
+  const token = req.headers['x-token'];
+
+  const decoded = jwt.verify(token,  process.env.JWT_SECRET); // Usa la clave secreta de tu servidor
+
+  const userQuery = await pool.query(
+        'SELECT * FROM users WHERE id_usuario = $1;',
+        [decoded.id_usuario]
+    );
+
+    if (userQuery.rows.length === 0) {
+        return res.status(404).send('Usuario no encontrado');
+    }
+
+    const user = userQuery.rows[0];
+
+       const newToken = jwt.sign(
+              { id_usuario: user.id_usuario, email: user.email, rol: decoded.rol, privileges: decoded.privileges },
+              process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+            );
   try {
     // Obtener los detalles de la campaña
     const campaignQuery = 'SELECT * FROM campaigns WHERE id = $1';
@@ -2451,7 +2470,8 @@ export async function sendTemplateMessage(io, req, res) {
           await storeMessageCampaign(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else if (template.header_type === 'IMAGE') {
           const imageUrl = `${backendUrl}${template.medio}`;
-          response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+
+          response = await sendImageWhatsAppMessageCampaign(contact.phone_number, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, variables, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
           mediaUrl = imageUrl;
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -2462,7 +2482,7 @@ export async function sendTemplateMessage(io, req, res) {
           await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else if (template.header_type === 'VIDEO') {
           const videoUrl = `${backendUrl}${template.medio}`;
-          response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
           mediaUrl = videoUrl;
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -2473,7 +2493,7 @@ export async function sendTemplateMessage(io, req, res) {
           await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else if (template.header_type === 'DOCUMENT') {
           const documentUrl = `${backendUrl}${template.medio}`;
-          const mediaId = await uploadDocumentToWhatsApp(documentUrl, whatsapp_api_token, whatsapp_phone_number_id);
+          const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`, whatsapp_api_token, whatsapp_phone_number_id);
           response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
           mediaUrl = documentUrl;
     
@@ -2743,6 +2763,56 @@ const sendImageWhatsAppMessage = async (phone, templateName, language, imageUrl,
   } catch (error) {
     console.error('Error sending WhatsApp message:', error);
     throw error;
+  }
+};
+
+const sendImageWhatsAppMessageCampaign = async (phone, templateName, language, imageUrl, parameters, token, phoneNumberId, whatsappBusinessId) => {
+  
+  console.log("variables",parameters )
+  try {
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        namespace: whatsappBusinessId,
+        name: templateName,
+        language: {
+          code: language,
+          policy: "deterministic"
+        },
+        components: [
+          {
+            type: "header",
+            parameters: [{
+              type: "image",
+              image: { link: imageUrl }
+            }]
+          },
+          {
+            type: "body",
+            parameters: parameters.body.map(value => ({ type: "text", text: value }))
+          }
+        ]
+      }
+    };
+
+    console.log('Payload a enviar:', JSON.stringify(payload, null, 2));
+
+    const response = await axios.post(
+      `https://graph.facebook.com/v13.0/${phoneNumberId}/messages`,
+      payload,
+      {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      }
+    );
+    return response.data;
+  } catch (error) {
+    console.error('Error sending WhatsApp message:', error);
+    throw error.data;
   }
 };
 

@@ -2906,6 +2906,17 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
   // Agregar el valor del footer si lo tiene
   const footerTextReplaced = footerText ? replacePlaceholders(footerText, parameters) : footerText;
 
+  console.log("datos a insertar", {
+    cpntad: contact?.phone_number || 'unknown', // Manejar caso donde contact sea undefined
+    conversation: conversation.conversation_id,
+    bodyText,
+    mediaUrl,
+    headerText,
+    buttonText,
+    headerType,
+    footerTextReplaced,
+    whatsappMessageId
+  })
   try {
       const insertQuery = `
       INSERT INTO replies (

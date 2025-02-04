@@ -2408,6 +2408,7 @@ export async function sendTemplateMessage(io, req, res) {
 
     let responsibleIndex = 0;
 
+    console.log("variables result", variables)
     // Obtener la integración de WhatsApp para la compañía
     const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(template.company_id);
     const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
@@ -2467,7 +2468,7 @@ export async function sendTemplateMessage(io, req, res) {
           body: [],
           button: []
         };
-        console.log("variables", variables)
+        console.log("parametros", variables)
         for (const variable of variables.header) {
           const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
           parameters.header.push(value);

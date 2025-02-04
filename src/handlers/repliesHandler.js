@@ -2457,7 +2457,7 @@ export async function sendTemplateMessage(io, req, res) {
           body: [],
           button: []
         };
-        console.log("parametros", variables)
+       
         for (const variable of variables.header) {
           const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
           parameters.header.push(value);
@@ -2472,6 +2472,8 @@ export async function sendTemplateMessage(io, req, res) {
           const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
           parameters.button.push(value);
         }
+
+        console.log("parametros", parameters)
         // Verificar que los campos necesarios de la plantilla están presentes
         if (!template.nombre || !template.language) {
           throw new Error('Template is missing required fields');

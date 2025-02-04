@@ -2882,6 +2882,7 @@ const storeMessage = async (contact, conversation, parameters, unreadMessages, r
 
   if (template.buttonVariables.length > 0) {
       // Si hay variables en el botón, reemplazar placeholders
+      console.log(" botones", template.buttons)
       buttonText = replacePlaceholders(template.buttons, buttonParameters);
   } else if (template.button_text) {
       // Si el texto del botón ya es un string, usarlo directamente

@@ -2698,6 +2698,7 @@ const sendWhatsAppMessage = async (phone, template, parameters, token, phoneNumb
 };
 
 const sendImageWhatsAppMessage = async (phone, templateName, language, imageUrl, parameters, token, phoneNumberId, whatsappBusinessId) => {
+  
   try {
     const payload = {
       messaging_product: "whatsapp",
@@ -3138,6 +3139,49 @@ const storeMessageCampaign = async (contact, conversation, parameters, unreadMes
 export async function sendTemplateToSingleContact(io, req, res) {
   const { conversation, template, parameters, company_id } = req.body;
 
+  const token = req.headers['x-token'];
+
+  const decoded = jwt.verify(token, process.env.JWT_SECRET);
+      
+  // Consultar el usuario en la base de datos para asegurar que exista
+  const userQuery = await pool.query(
+      'SELECT * FROM users WHERE id_usuario = $1;',
+      [decoded.id_usuario]
+  );
+
+  if (userQuery.rows.length === 0) {
+      return res.status(404).send('Usuario no encontrado');
+  }
+
+  const user = userQuery.rows[0];
+
+    const privilegesQuery = `
+    SELECT p.name 
+    FROM public."Privileges" p
+    JOIN public."UserPrivileges" up ON p.id = up."privilegeId"  -- Cambié privilege_id por privilegeId
+    WHERE up."userId" = $1;  -- Cambié user_id por userId
+  `;
+
+    const roleQuery = `
+      SELECT r.name 
+      FROM public."role" r
+      WHERE r.id = $1;
+    `;
+    const roleResult = await pool.query(roleQuery, [user.role_id]);
+    if (roleResult.rows.length === 0) {
+      return res.status(404).send('Rol no encontrado');
+    }
+    const roleName = roleResult.rows[0].name;
+    
+  const privilegesResult = await pool.query(privilegesQuery, [user.id_usuario]);
+  const privileges = privilegesResult.rows.map(row => row.name);
+
+  // Generar token JWT
+  const newToken = jwt.sign(
+    { id_usuario: user.id_usuario, email: user.email, rol: roleName, privileges },
+    process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+  );
+
 if (!company_id) {
   return res.status(400).json({ error: 'Company ID is required' });
 }
@@ -3159,15 +3203,15 @@ if (conversation.conversation_id) {
         whatsapp_api_token,
         whatsapp_phone_number_id);
     } else if (template.header_type === 'IMAGE') {
-      const imageUrl = `${backendUrl}${template.medio}`
+      const imageUrl = `${backendUrl}${template.medio}?token=${newToken}`
       response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = imageUrl;
     } else if (template.header_type === 'VIDEO') {
-      const videoUrl = `${backendUrl}${template.medio}`
+      const videoUrl = `${backendUrl}${template.medio}?token=${newToken}`
       response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, videoUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = videoUrl;
     } else if (template.header_type === 'DOCUMENT') {
-      const documentUrl = `${backendUrl}${template.medio}`
+      const documentUrl = `${backendUrl}${template.medio}?token=${newToken}`
       const mediaId = await uploadDocumentToWhatsApp(documentUrl);
       response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;

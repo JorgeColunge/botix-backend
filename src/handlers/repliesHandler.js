@@ -2446,9 +2446,22 @@ export async function sendTemplateMessage(io, req, res) {
         }
     
         // Reemplazar variables en la plantilla
-        const parameters = [];
+        const parameters = {};
         console.log("variables", variables)
+        for (const variable of variables.header) {
+          const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+          parameters.header.push(value);
+        }
+
+           for (const variable of variables.body) {
+          const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+          parameters.body.push(value);
+        }
     
+        for (const variable of variables.button) {
+          const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+          parameters.button.push(value);
+        }
         // Verificar que los campos necesarios de la plantilla están presentes
         if (!template.nombre || !template.language) {
           throw new Error('Template is missing required fields');
@@ -2460,7 +2473,7 @@ export async function sendTemplateMessage(io, req, res) {
     
         console.log("template", template)
         if (template.header_type === 'TEXT') {
-          response = await sendWhatsAppMessageCampaing(contact.phone_number, template, variables, whatsapp_api_token, whatsapp_phone_number_id);
+          response = await sendWhatsAppMessageCampaing(contact.phone_number, template, parameters, whatsapp_api_token, whatsapp_phone_number_id);
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
           const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
@@ -2471,7 +2484,7 @@ export async function sendTemplateMessage(io, req, res) {
         } else if (template.header_type === 'IMAGE') {
           const imageUrl = `${backendUrl}${template.medio}`;
 
-          response = await sendImageWhatsAppMessageCampaign(contact.phone_number, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, variables, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          response = await sendImageWhatsAppMessageCampaign(contact.phone_number, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
           mediaUrl = imageUrl;
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable

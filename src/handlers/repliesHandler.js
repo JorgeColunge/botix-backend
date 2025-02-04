@@ -2367,7 +2367,7 @@ export async function sendTemplateMessage(io, req, res) {
       return res.status(404).send({ error: 'Template not found' });
     }
 
-    Obtener las variables de la plantilla
+    // Obtener las variables de la plantilla
      const variablesQuery = `
         SELECT *, 'header' AS source FROM variable_headers WHERE template_wa_id = $1
         UNION ALL

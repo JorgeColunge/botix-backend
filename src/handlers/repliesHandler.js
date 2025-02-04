@@ -3017,8 +3017,14 @@ const storeMessageCampaign = async (contact, conversation, parameters, unreadMes
   let buttonText = '';
 
   if (template.buttonVariables && template.buttonVariables.length > 0) {
-      // Si hay variables en el botón, reemplazar placeholders
+    if (typeof template.buttons === "object" && template.buttons !== null) {
+      // Convertir el objeto a string
+      const buttonsString = JSON.stringify(template.buttons);
+      buttonText = replacePlaceholders(buttonsString, buttonParameters);
+    } else {
+      // Si no es un objeto, aplicar directamente replacePlaceholders
       buttonText = replacePlaceholders(template.buttons, buttonParameters);
+    }
   } else if (template.button_text) {
       // Si el texto del botón ya es un string, usarlo directamente
       if (typeof template.button_text === 'string') {

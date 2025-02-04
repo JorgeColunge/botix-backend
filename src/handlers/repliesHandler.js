@@ -2139,7 +2139,14 @@ const getVariableValue = async (variable, contact, responsibleUser, companyId) =
 
 const replacePlaceholders = (text, parameters) => {
   if (!text) return ''; // Manejar caso donde text sea null o undefined
-  return text.replace(/\{\{(\d+)\}\}/g, (_, index) => parameters[index - 1] || '');
+
+  return text.replace(/\{\{(\d+)\}\}/g, (_, index) => {
+    const replacement = parameters[index - 1] || '';
+    if (!parameters[index - 1]) {
+      console.warn(`⚠️ Placeholder {{${index}}} no tiene un valor en parameters.`);
+    }
+    return replacement;
+  });
 };
 
 const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUserId, res, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id, whatsappIntegrationID) => {
@@ -2342,21 +2349,27 @@ export async function sendTemplateMessage(io, req, res) {
     }
 
     // Obtener las variables de la plantilla
-    const variablesQuery = `
-      SELECT * 
-      FROM variable_headers 
-      WHERE template_wa_id = $1
-      UNION ALL
-      SELECT * 
-      FROM variable_body 
-      WHERE template_wa_id = $1
-      UNION ALL
-      SELECT * 
-      FROM variable_button 
-      WHERE template_wa_id = $1
-    `;
-    const variablesResult = await pool.query(variablesQuery, [template.id]);
-    const variables = variablesResult.rows;
+     const variablesQuery = `
+        SELECT *, 'header' AS source FROM variable_headers WHERE template_wa_id = $1
+        UNION ALL
+        SELECT *, 'body' AS source FROM variable_body WHERE template_wa_id = $1
+        UNION ALL
+        SELECT *, 'button' AS source FROM variable_button WHERE template_wa_id = $1
+      `;
+      
+      const variablesResult = await pool.query(variablesQuery, [template.id]);
+      
+      // Objeto donde se almacenarán las variables
+      const variables = {
+        header: [],
+        body: [],
+        button: [],
+      };
+      
+      // Asignar las variables según su tipo
+      variablesResult.rows.forEach((variable) => {
+        variables[variable.source].push(variable.example);
+      });
 
     let responsibleIndex = 0;
 
@@ -2415,12 +2428,7 @@ export async function sendTemplateMessage(io, req, res) {
     
         // Reemplazar variables en la plantilla
         const parameters = [];
-        for (const variable of variables) {
-          const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
-          parameters.push(value);
-        }
-    
-        console.log('Parámetros de mensaje:', parameters);
+        console.log("variables", variables)
     
         // Verificar que los campos necesarios de la plantilla están presentes
         if (!template.nombre || !template.language) {
@@ -2433,14 +2441,14 @@ export async function sendTemplateMessage(io, req, res) {
     
         console.log("template", template)
         if (template.header_type === 'TEXT') {
-          response = await sendWhatsAppMessage(contact.phone_number, template, parameters, whatsapp_api_token, whatsapp_phone_number_id);
+          response = await sendWhatsAppMessageCampaing(contact.phone_number, template, variables, whatsapp_api_token, whatsapp_phone_number_id);
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
           const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
           const unreadMessages = unreadRes.rows[0].unread_messages;
     
           // Almacenar el mensaje con placeholders reemplazados
-          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+          await storeMessageCampaign(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else if (template.header_type === 'IMAGE') {
           const imageUrl = `${backendUrl}${template.medio}`;
           response = await sendImageWhatsAppMessage(contact.phone_number, template.nombre, template.language, imageUrl, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
@@ -2476,14 +2484,14 @@ export async function sendTemplateMessage(io, req, res) {
           // Almacenar el mensaje con placeholders reemplazados y la URL del documento
           await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else {
-          response = await sendWhatsAppMessage(contact.phone_number, template, parameters, whatsapp_api_token, whatsapp_phone_number_id);
+          response = await sendWhatsAppMessageCampaing(contact.phone_number, template, variables, whatsapp_api_token, whatsapp_phone_number_id);
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
           const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
           const unreadMessages = unreadRes.rows[0].unread_messages;
     
           // Almacenar el mensaje con placeholders reemplazados
-          await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
+          await storeMessageCampaign(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         }
       } catch (error) {
         console.error(`Error processing contact ${contact.id}:`, error);
@@ -2497,6 +2505,103 @@ export async function sendTemplateMessage(io, req, res) {
     res.status(500).send({ error: error.message });
   }
 }
+
+const sendWhatsAppMessageCampaing = async (phone, template, parameters, token, phoneNumberId) => {
+  try {
+    // Construcción inicial del payload
+    const payload = {
+      messaging_product: "whatsapp",
+      to: phone,
+      type: "template",
+      template: {
+        namespace: template.id, // Usamos el ID de la plantilla
+        name: template.nombre, // Nombre del template
+        language: {
+          code: template.language,
+          policy: "deterministic",
+        },
+        components: [],
+      },
+    };
+
+    // **Header**
+    if (template.header_type === "TEXT" && template.header_text?.includes("{{")) {
+      const headerParams = parameters.header || [];
+
+      if (headerParams.length > 0) {
+        payload.template.components.push({
+          type: "header",
+          parameters: headerParams.map((text) => ({
+            type: "text",
+            text: text.trim(),
+          })),
+        });
+      }
+    }
+
+    // **Body**
+    if (template.body_text?.includes("{{")) {
+      const bodyParams = parameters.body || [];
+
+      if (bodyParams.length > 0) {
+        payload.template.components.push({
+          type: "body",
+          parameters: bodyParams.map((text) => ({
+            type: "text",
+            text: text.trim(),
+          })),
+        });
+      }
+    }
+
+    // **Buttons**
+    if (template.buttonVariables?.length > 0) {
+      template.buttonVariables.forEach((button, index) => {
+        let subType = button.variable === "PHONE_NUMBER" ? "voice_call" : button.variable.toLowerCase();
+        let buttonPayload = {
+          type: "button",
+          sub_type: subType,
+          index: index
+        };
+    
+        if (button.variable === "QUICK_REPLY") {
+          // Botón de tipo respuesta rápida
+          buttonPayload.parameters = [
+            {
+              type: "payload",
+              payload: button.payload || ""
+            }
+          ];
+        }
+    
+        // Agregamos el botón al payload
+        payload.template.components.push(buttonPayload);
+      });
+    }
+
+    // Log para depuración
+    console.log("Payload a enviar:", JSON.stringify(payload, null, 2));
+
+    // Llamada a la API de WhatsApp
+    const response = await axios.post(
+      `https://graph.facebook.com/v20.0/${phoneNumberId}/messages`,
+      payload,
+      {
+        headers: {
+          Authorization: `Bearer ${token}`,
+          "Content-Type": "application/json",
+        },
+      }
+    );
+
+    return response.data;
+  } catch (error) {
+    console.error("Error enviando mensaje de WhatsApp:", error.response?.data || error.data);
+    throw error.response?.data || error.data;
+  }
+};
+
+
 const sendWhatsAppMessage = async (phone, template, parameters, token, phoneNumberId) => {
   try {
     // Construcción inicial del payload
@@ -2587,11 +2692,10 @@ const sendWhatsAppMessage = async (phone, template, parameters, token, phoneNumb
 
     return response.data;
   } catch (error) {
-    console.error("Error enviando mensaje de WhatsApp:", error.response?.data || error.message);
-    throw error;
+    console.error("Error enviando mensaje de WhatsApp:", error.response?.data || error.data);
+    throw  error.response?.data || error.data;
   }
 };
-
 
 const sendImageWhatsAppMessage = async (phone, templateName, language, imageUrl, parameters, token, phoneNumberId, whatsappBusinessId) => {
   try {
@@ -2889,6 +2993,134 @@ if (buttonText && typeof buttonText === 'string') {
       throw error;
   }
 };
+
+const storeMessageCampaign = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, whatsappMessageId, headerType, footerText) => {
+
+  // Obtén los detalles de la integración
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversation.conversation_id);
+
+  // Dividir parámetros correctamente usando la nueva estructura
+  const headerParameters = parameters.header || [];
+  const bodyParameters = parameters.body || [];
+  const buttonParameters = parameters.button || [];
+
+  // Reemplazar los placeholders en cada componente
+  const headerText = replacePlaceholders(template.header_text, headerParameters);
+  const bodyText = replacePlaceholders(template.body_text, bodyParameters);
+  let buttonText = '';
+
+  if (template.buttonVariables && template.buttonVariables.length > 0) {
+      // Si hay variables en el botón, reemplazar placeholders
+      buttonText = replacePlaceholders(template.buttons, buttonParameters);
+  } else if (template.button_text) {
+      // Si el texto del botón ya es un string, usarlo directamente
+      if (typeof template.button_text === 'string') {
+          buttonText = template.button_text;
+      } else {
+          // En caso de que no sea un string válido, intentar reemplazar placeholders
+          buttonText = replacePlaceholders(template.button_text, buttonParameters);
+      }
+  }
+
+  console.log("texto de pie", footerText);
+  
+  // Agregar el valor del footer si lo tiene
+  const footerTextReplaced = footerText ? replacePlaceholders(footerText, [...headerParameters, ...bodyParameters, ...buttonParameters]) : footerText;
+
+  try {
+      const insertQuery = `
+      INSERT INTO replies (
+        sender_id,
+        conversation_fk,
+        reply_type,
+        reply_text,
+        reply_media_url,
+        latitude,
+        longitude,
+        reply_header,
+        reply_button,
+        reply_type_header,
+        footer,
+        replies_id
+      ) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12) RETURNING *;
+    `;
+      const messageValues = [
+          contact?.phone_number || 'unknown', // Manejar caso donde contact sea undefined
+          conversation.conversation_id,
+          'template',
+          bodyText,
+          mediaUrl,
+          null,
+          null,
+          headerText,
+          buttonText,
+          headerType,
+          footerTextReplaced,
+          whatsappMessageId
+      ];
+      const messageRes = await pool.query(insertQuery, messageValues);
+      const newMessage = messageRes.rows[0];
+
+      // Emitir el mensaje procesado a los clientes suscritos a esa conversación
+      // Consulta para obtener los administradores
+      const adminQuery = `
+      SELECT id_usuario FROM users 
+      WHERE company_id = $1 
+        AND role_id IN (SELECT id FROM role WHERE name IN ('ADMIN', 'SUPERADMIN'))
+    `;
+      const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
+
+      const adminIds = adminResult.rows.map(row => row.id_usuario);
+
+      // Emitir el mensaje al usuario responsable y a los administradores
+      const recipients = adminIds.includes(responsibleUserId) 
+          ? adminIds 
+          : [responsibleUserId, ...adminIds];
+
+      let parsedButtonText = null;
+
+      if (buttonText && typeof buttonText === 'string') {
+          try {
+              parsedButtonText = JSON.parse(buttonText);
+          } catch (error) {
+              console.error('Error parsing buttonText:', error.message, 'buttonText:', buttonText);
+              parsedButtonText = null; // Opcional: Manejar el caso en que no se puede parsear
+          }
+      } else {
+          console.warn('buttonText no es un string válido:', buttonText);
+      }
+
+      recipients.forEach(userId => {
+          io.to(`user-${userId}`).emit('newMessage', {
+              id: newMessage.replies_id,
+              conversation_fk: conversation.conversation_id,
+              timestamp: newMessage.created_at,
+              senderId: contact?.phone_number || 'unknown',
+              message_type: 'template',
+              text: bodyText,
+              mediaUrl: mediaUrl,
+              thumbnailUrl: null,
+              duration: null,
+              latitude: null,
+              longitude: null,
+              type: 'reply',
+              unread_messages: unreadMessages,
+              responsibleUserId: responsibleUserId,
+              reply_type_header: headerType,
+              footer: footerTextReplaced,
+              reply_header: headerText,
+              reply_button: parsedButtonText,
+              company_id: integrationDetails.company_id // Añadir company_id aquí
+          });
+      });
+
+      console.log('Mensaje emitido:', newMessage.replies_id);
+  } catch (error) {
+      console.error('Error storing message:', error.message);
+      throw error;
+  }
+};
+
 
 export async function sendTemplateToSingleContact(io, req, res) {
   const { conversation, template, parameters, company_id } = req.body;

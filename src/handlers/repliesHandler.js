@@ -3333,7 +3333,7 @@ if (conversation.conversation_id) {
       const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
       const unreadMessages = unreadRes.rows[0].unread_messages;
 
-      await storeMessage(
+      await storeMessageCampaign(
         conversation.contact,
         conversation,
         parameters,

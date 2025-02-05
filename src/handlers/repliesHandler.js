@@ -2165,21 +2165,33 @@ const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUser
  }
 
  // Obtener las variables de la plantilla
- const variablesQuery = `
-   SELECT * 
-   FROM variable_headers 
-   WHERE template_wa_id = $1
-   UNION ALL
-   SELECT * 
-   FROM variable_body 
-   WHERE template_wa_id = $1
-   UNION ALL
-   SELECT * 
-   FROM variable_button 
-   WHERE template_wa_id = $1
- `;
- const variablesResult = await pool.query(variablesQuery, [template.id]);
- const variables = variablesResult.rows;
+ const variablesQueryHeader = `
+ SELECT * 
+ FROM variable_headers 
+ WHERE template_wa_id = $1
+`;
+
+ const variablesQueryBody = `
+ SELECT * 
+ FROM variable_body 
+ WHERE template_wa_id = $1
+`;
+
+const variablesQueryButton = `
+SELECT * 
+FROM variable_button 
+WHERE template_wa_id = $1
+`;
+const variablesResultHeader = await pool.query(variablesQueryHeader, [template.id]);
+const variablesResultBody = await pool.query(variablesQueryBody, [template.id]);
+const variablesResulButton = await pool.query(variablesQueryButton, [template.id]);
+
+
+const variables = {
+ header: variablesResultHeader.rows,
+ body: variablesResultBody.rows,
+ button: variablesResulButton.rows
+}
 
    try {
     // Obtener la información del responsable de la campaña
@@ -2228,11 +2240,26 @@ const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUser
      }
  
      // Reemplazar variables en la plantilla
-     const parameters = [];
-     for (const variable of variables) {
-       const value = await getVariableValue(variable, contact, responsibleUser, null);
-       parameters.push(value);
-     }
+     const parameters = {
+      header: [],
+      body: [],
+      button: []
+    };
+   
+    for (const variable of variables.header) {
+      const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+      parameters.header.push(value);
+    }
+
+       for (const variable of variables.body) {
+      const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+      parameters.body.push(value);
+    }
+
+    for (const variable of variables.button) {
+      const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
+      parameters.button.push(value);
+    }
  
      console.log('Parámetros de mensaje:', parameters);
  

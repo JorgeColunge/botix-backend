@@ -2507,7 +2507,7 @@ export async function sendTemplateMessage(io, req, res) {
           await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else if (template.header_type === 'VIDEO') {
           const videoUrl = `${backendUrl}${template.medio}`;
-          response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          response = await sendVideoWhatsAppMessage(contact.phone_number, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
           mediaUrl = videoUrl;
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
@@ -2519,7 +2519,7 @@ export async function sendTemplateMessage(io, req, res) {
         } else if (template.header_type === 'DOCUMENT') {
           const documentUrl = `${backendUrl}${template.medio}`;
           const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`, whatsapp_api_token, whatsapp_phone_number_id);
-          response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+          response = await sendDocumentWhatsAppMessage(contact.phone_number, template.nombre, template.language, mediaId, parameters.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
           mediaUrl = documentUrl;
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable

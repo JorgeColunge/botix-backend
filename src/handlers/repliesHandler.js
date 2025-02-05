@@ -2165,33 +2165,21 @@ const sendNewMenssageTemplate = async(io, templateID, contactID, responsibleUser
  }
 
  // Obtener las variables de la plantilla
- const variablesQueryHeader = `
- SELECT * 
- FROM variable_headers 
- WHERE template_wa_id = $1
-`;
-
- const variablesQueryBody = `
- SELECT * 
- FROM variable_body 
- WHERE template_wa_id = $1
-`;
-
-const variablesQueryButton = `
-SELECT * 
-FROM variable_button 
-WHERE template_wa_id = $1
-`;
-const variablesResultHeader = await pool.query(variablesQueryHeader, [template.id]);
-const variablesResultBody = await pool.query(variablesQueryBody, [template.id]);
-const variablesResulButton = await pool.query(variablesQueryButton, [template.id]);
-
-
-const variables = {
- header: variablesResultHeader.rows,
- body: variablesResultBody.rows,
- button: variablesResulButton.rows
-}
+ const variablesQuery = `
+   SELECT * 
+   FROM variable_headers 
+   WHERE template_wa_id = $1
+   UNION ALL
+   SELECT * 
+   FROM variable_body 
+   WHERE template_wa_id = $1
+   UNION ALL
+   SELECT * 
+   FROM variable_button 
+   WHERE template_wa_id = $1
+ `;
+ const variablesResult = await pool.query(variablesQuery, [template.id]);
+ const variables = variablesResult.rows;
 
    try {
     // Obtener la información del responsable de la campaña
@@ -2240,26 +2228,11 @@ const variables = {
      }
  
      // Reemplazar variables en la plantilla
-     const parameters = {
-      header: [],
-      body: [],
-      button: []
-    };
-   
-    for (const variable of variables.header) {
-      const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
-      parameters.header.push(value);
-    }
-
-       for (const variable of variables.body) {
-      const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
-      parameters.body.push(value);
-    }
-
-    for (const variable of variables.button) {
-      const value = await getVariableValue(variable, contact, responsibleUser, campaign.company_id);
-      parameters.button.push(value);
-    }
+     const parameters = [];
+     for (const variable of variables) {
+       const value = await getVariableValue(variable, contact, responsibleUser, null);
+       parameters.push(value);
+     }
  
      console.log('Parámetros de mensaje:', parameters);
  
@@ -3330,26 +3303,26 @@ if (conversation.conversation_id) {
     let mediaUrl = null;
 
     if (template.header_type === 'TEXT') {
-      response = await sendWhatsAppMessage(  conversation.phone_number,
+      response = await sendWhatsAppMessageCampaing(  conversation.phone_number,
         template, // Enviar el template completo
         parameters,
         whatsapp_api_token,
         whatsapp_phone_number_id);
     } else if (template.header_type === 'IMAGE') {
       const imageUrl = `${backendUrl}${template.medio}`
-      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = imageUrl;
     } else if (template.header_type === 'VIDEO') {
       const videoUrl = `${backendUrl}${template.medio}`
-      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parameters.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = videoUrl;
     } else if (template.header_type === 'DOCUMENT') {
       const documentUrl = `${backendUrl}${template.medio}`
       const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`);
-      response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+      response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, mediaId, parameters.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
       mediaUrl = documentUrl;
     }else{
-      response = await sendWhatsAppMessage(  conversation.phone_number,
+      response = await sendWhatsAppMessageCampaing(  conversation.phone_number,
         template, // Enviar el template completo
         parameters,
         whatsapp_api_token,

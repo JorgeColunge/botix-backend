@@ -382,7 +382,7 @@ export const login = async (req, res) => {
 // Función para editar usuario
 export const edit = async (req, res) => {
   const { id } = req.params; // ID del usuario a editar
-  const { nombre, apellido, telefono, email, link_foto, rol, department_id, Privileges, identificacion } = req.body;
+  const { nombre, apellido, telefono, email, link_foto, rol, department_id, Privileges, identificacion, contraseña } = req.body;
 
   try {
     // Buscar al usuario por su ID
@@ -409,6 +409,7 @@ export const edit = async (req, res) => {
     user.apellido = apellido || user.apellido;
     user.identificacion = identificacion || user.identificacion;
     user.telefono = telefono || user.telefono;
+    user.contraseña = contraseña || user.contraseña;
     user.email = email || user.email;
     user.link_foto = link_foto || user.link_foto;
     user.role = rol || user.role;

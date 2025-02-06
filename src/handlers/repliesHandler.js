@@ -3110,8 +3110,31 @@ if (buttonText && typeof buttonText === 'string') {
 
 const storeMessageCampaign = async (contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, whatsappMessageId, headerType, footerText) => {
 
+  let conversationUp = conversation;
+  if (conversation.conversation_id === "nuevo") {
+
+    const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(template.company_id);
+    
+    // Crear nueva conversación
+    const insertConversationQuery = `
+      INSERT INTO conversations (phone_number, state, last_update, unread_messages, id_usuario, contact_id, integration_id)
+      VALUES ($1, $2, NOW(), $3, $4, $5, $6) RETURNING *;
+    `;
+    const insertConversationValues = [
+      conversationUp.phone_number,
+      'new',
+      0,
+      responsibleUserId,
+      conversationUp.id,
+      whatsappIntegration.id
+    ];
+    const insertConversationResult = await pool.query(insertConversationQuery, insertConversationValues);
+    conversationUp = insertConversationResult.rows[0];
+    console.log('Nueva conversación creada:', conversation.conversation_id);
+  }
+
   // Obtén los detalles de la integración
-  const integrationDetails = await getIntegrationDetailsByConversationId(conversation.conversation_id);
+  const integrationDetails = await getIntegrationDetailsByConversationId(conversationUp.conversation_id);
 
   // Dividir parámetros correctamente usando la nueva estructura
   const headerParameters = parameters.header || [];
@@ -3166,7 +3189,7 @@ const storeMessageCampaign = async (contact, conversation, parameters, unreadMes
     `;
       const messageValues = [
           contact?.phone_number || 'unknown', // Manejar caso donde contact sea undefined
-          conversation.conversation_id,
+          conversationUp.conversation_id,
           'template',
           bodyText,
           mediaUrl,
@@ -3240,7 +3263,6 @@ const storeMessageCampaign = async (contact, conversation, parameters, unreadMes
       throw error;
   }
 };
-
 
 export async function sendTemplateToSingleContact(io, req, res) {
   const { conversation, template, parameters, company_id } = req.body;
@@ -3330,8 +3352,12 @@ if (conversation.conversation_id) {
     }
 
     if (response) {
-      const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
-      const unreadMessages = unreadRes.rows[0].unread_messages;
+      var unreadMessages = 0;
+
+        if(conversation.conversation_id !== "nuevo"){
+          const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);
+          unreadMessages = unreadRes.rows[0].unread_messages;
+        }
 
       await storeMessageCampaign(
         conversation.contact,

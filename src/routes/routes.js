@@ -168,7 +168,7 @@ router.get('/conversations/:conversationId',
 });
 
 router.get('/conversations',
-  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE', 'CONTACT_WRITE', 'CONTACT_UPDATE', 'CONTACT_DELETE']),
+  authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE', 'CONTACT_WRITE', 'CONTACT_UPDATE', 'CONTACT_DELETE']),
   async (req, res) => {
   const userId = req.query.id_usuario;
   const userRole = req.query.rol;
@@ -843,7 +843,7 @@ router.put('/colaboradores/:id',
 router.put('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'BOT_UPDATE', 'CONFIG']),
 async (req, res) => {
   const { id } = req.params;
-  const { nombre, apellido, telefono, email, link_foto, rol, department_id } = req.body;
+  const { nombre, apellido, telefono, email, link_foto, role, department_id } = req.body;
 console.log("nunca se llama")
   try {
     // Buscar al usuario por su ID
@@ -871,7 +871,7 @@ console.log("nunca se llama")
     user.telefono = telefono || user.telefono;
     user.email = email || user.email;
     user.link_foto = link_foto || user.link_foto;
-    user.role = rol || user.role;
+    user.role = role || user.role;
     user.department_id = department_id || user.department_id;
 
     // Guardar los cambios

@@ -843,7 +843,7 @@ router.put('/colaboradores/:id',
 router.put('/users/:id', authorize(['ADMIN', 'SUPERADMIN'], ['USER_UPDATE', 'BOT_UPDATE', 'CONFIG']),
 async (req, res) => {
   const { id } = req.params;
-  const { nombre, apellido, telefono, email, link_foto, role, department_id } = req.body;
+  const { nombre, apellido, telefono, email, link_foto, role, department_id, identificacion } = req.body;
 console.log("nunca se llama")
   try {
     // Buscar al usuario por su ID
@@ -867,6 +867,7 @@ console.log("nunca se llama")
 
     // Actualizar los campos proporcionados
     user.nombre = nombre || user.nombre;
+    user.identificacion = identificacion || user.identificacion;
     user.apellido = apellido || user.apellido;
     user.telefono = telefono || user.telefono;
     user.email = email || user.email;

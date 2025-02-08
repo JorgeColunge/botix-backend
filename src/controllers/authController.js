@@ -473,7 +473,7 @@ export const edit = async (req, res) => {
 export const registerUser = [
   authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'CONFIG']),
   async (req, res) => {
-    const { nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id, privileges } = req.body;
+    const { nombre, apellido, telefono, email, link_foto, rol, contraseña, company_id, department_id, privileges, identificacion } = req.body;
 
     // Validación de los datos de registro
     const { error } = registerValidation(req.body);
@@ -504,6 +504,7 @@ export const registerUser = [
 
       // Crear el usuario con el rol proporcionado y asignar el type_user_id como "HUMANO"
       const newUser = await User.create({
+        identificacion,
         nombre,
         apellido,
         telefono,

@@ -126,6 +126,7 @@ const newRegisterValidation = (data) => {
 
 const registerValidation = (data) => {
   const schema = Joi.object({
+    identificacion: Joi.optional(),
     id_usuario: Joi.optional(),
     nombre: Joi.string().min(3).required(),
     apellido: Joi.string().min(3).required(),

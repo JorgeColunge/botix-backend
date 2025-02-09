@@ -996,9 +996,23 @@ app.put('/edit-template',
   const { name, language, category, components, componentsWithSourceAndVariable, company_id, id_plantilla } = req.body;
   const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
   const { whatsapp_api_token, whatsapp_business_account_id } = integrationDetails;
-  const whatsappBusinessAccountId = whatsapp_business_account_id;
+
+  const token = req.headers['x-token'];
 
   const validName = name.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+
+  const decoded = jwt.verify(token,  process.env.JWT_SECRET);
+
+  const userQuery = await pool.query(
+    'SELECT * FROM users WHERE id_usuario = $1;',
+      [decoded.id_usuario]
+  );
+
+  if (userQuery.rows.length === 0) {
+      return res.status(404).send('Usuario no encontrado');
+  }
+
+  const user = userQuery.rows[0];
 
   if (!Array.isArray(components)) {
     return res.status(400).send({ error: 'The parameter components must be an array.' });
@@ -1072,13 +1086,18 @@ app.put('/edit-template',
       let imageUrl = null;
       let headerHandle = null;
   
+      const newToken = jwt.sign(
+        { id_usuario: user.id_usuario, email: user.email, rol: decoded.rol, privileges: decoded.privileges },
+        process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+      );
+
       if (headerType === 'IMAGE' && headerExample) {
   
         const fileName = path.basename(headerExample);
         const fileExtension = path?.extname(fileName)?.toLowerCase();
     
         const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
   
         const fileStats = fs.statSync(dd);
      
@@ -1191,7 +1210,7 @@ app.put('/edit-template',
         const fileExtension = path?.extname(fileName)?.toLowerCase();
     
         const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
   
         const fileStats = fs.statSync(dd);
      
@@ -1303,7 +1322,7 @@ app.put('/edit-template',
         const fileExtension = path?.extname(fileName)?.toLowerCase();
     
         const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}`;
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
   
         const fileStats = fs.statSync(dd);
      
@@ -1429,10 +1448,17 @@ app.put('/edit-template',
       }
     } catch (error) {
       console.error('Error al procesar la plantilla:', error.response?.data || error.message);
+    
       if (!res.headersSent) {
-        return res.status(500).send({ error: 'Error al procesar la plantilla' });
+        if (error.response?.data) {
+          return res.status(500).send(error.response.data);
+        } else {
+          return res.status(500).send({  ...error.message });
+        }
+      } else {
+        return res.status(500).send({ error: 'Unknown error occurred' });
       }
-    }
+    }    
   } else {
     try {
 
@@ -1618,29 +1644,38 @@ app.delete('/api/templates/:id/:templateName/:company_id',
     // Actualizar registros en variable_body
     await client.query('UPDATE variable_body SET template_wa_id = NULL WHERE template_wa_id = $1', [id]);
 
-       // Actualizar registros en variable_body
-     await client.query('DELETE FROM variable_headers WHERE template_wa_id = $1', [id]);
+    // Eliminar registros en variable_headers
+    await client.query('DELETE FROM variable_headers WHERE template_wa_id = $1', [id]);
+
+    await client.query('DELETE FROM variable_button WHERE template_wa_id = $1', [id]);
 
     // Eliminar la plantilla
     const result = await client.query('DELETE FROM templates_wa WHERE id = $1 RETURNING *', [id]);
 
     if (result.rows.length === 0) {
       await client.query('ROLLBACK');
-      return res.status(404).send({ error: 'Template not found' });
+      return res.status(404).send({ error: 'Template not found in database' });
     }
 
-    // Llamada a la API de Meta
-    const response = await axios.delete(`https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates?hsm_id=${id}&name=${templateName}`, {
-      headers: { Authorization: `Bearer ${whatsappApiToken}` }
-    });
+    // Intentar eliminar la plantilla en Meta
+    try {
+      const response = await axios.delete(
+        `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates?hsm_id=${id}&name=${templateName}`, 
+        { headers: { Authorization: `Bearer ${whatsappApiToken}` } }
+      );
 
-    if (response.data.success) {
-      await client.query('COMMIT');
-      return res.status(200).send({ message: 'Template deleted successfully' });
-    } else {
-      await client.query('ROLLBACK');
-      return res.status(500).send({ error: 'Failed to delete template from WhatsApp Business' });
+      if (response.data.success) {
+        await client.query('COMMIT');
+        return res.status(200).send({ message: 'Template deleted successfully from database and Meta' });
+      }
+    } catch (apiError) {
+      console.warn('Meta API error:', apiError.response?.data || apiError.message);
+      // Si Meta devuelve error, ignoramos y continuamos
     }
+
+    await client.query('COMMIT');
+    return res.status(200).send({ message: 'Template deleted from database, but was not found in Meta' });
+
   } catch (error) {
     await client.query('ROLLBACK');
     console.error('Error deleting template:', error.message);

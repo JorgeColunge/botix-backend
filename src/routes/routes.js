@@ -170,153 +170,106 @@ router.get('/conversations/:conversationId',
 router.get('/conversations',
   authorize(['ADMIN', 'SUPERADMIN'], ['READ_USERS_CONTACTS', 'CONFIG', 'USER_WRITE', 'USER_UPDATE', 'USER_DELETE', 'CONTACT_WRITE', 'CONTACT_UPDATE', 'CONTACT_DELETE']),
   async (req, res) => {
-  const userId = req.query.id_usuario;
-  const userRole = req.query.rol;
-  const companyId = req.query.company_id;
+    const userId = req.query.id_usuario;
+    const userRole = req.query.rol;
+    const companyId = req.query.company_id;
 
-  const query = 'SELECT * FROM integrations WHERE type = $1 LIMIT 1';
+    try {
+      // Obtener la integración de tipo "Interno"
+      const integrationResult = await pool.query('SELECT id FROM integrations WHERE type = $1 LIMIT 1', ['Interno']);
+      const integration = integrationResult.rows[0];
 
-  const result = await pool.query(query, ['Interno']);
-  
-  const integracion = result.rows[0];
+      if (!integration) {
+        return res.status(400).json({ error: "No se encontró la integración de tipo 'Interno'" });
+      }
 
-  const getUserRole = async (roleId) => {
-    const query = `
-      SELECT name
-      FROM role
-      WHERE id = $1
-    `;
-  
-    const { rows } = await pool.query(query, [roleId]);
-  
-    // Retorna el nombre del rol si existe, o null si no se encuentra
-    return rows.length > 0 ? rows[0].name : null;
-  };
-  
+      const integrationId = integration.id;
 
-  try {
-    const privileges = await getUserRole(userRole);
-  
-    console.log("este es el privilegio", privileges)
-    let query = `
-      SELECT
-        c.conversation_id,
-        c.contact_id,
-        c.phone_number,
-        c.state,
-        c.last_update,
-        c.unread_messages,
-        c.id_usuario,
-        c.integration_id,
-        c.contact_user_id,
-        ct.id,
-        ct.phone_number,
-        ct.first_name,
-        ct.last_name,
-        ct.organization,
-        ct.profile_url,
-        ct.label,
-        ct.edad_approx,
-        ct.fecha_nacimiento,
-        ct.nacionalidad,
-        ct.ciudad_residencia,
-        ct.direccion_completa,
-        ct.email,
-        ct.genero,
-        ct.orientacion_sexual,
-        ct.pagina_web,
-        ct.link_instagram,
-        ct.link_facebook,
-        ct.link_linkedin,
-        ct.link_twitter,
-        ct.link_tiktok,
-        ct.link_youtube,
-        ct.nivel_ingresos,
-        ct.ocupacion,
-        ct.nivel_educativo,
-        ct.estado_civil,
-        ct.cantidad_hijos,
-        ct.estilo_de_vida,
-        ct.personalidad,
-        ct.cultura,
-        ct.preferencias_contacto,
-        ct.historial_compras,
-        ct.historial_interacciones,
-        ct.observaciones_agente,
-        ct.fecha_creacion_cliente,
-        u.nombre as responsable_nombre,
-        u.apellido as responsable_apellido,
-        last_message_info.last_message,
-        last_message_info.last_message_time,
-        last_message_info.message_type,
-        last_message_info.duration
-      FROM 
-        conversations c
-      LEFT JOIN users u ON c.id_usuario = u.id_usuario
-      LEFT JOIN contacts ct ON c.contact_id = ct.id
-      LEFT JOIN LATERAL (
+      // Función para obtener el nombre del rol
+      const getUserRole = async (roleId) => {
+        const { rows } = await pool.query('SELECT name FROM role WHERE id = $1', [roleId]);
+        return rows.length > 0 ? rows[0].name : null;
+      };
+
+      const privileges = await getUserRole(userRole);
+      console.log("Este es el privilegio:", privileges);
+
+      let query = `
         SELECT
-          sub.last_message,
-          sub.last_message_time,
-          sub.message_type,
-          sub.duration
-        FROM (
+          c.conversation_id,
+          c.contact_id,
+          c.phone_number,
+          c.state,
+          c.last_update,
+          c.unread_messages,
+          c.id_usuario,
+          c.integration_id,
+          c.contact_user_id,
+          ct.*,
+          u.nombre as responsable_nombre,
+          u.apellido as responsable_apellido,
+          last_message_info.last_message,
+          last_message_info.last_message_time,
+          last_message_info.message_type,
+          last_message_info.duration
+        FROM conversations c
+        LEFT JOIN users u ON c.id_usuario = u.id_usuario
+        LEFT JOIN contacts ct ON c.contact_id = ct.id
+        LEFT JOIN LATERAL (
           SELECT
-            message_text AS last_message,
-            received_at AS last_message_time,
-            message_type,
-            duration
-          FROM messages
-          WHERE conversation_fk = c.conversation_id
-          UNION
-          SELECT
-            reply_text AS last_message,
-            created_at AS last_message_time,
-            reply_type AS message_type,
-            duration
-          FROM replies
-          WHERE conversation_fk = c.conversation_id
-        ) sub
-        ORDER BY sub.last_message_time DESC
-        LIMIT 1
-      ) last_message_info ON true
-    `;
-  if (privileges === "SUPERADMIN") {
-    const { rows } = await pool.query(query);
-    res.json(rows);
-  }else if (privileges === "ADMIN") {
-      query += ` WHERE u.company_id = $1`;
-      const { rows } = await pool.query(query, [companyId]);
-      res.json(rows);
-    } else {
-      // Aquí verificamos si el `integration_id` de la conversación coincide con el de una integración de tipo 'Interno'
+            sub.last_message,
+            sub.last_message_time,
+            sub.message_type,
+            sub.duration
+          FROM (
+            SELECT
+              message_text AS last_message,
+              received_at AS last_message_time,
+              message_type,
+              duration
+            FROM messages
+            WHERE conversation_fk = c.conversation_id
+            UNION
+            SELECT
+              reply_text AS last_message,
+              created_at AS last_message_time,
+              reply_type AS message_type,
+              duration
+            FROM replies
+            WHERE conversation_fk = c.conversation_id
+          ) sub
+          ORDER BY sub.last_message_time DESC
+          LIMIT 1
+        ) last_message_info ON true
+      `;
+
+      // Aplicar filtro por integración para TODOS los roles
       query += `
         WHERE (
-          c.integration_id = (
-            SELECT i.id
-            FROM integrations i
-            WHERE i.type = 'Interno'
-            LIMIT 1
-          ) AND c.contact_user_id = $1
+          (c.integration_id = $1 AND (c.id_usuario = $2 OR c.contact_user_id = $2))
         ) OR (
-          c.integration_id != (
-            SELECT i.id
-            FROM integrations i
-            WHERE i.type = 'Interno'
-            LIMIT 1
-          ) AND c.id_usuario = $1
+          (c.integration_id != $1)
         )
       `;
-  
-      const { rows } = await pool.query(query, [userId]);
+
+      const queryParams = [integrationId, userId];
+
+      // Filtrar por compañía si es ADMIN
+      if (privileges === "ADMIN") {
+        query += ` AND u.company_id = $3`;
+        queryParams.push(companyId);
+      }
+
+      const { rows } = await pool.query(query, queryParams);
       res.json(rows);
+
+    } catch (error) {
+      console.error('Error fetching conversations:', error);
+      res.status(500).send('Internal Server Error');
     }
-  } catch (error) {
-    console.error('Error fetching conversations:', error);
-    res.status(500).send('Internal Server Error');
   }
-  
-});
+);
+;
 
 router.get('/privileges-role/:roleId', async (req, res) => {
   const { roleId } = req.params;

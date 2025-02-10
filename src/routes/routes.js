@@ -1518,7 +1518,14 @@ router.post('/create-contact',
 // Configuración de Multer para la carga de archivos CSV
 const storageCSV = multer.diskStorage({
   destination: function (req, file, cb) {
-    cb(null, path.join(__dirname, '..', '..', 'upload', 'contacts'));
+    const uploadPath = path.join(__dirname, '..', '..', 'upload', 'contacts');
+
+    // Verificar si el directorio existe, si no, crearlo
+    if (!fs.existsSync(uploadPath)) {
+      fs.mkdirSync(uploadPath, { recursive: true });
+    }
+
+    cb(null, uploadPath);
   },
   filename: function (req, file, cb) {
     cb(null, Date.now() + '-' + file.originalname);
@@ -1531,11 +1538,25 @@ const upload = multer({ storage: storageCSV });
 router.post('/contacts/upload-csv',
   authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_WRITE', 'CONFIG']),
   upload.single('csv'), async (req, res) => {
+
+  // Verifica si se recibió un archivo
   if (!req.file) {
-    return res.status(400).send('No file uploaded');
+    return res.status(400).json({ error: 'No file uploaded' });
+  }
+
+  // Verifica si el archivo realmente existe
+  if (!fs.existsSync(req.file.path)) {
+    return res.status(404).json({ error: 'Uploaded file not found' });
   }
 
   const contacts = [];
+  const uploadDir = path.dirname(req.file.path); // Directorio de la subida
+
+  // Asegurar que la carpeta de upload existe
+  if (!fs.existsSync(uploadDir)) {
+    fs.mkdirSync(uploadDir, { recursive: true });
+  }
+
   fs.createReadStream(req.file.path)
     .pipe(csv())
     .on('data', (row) => {
@@ -1551,16 +1572,42 @@ router.post('/contacts/upload-csv',
     })
     .on('end', async () => {
       try {
-        const query = 'INSERT INTO contacts (phone_number, first_name, last_name, organization, label, email, company_id) VALUES ($1, $2, $3, $4, $5, $6, $7)';
-        for (const contact of contacts) {
-          await pool.query(query, [contact.phone_number, contact.first_name, contact.last_name, contact.organization, contact.label, contact.email, contact.company_id]);
+        if (contacts.length === 0) {
+          return res.status(400).json({ error: 'CSV file is empty or has invalid format' });
         }
-        fs.unlinkSync(req.file.path); // Eliminar el archivo CSV después de procesarlo
-        res.status(200).send('CSV file processed successfully');
+
+        const query = `
+          INSERT INTO contacts (phone_number, first_name, last_name, organization, label, email, company_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`;
+        
+        const insertedContacts = [];
+        for (const contact of contacts) {
+          const { rows } = await pool.query(query, [
+            contact.phone_number,
+            contact.first_name,
+            contact.last_name,
+            contact.organization,
+            contact.label,
+            contact.email,
+            contact.company_id
+          ]);
+          insertedContacts.push(rows[0]);
+        }
+
+        // Eliminar el archivo CSV solo si existe
+        if (fs.existsSync(req.file.path)) {
+          fs.unlinkSync(req.file.path);
+        }
+
+        res.status(200).json({ message: 'CSV file processed successfully', contacts: insertedContacts });
       } catch (error) {
         console.error('Error processing CSV file:', error);
-        res.status(500).send('Internal Server Error');
+        res.status(500).json({ error: 'Internal Server Error' });
       }
+    })
+    .on('error', (err) => {
+      console.error('Error reading CSV file:', err);
+      res.status(500).json({ error: 'Error reading CSV file' });
     });
 });
 

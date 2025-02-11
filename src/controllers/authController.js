@@ -582,9 +582,12 @@ export const registerBot = [
     const salt = await bcrypt.genSalt(10);
     const contraseñaHash = await bcrypt.hash(contraseña, salt);
 
+    console.log("datos", {
+     tipo: typeUserResult.rows[0]
+    })
     // Registrar el bot como usuario en la tabla `users`
     const userResult = await pool.query(
-      'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, role_id, contraseña, company_id, department_id, type_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING id_usuario;',
+      'INSERT INTO users (id_usuario, nombre, apellido, telefono, email, link_foto, role_id, contraseña, company_id, department_id, type_user_id) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11) RETURNING *;',
       [id_usuario, nombre, apellido, telefono, email, link_foto, roleResult?.rows[0]?.id, contraseñaHash, company_id, department_id, typeUserResult?.rows[0]?.id]
     );
     const botUserId = userResult.rows[0].id_usuario;
@@ -626,7 +629,7 @@ export const registerBot = [
       [tipoBot, botUserId, botCode]
     );
 
-    res.status(201).json({ message: "Bot creado exitosamente", nombre });
+    res.status(201).json({ user: userResult.rows[0]});
   } catch (err) {
     console.error(err);
     res.status(500).send('Error al registrar al bot: ' + err.message);

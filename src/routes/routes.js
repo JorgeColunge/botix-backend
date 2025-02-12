@@ -2527,7 +2527,7 @@ router.post('/end-conversation',
 });
 
 router.post('/consumptions', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  // authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
   console.log("Calculando costos");
   const { api_name, model, unit_type, unit_count, query_details, company_id, user_id, conversationId } = req.body;

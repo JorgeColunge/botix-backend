@@ -252,7 +252,7 @@ router.get('/conversations',
         )
       `;
 
-      console.log("datos imporntaes", integrationId, userId)
+      console.log("datos imporntaes", integrationId, userId, companyId)
       const queryParams = [integrationId, userId];
 
       // Filtrar por compañía si es ADMIN

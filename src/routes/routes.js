@@ -373,7 +373,7 @@ router.get('/messages/:id',
         console.log('Raw reply_button:', row?.reply_button);
     
         // Verifica si el valor de reply_button es un JSON válido
-        parsedReplyButton = (typeof row?.reply_button === 'string' && row.reply_button.startsWith('{')) ? JSON.parse(row.reply_button) : row.reply_button;
+        parsedReplyButton = (typeof row?.reply_button === 'string' && row.reply_button.startsWith('[')) ? JSON.parse(row.reply_button) : row.reply_button;
       } catch (e) {
         console.error('Error parsing reply_button:', e);
         console.error('Problematic reply_button value:', row?.reply_button);

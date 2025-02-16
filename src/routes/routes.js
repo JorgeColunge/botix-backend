@@ -184,15 +184,7 @@ router.get('/conversations',
       }
 
       const integrationId = integration.id;
-
-      // Función para obtener el nombre del rol
-      const getUserRole = async (roleId) => {
-        const { rows } = await pool.query('SELECT name FROM role WHERE id = $1', [roleId]);
-        return rows.length > 0 ? rows[0].name : null;
-      };
-
-      const privileges = await getUserRole(userRole);
-      console.log("Este es el privilegio:", privileges);
+      const privileges = userRole; // El rol ya se pasa en `req.query.rol`
 
       let query = `
         SELECT
@@ -241,29 +233,32 @@ router.get('/conversations',
           ORDER BY sub.last_message_time DESC
           LIMIT 1
         ) last_message_info ON true
+        WHERE 1=1
       `;
 
-      // Aplicar filtro por integración para TODOS los roles
-      query += `
-        WHERE (
-          (c.integration_id = $1 AND (c.id_usuario = $2 OR c.contact_user_id = $2))
-        ) OR (
-          (c.integration_id != $1)
-        )
-      `;
+      const queryParams = [];
+      console.log("datos", integrationId, userId, companyId, privileges)
+      // Filtrar por integración para TODOS los roles
+      query += ` AND (
+        (c.integration_id = $1 AND (c.id_usuario = $2 OR c.contact_user_id = $2))
+        OR (c.integration_id != $1)
+      )`;
+      queryParams.push(integrationId, userId);
 
-      console.log("datos imporntaes", integrationId, userId, companyId)
-      const queryParams = [integrationId, userId];
-
-      // Filtrar por compañía si es ADMIN
+      // Si es ADMIN, filtrar por company_id
       if (privileges === "ADMIN") {
         query += ` AND u.company_id = $3`;
         queryParams.push(companyId);
       }
-     if (privileges === "REGULAR") {
-      query += ` AND c.id_usuario = $3`;
-      queryParams.push(userId);
-    }
+
+      // Si es REGULAR, filtrar por company_id y id_usuario
+      if (privileges === "REGULAR") {
+        query += ` AND u.company_id = $3 AND c.id_usuario = $4`;
+        queryParams.push(companyId, userId);
+      }
+
+      console.log("Consulta SQL:", query, "Parámetros:", queryParams);
+
       const { rows } = await pool.query(query, queryParams);
       res.json(rows);
 
@@ -273,7 +268,7 @@ router.get('/conversations',
     }
   }
 );
-;
+
 
 router.get('/privileges-role/:roleId', async (req, res) => {
   const { roleId } = req.params;

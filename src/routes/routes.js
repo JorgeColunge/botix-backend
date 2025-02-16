@@ -252,6 +252,7 @@ router.get('/conversations',
         )
       `;
 
+      console.log("datos imporntaes", integrationId, userId)
       const queryParams = [integrationId, userId];
 
       // Filtrar por compañía si es ADMIN
@@ -259,7 +260,10 @@ router.get('/conversations',
         query += ` AND u.company_id = $3`;
         queryParams.push(companyId);
       }
-
+     if (privileges === "REGULAR") {
+      query += ` AND c.id_usuario = $3`;
+      queryParams.push(userId);
+    }
       const { rows } = await pool.query(query, queryParams);
       res.json(rows);
 

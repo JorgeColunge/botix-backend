@@ -20,7 +20,7 @@ const defineCompanies = (sequelize) => {
         type: DataTypes.STRING(50),
         allowNull: false,
       },
-      andress: {
+      address: {
         type: DataTypes.STRING(255),
       },
       city: {

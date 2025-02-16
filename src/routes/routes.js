@@ -1276,19 +1276,19 @@ router.put('/company/:id',
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
   const { id } = req.params;
-  const { name, document_type, document_number, address, city, country, postal_code, email, phone, logo, web, instagram, facebook, twiter, tiktok, youtube } = req.body;
+  const { name, document_type, document_number, address, city, country, postal_code, email, phone, logo, web, instagram, facebook, twitter, tictok, youtube } = req.body;
 
   try {
     const updateQuery = `
       UPDATE companies
       SET name = $1, document_type = $2, document_number = $3, address = $4, city = $5, country = $6,
           postal_code = $7, email = $8, phone = $9, web = $10, instagram = $11, facebook = $12,
-          twiter = $13, tiktok =$14, youtube = $15, logo = $16
+          twitter = $13, tictok =$14, youtube = $15, logo = $16
       WHERE id = $17
       RETURNING *;
     `;
 
-    const result = await pool.query(updateQuery, [name, document_type, document_number, address, city, country, postal_code, email, phone, web, instagram, facebook, twiter, tiktok, youtube, logo, id]);
+    const result = await pool.query(updateQuery, [name, document_type, document_number, address, city, country, postal_code, email, phone, web, instagram, facebook, twitter || null, tictok, youtube, logo, id]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error updating company data:', error);
@@ -2527,7 +2527,7 @@ router.post('/end-conversation',
 });
 
 router.post('/consumptions', 
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  // authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
   async (req, res) => {
   console.log("Calculando costos");
   const { api_name, model, unit_type, unit_count, query_details, company_id, user_id, conversationId } = req.body;

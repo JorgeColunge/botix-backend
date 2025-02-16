@@ -183,8 +183,14 @@ router.get('/conversations',
         return res.status(400).json({ error: "No se encontró la integración de tipo 'Interno'" });
       }
 
+      const getUserRole = async (roleId) => {
+        const { rows } = await pool.query('SELECT name FROM role WHERE id = $1', [roleId]);
+        return rows.length > 0 ? rows[0].name : null;
+      };
+
+
       const integrationId = integration.id;
-      const privileges = userRole; // El rol ya se pasa en `req.query.rol`
+      const privileges = getUserRole(userRole); // El rol ya se pasa en `req.query.rol`
 
       let query = `
         SELECT

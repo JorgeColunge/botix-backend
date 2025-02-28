@@ -335,7 +335,7 @@ app.post('/webhook', async (req, res) => {
           switch (firstMessage.type) {
             case 'text':
               if (firstMessage.text) {
-                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req, null);
+                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req, res);
               }
               break;
             case 'reaction':

@@ -1829,6 +1829,7 @@ app.post('/bot',
       process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
     );
 
+    console.log("ejecutando el bot++++++++++")
     // Ejecutar el código del bot
     const context = {
       newToken,

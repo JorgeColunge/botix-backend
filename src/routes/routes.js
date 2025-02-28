@@ -2285,7 +2285,7 @@ router.post('/launch-campaign/:campaignId',
 router.post('/send-template', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONTACT_WRITE', 'READ_USERS_CONTACTS', 'READ_INFO_AUDIT', 'CONFIG']),
   async (req, res) => {
-  sendTemplateToSingleContact(io, req, res);
+  sendTemplateToSingleContact(io, null, req, res);
 });
 
 const getDateValue = (type) => {

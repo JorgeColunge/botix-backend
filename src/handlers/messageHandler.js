@@ -468,7 +468,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
                 sendDocumentMessage,
                 sendAudioMessage,
                 sendTemplateMessage,
-                sendTemplateToSingleContact: (io, req, res) => sendTemplateToSingleContact(io, newToken, req, res),,
+                sendTemplateToSingleContact: (io, req, res) => sendTemplateToSingleContact(io, newToken, req, res),
                 sendLocationMessage,
                 io,
                 senderId,

@@ -3267,7 +3267,6 @@ const storeMessageCampaign = async (contact, conversation, parameters, unreadMes
 export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
   const { conversation, template, parameters, company_id } = req.body;
 
-
   const token = TokenBot ?? req.headers['x-token'];
 
   const decoded = jwt.verify(token, process.env.JWT_SECRET);

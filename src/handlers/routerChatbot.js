@@ -251,7 +251,7 @@ async function processConversationRouter(io, senderId, message, conversationId, 
       await assignResponsibleUser(io, conversationId, newResponsibleUserId);
 
       const messageData = { text: messageText, type: 'text' };
-      await processMessage(io, senderId, messageData, "no", integrationDetails);
+      await processMessage(io, senderId, messageData, "no", integrationDetails, null);
 
       break;
 

@@ -250,7 +250,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
   }
 };
 
-async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
+async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req, res) {
   console.log('Procesando mensaje del remitente:', senderId);
   console.log('Datos del mensaje:', messageData);
 

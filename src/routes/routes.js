@@ -37,7 +37,7 @@ router.post('/new-message',
   async (req, res) => {
   const { senderId, messageData } = req.body;
   try {
-    await processMessage(io, senderId, messageData);
+    await processMessage(io, senderId, messageData, null);
     io.emit('new-message', { senderId, messageData }); // El servidor emite el evento
     console.log('Emitido yeees')
     res.status(200).send('Mensaje recibido y emitido');

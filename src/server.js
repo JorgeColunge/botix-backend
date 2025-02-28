@@ -335,11 +335,11 @@ app.post('/webhook', async (req, res) => {
           switch (firstMessage.type) {
             case 'text':
               if (firstMessage.text) {
-                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req);
+                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req, null);
               }
               break;
             case 'reaction':
-              await processMessage(io, senderId, { id: messageId, type: 'reaction', reaction: firstMessage.reaction, context, senderId: firstMessage.from }, "si", integrationDetails, req);
+              await processMessage(io, senderId, { id: messageId, type: 'reaction', reaction: firstMessage.reaction, context, senderId: firstMessage.from }, "si", integrationDetails, req, null);
                break;    
             case 'location':
               if (firstMessage.location) {
@@ -349,28 +349,28 @@ app.post('/webhook', async (req, res) => {
                   latitude: firstMessage.location.latitude,
                   longitude: firstMessage.location.longitude,
                   context
-                }, null, integrationDetails,req);
+                }, null, integrationDetails,req, null);
               }
               break;
             case 'image':
-              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails, req);
+              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails, req, null);
               break;
             case 'audio':
-              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails, req);
+              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails, req, null);
               break;
             case 'video':
               await processMessage(io, senderId, { id: messageId, type: 'video', video: firstMessage.video, context }, "no", integrationDetails, req);
               break;
             case 'document':
               const file_name = firstMessage.document.filename;
-              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails, req);
+              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails, req, null);
               break;
             case 'sticker':
               await processMessage(io, senderId, { id: messageId, type: 'sticker', sticker: firstMessage.sticker, context }, "no", integrationDetails, req);
               break;
             case 'button':
               if (firstMessage.button) {
-                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails, req);
+                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails, req, null);
               }
               break;
             default:

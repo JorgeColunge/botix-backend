@@ -371,6 +371,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
       ? adminIds 
       : [responsibleUserId, ...adminIds];
 
+      console.log("usuario resp", recipients)
       recipients.forEach(userId => {
         io.to(`user-${userId}`).emit('newMessage', {
           id: newMessage.id,

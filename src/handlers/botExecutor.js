@@ -1,5 +1,6 @@
 export async function executeBotCode(botCode, context) {
     const {
+      newToken,
       sendTextMessage,
       sendImageMessage,
       sendVideoMessage,
@@ -31,6 +32,7 @@ export async function executeBotCode(botCode, context) {
   
     try {
       const botFunction = new Function(
+        'x-token',
         'sendTextMessage',
         'sendImageMessage',
         'sendVideoMessage',
@@ -62,6 +64,7 @@ export async function executeBotCode(botCode, context) {
       );
   
       await botFunction(
+        newToken,
         sendTextMessage,
         sendImageMessage,
         sendVideoMessage,

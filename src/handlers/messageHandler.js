@@ -11,6 +11,7 @@ import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessag
 import { GoogleAuth } from 'google-auth-library';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
+import jwt from 'jsonwebtoken';
 
 const httpsAgent = new https.Agent({
   rejectUnauthorized: false,

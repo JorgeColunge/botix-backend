@@ -686,7 +686,7 @@ async function executeBotCode(botCode, context) {
 
   try {
     const botFunction = new Function(
-      'x-token'
+      'x-token',
       'sendTextMessage',
       'sendImageMessage',
       'sendVideoMessage',

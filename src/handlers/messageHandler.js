@@ -453,6 +453,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
             if (botResult.rows.length > 0) {
               const botCode = botResult.rows[0].codigo;
 
+              console.log("contexto 1")
               // Ejecutar el código del bot (esto depende de cómo esté estructurado el código de los bots)
               await executeBotCode(botCode, {
                 sendTextMessage,

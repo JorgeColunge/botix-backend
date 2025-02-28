@@ -436,10 +436,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
      }
 
       // Obtener el rol del usuario responsable y procesar según su tipo
-      const roleQuery = 'SELECT type_user_id FROM users WHERE id_usuario = $1';
-      const roleResult = await pool.query(roleQuery, [responsibleUserId]);
-      if (roleResult.rows.length > 0) {
-        const userRole = roleResult.rows[0].type_user_id;
+      const roleQuery = 'SELECT * FROM users WHERE id_usuario = $1';
+      const bot = await pool.query(roleQuery, [responsibleUserId]);
+      if (bot.rows.length > 0) {
+        const userRole = bot.rows[0].type_user_id;
 
         const typeQuery = 'SELECT name FROM "Type_user" WHERE id = $1';
         const typeResult = await pool.query(typeQuery, [userRole]);
@@ -453,16 +453,22 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
             if (botResult.rows.length > 0) {
               const botCode = botResult.rows[0].codigo;
 
+              const newToken = jwt.sign(
+                { id_usuario: bot.id_usuario, email: bot.email, rol: roleType, privileges:[] },
+                process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
+              );
+
               console.log("contexto 1")
               // Ejecutar el código del bot (esto depende de cómo esté estructurado el código de los bots)
               await executeBotCode(botCode, {
+                newToken,
                 sendTextMessage,
                 sendImageMessage,
                 sendVideoMessage,
                 sendDocumentMessage,
                 sendAudioMessage,
                 sendTemplateMessage,
-                sendTemplateToSingleContact,
+                sendTemplateToSingleContact: (io, req, res) => sendTemplateToSingleContact(io, newToken, req, res),,
                 sendLocationMessage,
                 io,
                 senderId,
@@ -648,6 +654,7 @@ async function getOrCreateConversation(contactId, phoneNumber, integrationId, co
 
 async function executeBotCode(botCode, context) {
   const {
+    newToken,
     sendTextMessage,
     sendImageMessage,
     sendVideoMessage,
@@ -679,6 +686,7 @@ async function executeBotCode(botCode, context) {
 
   try {
     const botFunction = new Function(
+      'x-token'
       'sendTextMessage',
       'sendImageMessage',
       'sendVideoMessage',
@@ -710,6 +718,7 @@ async function executeBotCode(botCode, context) {
     );
 
     await botFunction(
+      newToken,
       sendTextMessage,
       sendImageMessage,
       sendVideoMessage,

@@ -36,66 +36,66 @@ dotenv.config();
 const app = express();
 const PORT = process.env.PORT || 3001;
 
-const privateKeyPath = '/home/ec2-user/certificates/privkey.pem';
-const certificatePath = '/home/ec2-user/certificates/fullchain.pem';
-const caPath = '/home/ec2-user/certificates/chain.pem';
+// const privateKeyPath = '/home/ec2-user/certificates/privkey.pem';
+// const certificatePath = '/home/ec2-user/certificates/fullchain.pem';
+// const caPath = '/home/ec2-user/certificates/chain.pem';
 
-// Leer los archivos de certificados SSL
-const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
-const certificate = fs.readFileSync(certificatePath, 'utf8');
-const ca = fs.readFileSync(caPath, 'utf8');
+// // Leer los archivos de certificados SSL
+// const privateKey = fs.readFileSync(privateKeyPath, 'utf8');
+// const certificate = fs.readFileSync(certificatePath, 'utf8');
+// const ca = fs.readFileSync(caPath, 'utf8');
 
-const credentials = { key: privateKey, cert: certificate, ca: ca };
+// const credentials = { key: privateKey, cert: certificate, ca: ca };
 
-console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
-console.log('BACKEND_URL:', process.env.BACKEND_URL);
+// console.log('FRONTEND_URL:', process.env.FRONTEND_URL);
+// console.log('BACKEND_URL:', process.env.BACKEND_URL);
 
 
-// Configuración de CORS y otros middleware
-app.use(cors({
-  origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
-  methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  credentials: true
-}));
-app.use(express.json({ limit: '500mb' }));
-app.use(bodyParser.json({ limit: '500mb' }));
-app.use((req, res, next) => {
-  console.log(`Received ${req.method} request to ${req.path}`);
-  next();
-});
+// // Configuración de CORS y otros middleware
+// app.use(cors({
+//   origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
+//   methods: ['GET', 'POST', 'PUT', 'DELETE'],
+//   credentials: true
+// }));
+// app.use(express.json({ limit: '500mb' }));
+// app.use(bodyParser.json({ limit: '500mb' }));
+// app.use((req, res, next) => {
+//   console.log(`Received ${req.method} request to ${req.path}`);
+//   next();
+// });
 
-// Configuración del servidor HTTP y Socket.IO
-const httpsServer = createHttpsServer(credentials, app);
-const io = new SocketIOServer(httpsServer, {
-  cors: {
-    origin: [process.env.FRONTEND_URL, 'https://localhost'],
-    methods: ['GET', 'POST'],
+// // Configuración del servidor HTTP y Socket.IO
+// const httpsServer = createHttpsServer(credentials, app);
+// const io = new SocketIOServer(httpsServer, {
+//   cors: {
+//     origin: [process.env.FRONTEND_URL, 'https://localhost'],
+//     methods: ['GET', 'POST'],
+//     credentials: true
+//   }
+// });
+
+  app.use(cors({
+    origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
+    methods: ['GET', 'POST', 'PUT', 'DELETE'],
     credentials: true
-  }
-});
+  }));
+  app.use(express.json({ limit: '1gb' })); // Aumenta el límite si es necesario
+  app.use(bodyParser.json({ limit: '1gb' }));
+  app.options('*', cors()); // Habilita CORS para todas las rutas  
+  app.use((req, res, next) => {
+    console.log(`Received ${req.method} request to ${req.path}`);
+    next();
+  });
 
-  // app.use(cors({
-  //   origin: [process.env.FRONTEND_URL, 'https://localhost'], // Ajusta según sea necesario para tu ambiente de producción
-  //   methods: ['GET', 'POST', 'PUT', 'DELETE'],
-  //   credentials: true
-  // }));
-  // app.use(express.json({ limit: '1gb' })); // Aumenta el límite si es necesario
-  // app.use(bodyParser.json({ limit: '1gb' }));
-  // app.options('*', cors()); // Habilita CORS para todas las rutas  
-  // app.use((req, res, next) => {
-  //   console.log(`Received ${req.method} request to ${req.path}`);
-  //   next();
-  // });
-
-  // // Configuración del servidor HTTP y Socket.IO
-  // const server = createServer(app);
-  // const io = new SocketIOServer(server, {
-  //   cors: {
-  //     origin: [process.env.FRONTEND_URL, 'https://localhost'], // Asegúrate de que coincide con el puerto y host del cliente
-  //     methods: ['GET', 'POST'],
-  //     credentials: true
-  //   }
-  // });
+  // Configuración del servidor HTTP y Socket.IO
+  const server = createServer(app);
+  const io = new SocketIOServer(server, {
+    cors: {
+      origin: [process.env.FRONTEND_URL, 'https://localhost'], // Asegúrate de que coincide con el puerto y host del cliente
+      methods: ['GET', 'POST'],
+      credentials: true
+    }
+  });
 
 io.on('connection', (socket) => {
   console.log('Un cliente se ha conectado, ID del socket:', socket.id);
@@ -335,11 +335,11 @@ app.post('/webhook', async (req, res) => {
           switch (firstMessage.type) {
             case 'text':
               if (firstMessage.text) {
-                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req, res);
+                await processMessage(io, senderId, { id: messageId, type: 'text', text: firstMessage.text.body, context }, "no", integrationDetails, req);
               }
               break;
             case 'reaction':
-              await processMessage(io, senderId, { id: messageId, type: 'reaction', reaction: firstMessage.reaction, context, senderId: firstMessage.from }, "si", integrationDetails, req, null);
+              await processMessage(io, senderId, { id: messageId, type: 'reaction', reaction: firstMessage.reaction, context, senderId: firstMessage.from }, "si", integrationDetails, req);
                break;    
             case 'location':
               if (firstMessage.location) {
@@ -353,24 +353,24 @@ app.post('/webhook', async (req, res) => {
               }
               break;
             case 'image':
-              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails, req, null);
+              await processMessage(io, senderId, { id: messageId, type: 'image', image: firstMessage.image, context }, "no", integrationDetails, req);
               break;
             case 'audio':
-              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails, req, null);
+              await processMessage(io, senderId, { id: messageId, type: 'audio', audio: firstMessage.audio, context }, "no", integrationDetails, req);
               break;
             case 'video':
               await processMessage(io, senderId, { id: messageId, type: 'video', video: firstMessage.video, context }, "no", integrationDetails, req);
               break;
             case 'document':
               const file_name = firstMessage.document.filename;
-              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails, req, null);
+              await processMessage(io, senderId, { id: messageId, type: 'document', document: firstMessage.document, file_name, context }, "no", integrationDetails, req);
               break;
             case 'sticker':
               await processMessage(io, senderId, { id: messageId, type: 'sticker', sticker: firstMessage.sticker, context }, "no", integrationDetails, req);
               break;
             case 'button':
               if (firstMessage.button) {
-                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails, req, null);
+                await processMessage(io, senderId, { id: messageId, type: 'button', text: firstMessage.button.text, context }, "no", integrationDetails, req);
               }
               break;
             default:
@@ -1872,28 +1872,28 @@ app.post('/bot',
 });
 
 //Iniciar el servidor HTTP y WebSocket
-// db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
-//   .then(() => {
-//     console.log('Modelos sincronizados correctamente.');
-//    // Iniciar el servidor solo después de que la base de datos esté lista
-//     server.listen(PORT, () => {
-//       console.log(`Servidor escuchando en el puerto ${PORT}`);
-//     });
-//   })
-//   .catch((error) => {
-//     console.error('Error al sincronizar los modelos:', error);
-//   });
-
-  db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
+db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
   .then(() => {
     console.log('Modelos sincronizados correctamente.');
-  // Iniciar el servidor solo después de que la base de datos esté lista
-    httpsServer.listen(PORT, () => {
+   // Iniciar el servidor solo después de que la base de datos esté lista
+    server.listen(PORT, () => {
       console.log(`Servidor escuchando en el puerto ${PORT}`);
     });
   })
   .catch((error) => {
     console.error('Error al sincronizar los modelos:', error);
-  })
+  });
+
+  // db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos
+  // .then(() => {
+  //   console.log('Modelos sincronizados correctamente.');
+  // // Iniciar el servidor solo después de que la base de datos esté lista
+  //   httpsServer.listen(PORT, () => {
+  //     console.log(`Servidor escuchando en el puerto ${PORT}`);
+  //   });
+  // })
+  // .catch((error) => {
+  //   console.error('Error al sincronizar los modelos:', error);
+  // })
 // Asegúrate de exportar `io` si lo necesitas en otros módulos
 export { io };

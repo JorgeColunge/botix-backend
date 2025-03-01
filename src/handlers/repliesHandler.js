@@ -3317,7 +3317,44 @@ if (!company_id) {
 // Obtener la integración de WhatsApp para la compañía
 const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(company_id);
 const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
+  const parametersReal = {
+    header: [],
+    body: [],
+    button: []
+  };
 
+  if (template.headerVariables) {
+    for (const variableObj of template.headerVariables) {
+      for (const key in variableObj) {
+        parametersReal.header.push(variableObj[key]);
+      }
+    }
+  }
+  
+  // Recorrer bodyVariables y extraer el valor
+  if (template.bodyVariables) {
+    for (const variableObj of template.bodyVariables) {
+      for (const key in variableObj) {
+        parametersReal.body.push(variableObj[key]);
+      }
+    }
+  }
+  
+  // Recorrer buttonVariables y extraer el valor
+  if (template.buttonVariables) {
+    for (const variableObj of template.buttonVariables) {
+      for (const key in variableObj) {
+        parametersReal.button.push(variableObj[key]);
+      }
+    }
+  }
+
+  console.log("parametros", parametersReal)
+  console.log("platnilla", template)
+  // Verificar que los campos necesarios de la plantilla están presentes
+  if (!template.nombre || !template.language) {
+    throw new Error('Template is missing required fields');
+  }
 if (conversation.conversation_id) {  
   try {
     const phoneNumber = conversation.phone_number;
@@ -3327,7 +3364,7 @@ if (conversation.conversation_id) {
     if (template.header_type === 'TEXT') {
       response = await sendWhatsAppMessageCampaing(  conversation.phone_number,
         template, // Enviar el template completo
-        parameters,
+        parametersReal,
         whatsapp_api_token,
         whatsapp_phone_number_id);
     } else if (template.header_type === 'IMAGE') {

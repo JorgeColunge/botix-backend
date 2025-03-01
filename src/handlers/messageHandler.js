@@ -250,7 +250,7 @@ const sendNotificationToFCM = async (typeMessage, phone, messageText, id_usuario
   }
 };
 
-async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req, res) {
+async function processMessage(io, senderId, messageData, oldMessage, integrationDetails, req) {
   console.log('Procesando mensaje del remitente:', senderId);
   console.log('Datos del mensaje:', messageData);
 
@@ -455,11 +455,10 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
               const botCode = botResult.rows[0].codigo;
 
               const newToken = jwt.sign(
-                { id_usuario: bot.id_usuario, email: bot.email, rol: roleType, privileges:[] },
+                { id_usuario: bot.rows[0].id_usuario, email: bot.rows[0].email, rol: roleType, privileges:[] },
                 process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
               );
-
-              console.log("contexto 1", JSON.stringify(botCode, null, 2));
+              console.log("boot", botCode)
               // Ejecutar el código del bot (esto depende de cómo esté estructurado el código de los bots)
               await executeBotCode(botCode, {
                 newToken,
@@ -652,8 +651,8 @@ async function getOrCreateConversation(contactId, phoneNumber, integrationId, co
     throw err;
   }
 }
-
 async function executeBotCode(botCode, context) {
+ 
   const {
     newToken,
     sendTextMessage,
@@ -687,7 +686,7 @@ async function executeBotCode(botCode, context) {
 
   try {
     const botFunction = new Function(
-      'x-token',
+      'xToken',
       'sendTextMessage',
       'sendImageMessage',
       'sendVideoMessage',

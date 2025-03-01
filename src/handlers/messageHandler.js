@@ -458,7 +458,6 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
                 { id_usuario: bot.rows[0].id_usuario, email: bot.rows[0].email, rol: roleType, privileges:[] },
                 process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
               );
-              console.log("boot", botCode)
               // Ejecutar el código del bot (esto depende de cómo esté estructurado el código de los bots)
               await executeBotCode(botCode, {
                 newToken,

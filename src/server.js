@@ -599,7 +599,10 @@ app.post('/create-template',
 
   // Mostrar la estructura que se enviaría a la API
   console.log('Template data to send to API:', JSON.stringify(templateData, null, 2));
- console.log("valor de isMedia:", isMediaTemplate)
+    const newToken = jwt.sign(
+      { id_usuario: user.id_usuario, email: user.email, rol: decoded.rol, privileges: decoded.privileges },
+      process.env.JWT_SECRET,
+    );
   if (isMediaTemplate) {
     try {
       let imageUrl = null;
@@ -610,10 +613,7 @@ app.post('/create-template',
         const fileName = path.basename(headerExample);
         const fileExtension = path?.extname(fileName)?.toLowerCase();
 
-        const newToken = jwt.sign(
-          { id_usuario: user.id_usuario, email: user.email, rol: decoded.rol, privileges: decoded.privileges },
-          process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
-        );
+
 
         const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
         const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
@@ -690,26 +690,38 @@ app.post('/create-template',
   
         // Paso 3: Actualizar la plantilla en Meta
         templateData.components = templateData.components.map((component) => {
-          // Desestructura y elimina 'source' y 'variable' del objeto 'example', si existen
           if (component.type === 'BODY') {
-           const {source, variable, ...rest} = component;
-           return{
-              ...rest
-           }
+            // Extraer y eliminar propiedades innecesarias
+            const { source, variable, ...rest } = component;
+            let example = rest.example;
+
+            // Si existe 'example.body_text' y es un arreglo, verificar si es anidado
+            if (example && Array.isArray(example.body_text)) {
+              // Si el primer elemento es un arreglo, aplanarlo
+              if (example.body_text.length > 0 && Array.isArray(example.body_text[0])) {
+                example = {
+                  ...example,
+                  body_text: example.body_text.flat(), // Asegura que sea un array plano
+                };
+              }
+            }
+            return {
+              ...rest,
+              example,
+            };
           }
-        
-          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+
           if (component.type === 'HEADER' && component.format === 'IMAGE') {
             return {
               ...component,
-              example: { 
+              example: {
                 header_handle: [imageUrl],
               },
             };
           }
           return component;
         });
-        
+
 
         console.log("Plantilla con datos a enviar:",JSON.stringify(templateData, null, 2))
           const response = await axios.post(
@@ -724,6 +736,459 @@ app.post('/create-template',
           );
 
         console.log("Plantilla multimedia actualizada en Meta", response.data);
+        templateId = response.data.id;
+
+        const query = `
+          INSERT INTO templates_wa (id, type, nombre, language, header_type, type_medio, medio, body_text, header_text, footer, buttons, state, company_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        const values = [
+          templateId,
+          category,
+          validName,
+          language,
+          headerType,
+          typeMedio,
+          medio,
+          bodyText,
+          headerText,
+          footer,
+          JSON.stringify(buttons), // Convertir los botones a JSON
+          'PENDING',
+          company_id
+        ];
+          await pool.query(query, values);
+    
+          if (Array.isArray(componentsWithSourceAndVariable)) {
+            // Almacenar variables del cuerpo
+            const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
+            if (bodyComponent) {
+              const bodyVariables = bodyComponent.example?.body_text[0] || [];
+              const bodySources = bodyComponent.source || [];
+              const bodyVariableNames = bodyComponent.variable || [];
+              for (let i = 0; i < bodyVariables.length; i++) {
+                const queryBody = `
+                  INSERT INTO variable_body (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesBody = [
+                  `{{${i + 1}}}`, 
+                  bodyVariables[i], 
+                  templateId, 
+                  bodySources[i], 
+                  bodyVariableNames[i]
+                ];
+                await pool.query(queryBody, valuesBody);
+              }
+            }
+    
+            // Almacenar variables del encabezado
+            const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
+            if (headerComponent) {
+              const headerVariables = headerComponent.example?.header_text || [];
+              const headerSources = headerComponent.source || [];
+              const headerVariableNames = headerComponent.variable || [];
+              for (let i = 0; i < headerVariables.length; i++) {
+                const queryHeader = `
+                  INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesHeader = [
+                  `{{${i + 1}}}`, 
+                  headerVariables[i], 
+                  templateId, 
+                  headerSources[i], 
+                  headerVariableNames[i]
+                ];
+                await pool.query(queryHeader, valuesHeader);
+              }
+            }
+    
+            // Almacenar variables del botón
+            const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
+    
+            if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+              // Iterar sobre todos los botones del componente BUTTONS
+              for (const button of buttonComponent.buttons) {
+                let name, example, source, variable;
+            
+                // Condicionales para cada tipo de botón
+                if (button.type === 'QUICK_REPLY') {
+                  name = button.text;
+                  example = null; // No hay example en QUICK_REPLY
+                  source = null; // No hay source en QUICK_REPLY
+                  variable = button.type ; // No hay variable en QUICK_REPLY
+                } else if (button.type === 'PHONE_NUMBER') {
+                  name = button.text;
+                  example = button.phone_number;
+                  source = null; // No hay source en PHONE_NUMBER
+                  variable = button.type; // No hay variable en PHONE_NUMBER
+                } else if (button.type === 'URL') {
+                  name = button.text;
+                  example = button.url;
+                  source = null; // No hay source en URL
+                  variable = button.type; // No hay variable en URL
+                }
+            
+                // Asegurarse de que 'name' tiene valor antes de intentar guardar
+                if (name) {
+                  const queryButton = `
+                    INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+                    VALUES ($1, $2, $3, $4, $5)
+                  `;
+                  const valuesButton = [
+                    name, 
+                    example,
+                    templateId,
+                    source,
+                    variable
+                  ];
+                  await pool.query(queryButton, valuesButton);
+                }
+              }
+            }        
+          }
+      }
+      if(headerType === 'VIDEO' && headerExample){
+        const fileName = path.basename(headerExample);
+        const fileExtension = path?.extname(fileName)?.toLowerCase();
+    
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/${fileName}?token=${newToken}`;
+  
+        const fileStats = fs.statSync(dd);
+     
+        // Paso 1: Iniciar una sesión de subida
+        let uploadResponse = null;
+        switch (fileExtension) {
+          case '.mp4':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, 
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'video/mp4',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          case '.3gpp':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, 
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'video/3gpp',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`);
+        }
+        
+        headerHandle = uploadResponse.data.id;
+   
+        // Paso 2: Comenzar la subida del archivo
+        const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        if (imageBuffer.length === 0) {
+          throw new Error('El archivo descargado está vacío.');
+        }
+        // Crear FormData y añadir el archivo
+        const formData = new FormData();
+        formData.append('file', imageBuffer, { filename: fileName, contentType: `video/${fileExtension.slice(1)}` });
+  
+        const uploadFileResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${headerHandle}`,
+          imageBuffer,
+          {
+            headers: {
+              'Authorization': `OAuth ${process.env.WHATSAPP_API_TOKEN}`,
+              'file_offset': 0,
+              ...formData.getHeaders(),
+            },
+          }
+        );
+  
+        imageUrl = uploadFileResponse.data.h;
+
+        // Paso 3: Actualizar la plantilla en Meta
+        templateData.components = templateData.components.map((component) => {
+          if (component.type === 'BODY') {
+            // Extraer y eliminar propiedades innecesarias
+            const { source, variable, ...rest } = component;
+            let example = rest.example;
+
+            // Si existe 'example.body_text' y es un arreglo, verificar si es anidado
+            if (example && Array.isArray(example.body_text)) {
+              // Si el primer elemento es un arreglo, aplanarlo
+              if (example.body_text.length > 0 && Array.isArray(example.body_text[0])) {
+                example = {
+                  ...example,
+                  body_text: example.body_text.flat(), // Asegura que sea un array plano
+                };
+              }
+            }
+            return {
+              ...rest,
+              example,
+            };
+          }
+          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+          if (component.type === 'HEADER' && component.format === 'VIDEO') {
+            return {
+              ...component,
+              example: {
+                header_handle: [imageUrl],
+              },
+            };
+          }
+          return component;
+        });
+        
+        console.log("Plantilla con datos a enviar:",JSON.stringify(templateData, null, 2))
+        const response = await axios.post(
+          `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
+          templateData,
+          {
+            headers: {
+              Authorization: `Bearer ${whatsappApiToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        console.log("Plantilla multimedia actualizada en Meta", response.data);
+
+        templateId = response.data.id;
+
+        const query = `
+          INSERT INTO templates_wa (id, type, nombre, language, header_type, type_medio, medio, body_text, header_text, footer, buttons, state, company_id)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+        `;
+        const values = [
+          templateId,
+          category,
+          validName,
+          language,
+          headerType,
+          typeMedio,
+          medio,
+          bodyText,
+          headerText,
+          footer,
+          JSON.stringify(buttons), // Convertir los botones a JSON
+          'PENDING',
+          company_id
+        ];
+          await pool.query(query, values);
+    
+          if (Array.isArray(componentsWithSourceAndVariable)) {
+            // Almacenar variables del cuerpo
+            const bodyComponent = componentsWithSourceAndVariable.find(c => c.type === 'BODY');
+            if (bodyComponent) {
+              const bodyVariables = bodyComponent.example?.body_text[0] || [];
+              const bodySources = bodyComponent.source || [];
+              const bodyVariableNames = bodyComponent.variable || [];
+              for (let i = 0; i < bodyVariables.length; i++) {
+                const queryBody = `
+                  INSERT INTO variable_body (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesBody = [
+                  `{{${i + 1}}}`, 
+                  bodyVariables[i], 
+                  templateId, 
+                  bodySources[i], 
+                  bodyVariableNames[i]
+                ];
+                await pool.query(queryBody, valuesBody);
+              }
+            }
+    
+            // Almacenar variables del encabezado
+            const headerComponent = componentsWithSourceAndVariable.find(c => c.type === 'HEADER');
+            if (headerComponent) {
+              const headerVariables = headerComponent.example?.header_text || [];
+              const headerSources = headerComponent.source || [];
+              const headerVariableNames = headerComponent.variable || [];
+              for (let i = 0; i < headerVariables.length; i++) {
+                const queryHeader = `
+                  INSERT INTO variable_headers (name, example, template_wa_id, source, variable)
+                  VALUES ($1, $2, $3, $4, $5)
+                `;
+                const valuesHeader = [
+                  `{{${i + 1}}}`, 
+                  headerVariables[i], 
+                  templateId, 
+                  headerSources[i], 
+                  headerVariableNames[i]
+                ];
+                await pool.query(queryHeader, valuesHeader);
+              }
+            }
+    
+            // Almacenar variables del botón
+            const buttonComponent = componentsWithSourceAndVariable.find(c => c.type === 'BUTTONS');
+    
+            if (buttonComponent && Array.isArray(buttonComponent.buttons)) {
+              // Iterar sobre todos los botones del componente BUTTONS
+              for (const button of buttonComponent.buttons) {
+                let name, example, source, variable;
+            
+                // Condicionales para cada tipo de botón
+                if (button.type === 'QUICK_REPLY') {
+                  name = button.text;
+                  example = null; // No hay example en QUICK_REPLY
+                  source = null; // No hay source en QUICK_REPLY
+                  variable = button.type ; // No hay variable en QUICK_REPLY
+                } else if (button.type === 'PHONE_NUMBER') {
+                  name = button.text;
+                  example = button.phone_number;
+                  source = null; // No hay source en PHONE_NUMBER
+                  variable = button.type; // No hay variable en PHONE_NUMBER
+                } else if (button.type === 'URL') {
+                  name = button.text;
+                  example = button.url;
+                  source = null; // No hay source en URL
+                  variable = button.type; // No hay variable en URL
+                }
+            
+                // Asegurarse de que 'name' tiene valor antes de intentar guardar
+                if (name) {
+                  const queryButton = `
+                    INSERT INTO variable_button (name, example, template_wa_id, source, variable)
+                    VALUES ($1, $2, $3, $4, $5)
+                  `;
+                  const valuesButton = [
+                    name, 
+                    example,
+                    templateId,
+                    source,
+                    variable
+                  ];
+                  await pool.query(queryButton, valuesButton);
+                }
+              }
+            }        
+          }
+      }
+      if(headerType === 'DOCUMENT' && headerExample){
+        const fileName = path.basename(headerExample);
+        const fileExtension = path?.extname(fileName)?.toLowerCase();
+    
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/${fileName}?token=${newToken}`;
+  
+        const fileStats = fs.statSync(dd);
+     
+        // Paso 1: Iniciar una sesión de subida
+        let uploadResponse = null;
+        switch (fileExtension) {
+          case '.pdf':
+            uploadResponse = await axios.post(
+              `https://graph.facebook.com/v20.0/${process.env.APP_ID}/uploads`,
+              null, // Sin datos en el cuerpo
+              {
+                params: {
+                  file_name: fileName,
+                  file_length: fileStats.size,
+                  file_type: 'application/pdf',
+                  access_token: whatsapp_api_token,
+                },
+              }
+            );
+            break;
+        
+          default:
+            throw new Error(`Unsupported file type: ${fileExtension}`);
+        }
+        
+        headerHandle = uploadResponse.data.id;
+   
+        // Paso 2: Comenzar la subida del archivo
+        const imageResponse = await axios.get(filePath, { responseType: 'arraybuffer' });
+        const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+        if (imageBuffer.length === 0) {
+          throw new Error('El archivo descargado está vacío.');
+        }
+        // Crear FormData y añadir el archivo
+        const formData = new FormData();
+        formData.append('file', imageBuffer, { filename: fileName, contentType: `document/${fileExtension.slice(1)}` });
+  
+        const uploadFileResponse = await axios.post(
+          `https://graph.facebook.com/v20.0/${headerHandle}`,
+          imageBuffer,
+          {
+            headers: {
+              'Authorization': `OAuth ${process.env.WHATSAPP_API_TOKEN}`,
+              'file_offset': 0,
+              ...formData.getHeaders(),
+            },
+          }
+        );
+  
+        imageUrl = uploadFileResponse.data.h;
+
+        // Paso 3: Actualizar la plantilla en Meta
+        templateData.components = templateData.components.map((component) => {
+          if (component.type === 'BODY') {
+            // Extraer y eliminar propiedades innecesarias
+            const { source, variable, ...rest } = component;
+            let example = rest.example;
+
+            // Si existe 'example.body_text' y es un arreglo, verificar si es anidado
+            if (example && Array.isArray(example.body_text)) {
+              // Si el primer elemento es un arreglo, aplanarlo
+              if (example.body_text.length > 0 && Array.isArray(example.body_text[0])) {
+                example = {
+                  ...example,
+                  body_text: example.body_text.flat(), // Asegura que sea un array plano
+                };
+              }
+            }
+            return {
+              ...rest,
+              example,
+            };
+          }
+          // Actualiza el componente si es de tipo 'HEADER' y formato 'IMAGE'
+          if (component.type === 'HEADER' && component.format === 'DOCUMENT') {
+            return {
+              ...component,
+              example: {
+                header_handle: [imageUrl],
+              },
+            };
+          }
+          return component;
+        });
+        
+        console.log("Plantilla con datos a enviar:",JSON.stringify(templateData, null, 2))
+        const response = await axios.post(
+          `https://graph.facebook.com/v20.0/${whatsappBusinessAccountId}/message_templates`,
+          templateData,
+          {
+            headers: {
+              Authorization: `Bearer ${whatsappApiToken}`,
+              'Content-Type': 'application/json'
+            }
+          }
+        );
+
+        console.log("Plantilla multimedia actualizada en Meta", response.data);
+
         templateId = response.data.id;
 
         const query = `
@@ -1209,8 +1674,8 @@ app.put('/edit-template',
         const fileName = path.basename(headerExample);
         const fileExtension = path?.extname(fileName)?.toLowerCase();
     
-        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/${fileName}?token=${newToken}`;
   
         const fileStats = fs.statSync(dd);
      
@@ -1321,8 +1786,8 @@ app.put('/edit-template',
         const fileName = path.basename(headerExample);
         const fileExtension = path?.extname(fileName)?.toLowerCase();
     
-        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp/compressed', fileName);
-        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/compressed/${fileName}?token=${newToken}`;
+        const dd = path.resolve(__dirname, '../public/media/templates/whatsapp', fileName);
+        const filePath = `${process.env.BACKEND_URL}/media/templates/whatsapp/${fileName}?token=${newToken}`;
   
         const fileStats = fs.statSync(dd);
      

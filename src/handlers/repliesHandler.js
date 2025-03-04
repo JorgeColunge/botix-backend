@@ -2529,7 +2529,7 @@ export async function sendTemplateMessage(io, req, res) {
           // Almacenar el mensaje con placeholders reemplazados y la URL del documento
           await storeMessage(contact, conversation, parameters, unreadMessages, responsibleUserId, template, io, mediaUrl, response.messages[0].id, template.header_type, footer);
         } else {
-          response = await sendWhatsAppMessageCampaing(contact.phone_number, template, variables, whatsapp_api_token, whatsapp_phone_number_id);
+          response = await sendWhatsAppMessageCampaing(contact.phone_number, template, parameters, whatsapp_api_token, whatsapp_phone_number_id);
     
           // Obtener la cantidad de mensajes no leídos y el id_usuario responsable
           const unreadRes = await pool.query('SELECT unread_messages, id_usuario FROM conversations WHERE conversation_id = $1', [conversation.conversation_id]);

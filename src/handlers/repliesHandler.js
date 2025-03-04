@@ -3383,7 +3383,7 @@ if (conversation.conversation_id) {
     }else{
       response = await sendWhatsAppMessageCampaing(  conversation.phone_number,
         template, // Enviar el template completo
-        parameters,
+        parametersReal,
         whatsapp_api_token,
         whatsapp_phone_number_id);
     }

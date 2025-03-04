@@ -3317,38 +3317,42 @@ if (!company_id) {
 // Obtener la integración de WhatsApp para la compañía
 const whatsappIntegration = await getWhatsAppIntegrationByCompanyId(company_id);
 const { whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id } = whatsappIntegration;
-  const parametersReal = {
+  let parametersReal = {
     header: [],
     body: [],
     button: []
   };
 
-  if (template.headerVariables) {
-    for (const variableObj of template.headerVariables) {
-      for (const key in variableObj) {
-        parametersReal.header.push(variableObj[key]);
+  console.log("parametros de plantilla send", template)
+  if(TokenBot){ 
+    if (template.headerVariables) {
+      for (const variableObj of template.headerVariables) {
+        for (const key in variableObj) {
+          parametersReal.header.push(variableObj[key]);
+        }
       }
     }
-  }
-  
-  // Recorrer bodyVariables y extraer el valor
-  if (template.bodyVariables) {
-    for (const variableObj of template.bodyVariables) {
-      for (const key in variableObj) {
-        parametersReal.body.push(variableObj[key]);
+    
+    // Recorrer bodyVariables y extraer el valor
+    if (template.bodyVariables) {
+      for (const variableObj of template.bodyVariables) {
+        for (const key in variableObj) {
+          parametersReal.body.push(variableObj[key]);
+        }
       }
     }
-  }
-  
-  // Recorrer buttonVariables y extraer el valor
-  if (template.buttonVariables) {
-    for (const variableObj of template.buttonVariables) {
-      for (const key in variableObj) {
-        parametersReal.button.push(variableObj[key]);
+    
+    // Recorrer buttonVariables y extraer el valor
+    if (template.buttonVariables) {
+      for (const variableObj of template.buttonVariables) {
+        for (const key in variableObj) {
+          parametersReal.button.push(variableObj[key]);
+        }
       }
     }
+  }else {
+    parametersReal = parameters
   }
-
   console.log("parametros", parametersReal)
   console.log("platnilla", template)
   // Verificar que los campos necesarios de la plantilla están presentes

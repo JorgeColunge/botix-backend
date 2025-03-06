@@ -2352,7 +2352,8 @@ export async function sendTemplateMessage(io, req, res) {
     const responsibleUserIds = responsibleResult.rows.map(row => row.user_id);
 
     if (responsibleUserIds.length === 0) {
-      return res.status(404).send({ error: 'No responsible users found' });
+     console.log("sin resp", responsibleUserIds, campaignId) 
+      return res.status(400).send({ error: 'No responsible users found' });
     }
 
     // Obtener los contactos asociados a la campaña
@@ -2371,7 +2372,8 @@ export async function sendTemplateMessage(io, req, res) {
     const template = templateResult.rows[0];
 
     if (!template) {
-      return res.status(404).send({ error: 'Template not found' });
+      console.log("sin plantilla", template, campaign)
+      return res.status(400).send({ error: 'Template not found' });
     }
 
     const variablesQueryHeader = `

@@ -459,6 +459,7 @@ async function processMessage(io, senderId, messageData, oldMessage, integration
                 process.env.JWT_SECRET, // Asegúrate de tener esta variable en tu archivo .env
               );
               // Ejecutar el código del bot (esto depende de cómo esté estructurado el código de los bots)
+              // console.log("dato", botCode)
               await executeBotCode(botCode, {
                 newToken,
                 sendTextMessage,

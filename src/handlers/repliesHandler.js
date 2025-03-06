@@ -2312,7 +2312,13 @@ export async function sendTemplateMessage(io, req, res) {
 
   const token = req.headers['x-token'];
 
-  const decoded = jwt.verify(token,  process.env.JWT_SECRET); // Usa la clave secreta de tu servidor
+  let decoded;
+    try {
+      decoded = jwt.verify(token, process.env.JWT_SECRET); // Usa la clave secreta de tu servidor
+    } catch (error) {
+      return res.status(403).send('Token inválido');
+    }
+    console.log("decode", decoded)
 
   const userQuery = await pool.query(
         'SELECT * FROM users WHERE id_usuario = $1;',
@@ -2320,7 +2326,8 @@ export async function sendTemplateMessage(io, req, res) {
     );
 
     if (userQuery.rows.length === 0) {
-        return res.status(404).send('Usuario no encontrado');
+         console.log("usuario no encuentrado")
+        return res.status(400).send('Usuario no encontrado');
     }
 
     const user = userQuery.rows[0];

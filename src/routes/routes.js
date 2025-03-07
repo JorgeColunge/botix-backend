@@ -2061,13 +2061,18 @@ router.post('/campaigns/:campaignId/responsibles',
   const { responsible_ids } = req.body;
 
   try {
+    // Eliminar los responsables actuales de la campaña
+    await pool.query('DELETE FROM campaign_responsibles WHERE campaign_id = $1', [campaignId]);
+
+    // Insertar los nuevos responsables
     const query = 'INSERT INTO campaign_responsibles (campaign_id, user_id) VALUES ($1, $2)';
     for (let userId of responsible_ids) {
       await pool.query(query, [campaignId, userId]);
     }
-    res.status(200).send({ message: 'Responsibles associated with campaign successfully.' });
+
+    res.status(200).send({ message: 'Responsibles updated successfully.' });
   } catch (error) {
-    console.error('Error associating responsibles with campaign:', error.message);
+    console.error('Error updating responsibles:', error.message);
     res.status(500).send({ error: error.message });
   }
 });

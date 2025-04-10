@@ -987,6 +987,66 @@ const profileStorageContact = multer.diskStorage({
     }
   });
 
+  router.post('/upload-profileCollaborator',
+    authorize(['ADMIN', 'SUPERADMIN'], ['USER_WRITE', 'USER_UPDATE', 'CONFIG']),
+    uploadProfile.single('profile'),
+    async (req, res) => {
+      try {
+        const profileFile = req.file;
+        const { id_colaborador, company_id } = req.body;
+  
+        if (!profileFile || !id_colaborador || !company_id) {
+          return res.status(400).json({ message: 'Missing file, collaborator ID or company ID' });
+        }
+  
+        // Buscar foto existente
+        const result = await pool.query(
+          'SELECT link_foto FROM colaboradores WHERE id_colaborador = $1 AND company_id = $2',
+          [id_colaborador, company_id]
+        );
+  
+        const existingPhoto = result.rows[0]?.link_foto;
+  
+        // Eliminar foto anterior si existe
+        if (existingPhoto) {
+          const existingPhotoPath = path.join(__dirname, '..', '..', 'public', existingPhoto);
+          if (fs.existsSync(existingPhotoPath)) {
+            fs.unlinkSync(existingPhotoPath);
+            console.log(`Foto de colaborador eliminada: ${existingPhotoPath}`);
+          }
+        }
+  
+        // Crear carpeta si no existe
+        const profileDir = path.join(__dirname, '..', '..', 'public', 'media', 'users', 'profile');
+        if (!fs.existsSync(profileDir)) {
+          fs.mkdirSync(profileDir, { recursive: true });
+        }
+  
+        // Crear nombre único para la nueva imagen
+        const uniqueSuffix = Date.now() + '-' + Math.round(Math.random() * 1e9);
+        const fileExtension = path.extname(profileFile.originalname);
+        const newFileName = `${uniqueSuffix}${fileExtension}`;
+        const newFilePath = path.join(profileDir, newFileName);
+  
+        // Mover archivo a su nueva ubicación
+        fs.renameSync(profileFile.path, newFilePath);
+  
+        const newPhotoUrl = `/media/users/profile/${newFileName}`;
+  
+        // Actualizar base de datos
+        await pool.query(
+          'UPDATE colaboradores SET link_foto = $1 WHERE id_colaborador = $2 AND company_id = $3',
+          [newPhotoUrl, id_colaborador, company_id]
+        );
+  
+        res.json({ profileUrl: newPhotoUrl });
+      } catch (error) {
+        console.error('Error al subir foto del colaborador:', error);
+        res.status(500).json({ message: 'Error procesando imagen del colaborador', error: error.message });
+      }
+    }
+  );
+
 router.post('/upload-profileContact',
   authorize(['ADMIN', 'SUPERADMIN'], ['CONTACT_UPDATE', 'CONFIG']), 
   uploadProfileContact.single('profile'), 

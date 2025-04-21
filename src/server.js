@@ -2225,6 +2225,14 @@ app.get('/calculate-time', (req, res) => {
   res.send(`La hora actual en tu zona horaria (${clientTimezone}) es: ${currentTime}`);
 });
 
+app.post('/scheduling-events', (req, res) => {
+  console.log('✅ Solicitud recibida en /scheduling-events');
+  console.log('📝 Headers:', req.headers);
+  console.log('📦 Body:', req.body);
+
+  res.status(200).json({ message: 'Solicitud recibida correctamente' });
+});
+
 app.post('/bot', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'BOT_WRITE']),
   async (req, res) => {

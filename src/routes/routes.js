@@ -1823,11 +1823,11 @@ router.put('/departments/phases/:id',
 router.post('/integrations',
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']), 
   async (req, res) => {
-  const { type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID } = req.body;
+  const { type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID, botix_api_token } = req.body;
 
   try {
-    const query = 'INSERT INTO integrations (type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID) VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *';
-    const result = await pool.query(query, [type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID]);
+    const query = 'INSERT INTO integrations (type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID, botix_api_token) VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING *';
+    const result = await pool.query(query, [type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID, botix_api_token]);
     res.json(result.rows[0]);
   } catch (error) {
     console.error('Error creating integration:', error);

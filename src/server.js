@@ -2244,9 +2244,9 @@ app.post('/scheduling-events', async (req, res) => {
   try {
     // Consulta el botix_api_token en la tabla integrations para el company_id recibido
     const result = await pool.query(
-      'SELECT botix_api_token FROM integrations WHERE company_id = $1',
+      'SELECT botix_api_token FROM integrations WHERE company_id = $1 AND type = \'botix_calendar\'',
       [companyId]
-    );
+    );    
 
     console.log('🔍 Resultado de la consulta:', result.rows);
 

@@ -2225,13 +2225,51 @@ app.get('/calculate-time', (req, res) => {
   res.send(`La hora actual en tu zona horaria (${clientTimezone}) es: ${currentTime}`);
 });
 
-app.post('/scheduling-events', (req, res) => {
+app.post('/scheduling-events', async (req, res) => {
   console.log('✅ Solicitud recibida en /scheduling-events');
   console.log('📝 Headers:', req.headers);
   console.log('📦 Body:', req.body);
 
-  res.status(200).json({ message: 'Solicitud recibida correctamente' });
+  const authHeader = req.headers['authorization'];
+  const companyId = req.headers['x-company-id'];
+
+  // Validar si se reciben los headers necesarios
+  if (!authHeader || !companyId) {
+    console.error('❌ Faltan Authorization o X-Company-ID en los headers');
+    return res.status(400).json({ message: 'Faltan headers de Authorization o X-Company-ID' });
+  }
+
+  const token = authHeader.replace('Bearer ', '');
+
+  try {
+    // Consulta el botix_api_token en la tabla integrations para el company_id recibido
+    const result = await pool.query(
+      'SELECT botix_api_token FROM integrations WHERE company_id = $1',
+      [companyId]
+    );
+
+    console.log('🔍 Resultado de la consulta:', result.rows);
+
+    if (result.rows.length === 0) {
+      console.error('❌ No se encontró integración para el company_id:', companyId);
+      return res.status(404).json({ message: 'Integración no encontrada para este company_id' });
+    }
+
+    const storedToken = result.rows[0].botix_api_token;
+
+    if (storedToken !== token) {
+      console.error('❌ El token recibido no coincide con el almacenado');
+      return res.status(401).json({ message: 'Token no autorizado' });
+    }
+
+    console.log('✅ Token validado correctamente');
+    return res.status(200).json({ message: 'Solicitud recibida y token validado correctamente' });
+  } catch (error) {
+    console.error('❌ Error al consultar la base de datos:', error);
+    return res.status(500).json({ message: 'Error interno del servidor' });
+  }
 });
+
 
 app.post('/bot', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'BOT_WRITE']),

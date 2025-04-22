@@ -1759,9 +1759,10 @@ router.post('/roles',
   }
 });
 
-router.post('/departments',
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
-  async (req, res) => {
+  //router.post('/departments',
+  //authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  //async (req, res) => {
+router.post('/departments', async (req, res) => {
   const { name, description, company_id } = req.body;
 
   try {
@@ -1820,9 +1821,10 @@ router.put('/departments/phases/:id',
   }
 });
 
-router.post('/integrations',
-  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']), 
-  async (req, res) => {
+  //router.post('/integrations',
+  //authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']), 
+  //async (req, res) => {
+router.post('/integrations', async (req, res) => {
   const { type, name, license_id, company_id, WHATSAPP_API_TOKEN, WHATSAPP_PHONE_NUMBER_ID, WHATSAPP_APP_ID, WHATSAPP_BUSINESS_ACCOUNT_ID, botix_api_token } = req.body;
 
   try {

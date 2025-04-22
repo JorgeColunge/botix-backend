@@ -2263,39 +2263,81 @@ app.post('/scheduling-events', async (req, res) => {
 
     console.log('✅ Token validado correctamente');
 
-    // Aquí empieza la lógica para crear el evento si la acción es 'create'
-    const { title, description, start_date, start_time, end_date, end_time, all_day, assignment_type, assignment_id, action } = req.body;
-
-    if (action !== 'create') {
-      return res.status(200).json({ message: 'Acción no requiere creación de evento' });
-    }
+    const { id_event, title, description, start_date, start_time, end_date, end_time, all_day, assignment_type, assignment_id, action } = req.body;
 
     const clientTimezone = 'America/Bogota';
-    
-    // Validar campos requeridos
-    if (!title || !start_date || !end_date || !assignment_type || !assignment_id) {
-      console.error('❌ Faltan parámetros necesarios en el body');
-      return res.status(400).json({ message: 'Faltan parámetros necesarios' });
+
+    if (action === 'create') {
+      // Validar campos requeridos
+      if (!title || !start_date || !end_date || !assignment_type || !assignment_id) {
+        console.error('❌ Faltan parámetros necesarios en el body');
+        return res.status(400).json({ message: 'Faltan parámetros necesarios' });
+      }
+
+      const fecha_inicio = moment.tz(`${start_date} ${start_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
+      const fecha_fin = moment.tz(`${end_date} ${end_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
+
+      console.log('🗓️ Fechas formateadas:', { fecha_inicio, fecha_fin });
+
+      const insertQuery = `
+        INSERT INTO eventos (titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        RETURNING *
+      `;
+      const insertValues = [title, description, fecha_inicio, fecha_fin, all_day, assignment_type, assignment_id, companyId];
+
+      const insertResult = await pool.query(insertQuery, insertValues);
+      console.log('✅ Evento creado:', insertResult.rows[0]);
+
+      return res.status(201).json({ message: 'Evento creado correctamente', event: insertResult.rows[0] });
+
+    } else if (action === 'update') {
+      if (!id_event) {
+        return res.status(400).json({ message: 'Falta el id_event para actualizar' });
+      }
+
+      const fecha_inicio = moment.tz(`${start_date} ${start_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
+      const fecha_fin = moment.tz(`${end_date} ${end_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
+
+      const updateQuery = `
+        UPDATE eventos
+        SET titulo = $1, descripcion = $2, fecha_inicio = $3, fecha_fin = $4, all_day = $5, tipo_asignacion = $6, id_asignacion = $7
+        WHERE id_evento = $8 AND company_id = $9
+        RETURNING *
+      `;
+      const updateValues = [title, description, fecha_inicio, fecha_fin, all_day, assignment_type, assignment_id, id_event, companyId];
+
+      const updateResult = await pool.query(updateQuery, updateValues);
+
+      if (updateResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Evento no encontrado para actualizar' });
+      }
+
+      console.log('✅ Evento actualizado:', updateResult.rows[0]);
+      return res.status(200).json({ message: 'Evento actualizado correctamente', event: updateResult.rows[0] });
+
+    } else if (action === 'delete') {
+      if (!id_event) {
+        return res.status(400).json({ message: 'Falta el id_event para eliminar' });
+      }
+
+      const deleteQuery = `
+        DELETE FROM eventos
+        WHERE id_evento = $1 AND company_id = $2
+        RETURNING *
+      `;
+      const deleteResult = await pool.query(deleteQuery, [id_event, companyId]);
+
+      if (deleteResult.rows.length === 0) {
+        return res.status(404).json({ message: 'Evento no encontrado para eliminar' });
+      }
+
+      console.log('✅ Evento eliminado:', deleteResult.rows[0]);
+      return res.status(200).json({ message: 'Evento eliminado correctamente', event: deleteResult.rows[0] });
+
+    } else {
+      return res.status(400).json({ message: 'Acción no reconocida' });
     }
-
-    // Formatear fechas y horas
-    const fecha_inicio = moment.tz(`${start_date} ${start_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
-    const fecha_fin = moment.tz(`${end_date} ${end_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
-
-    console.log('🗓️ Fechas formateadas:', { fecha_inicio, fecha_fin });
-
-    // Insertar el evento en la base de datos
-    const insertQuery = `
-      INSERT INTO eventos (titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id)
-      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
-      RETURNING *
-    `;
-    const insertValues = [title, description, fecha_inicio, fecha_fin, all_day, assignment_type, assignment_id, companyId];
-
-    const insertResult = await pool.query(insertQuery, insertValues);
-    console.log('✅ Evento creado:', insertResult.rows[0]);
-
-    return res.status(201).json({ message: 'Evento creado correctamente', event: insertResult.rows[0] });
 
   } catch (error) {
     console.error('❌ Error al procesar:', error);

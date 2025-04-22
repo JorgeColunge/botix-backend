@@ -2233,7 +2233,6 @@ app.post('/scheduling-events', async (req, res) => {
   const authHeader = req.headers['authorization'];
   const companyId = req.headers['x-company-id'];
 
-  // Validar si se reciben los headers necesarios
   if (!authHeader || !companyId) {
     console.error('❌ Faltan Authorization o X-Company-ID en los headers');
     return res.status(400).json({ message: 'Faltan headers de Authorization o X-Company-ID' });
@@ -2242,7 +2241,6 @@ app.post('/scheduling-events', async (req, res) => {
   const token = authHeader.replace('Bearer ', '');
 
   try {
-    // Consulta el botix_api_token en la tabla integrations para el company_id recibido
     const result = await pool.query(
       'SELECT botix_api_token FROM integrations WHERE company_id = $1 AND type = \'botix_calendar\'',
       [companyId]
@@ -2255,21 +2253,55 @@ app.post('/scheduling-events', async (req, res) => {
       return res.status(404).json({ message: 'Integración no encontrada para este company_id' });
     }
 
-    const storedToken = result.rows[0].botix_api_token;
+    const tokens = result.rows.map(row => row.botix_api_token).filter(t => t);
+    console.log('🔐 Tokens encontrados:', tokens);
 
-    if (storedToken !== token) {
-      console.error('❌ El token recibido no coincide con el almacenado');
+    if (!tokens.includes(token)) {
+      console.error('❌ El token recibido no coincide con ninguno de los almacenados');
       return res.status(401).json({ message: 'Token no autorizado' });
     }
 
     console.log('✅ Token validado correctamente');
-    return res.status(200).json({ message: 'Solicitud recibida y token validado correctamente' });
+
+    // Aquí empieza la lógica para crear el evento si la acción es 'create'
+    const { title, description, start_date, start_time, end_date, end_time, all_day, assignment_type, assignment_id, action } = req.body;
+
+    if (action !== 'create') {
+      return res.status(200).json({ message: 'Acción no requiere creación de evento' });
+    }
+
+    const clientTimezone = 'America/Bogota';
+    
+    // Validar campos requeridos
+    if (!title || !start_date || !end_date || !assignment_type || !assignment_id) {
+      console.error('❌ Faltan parámetros necesarios en el body');
+      return res.status(400).json({ message: 'Faltan parámetros necesarios' });
+    }
+
+    // Formatear fechas y horas
+    const fecha_inicio = moment.tz(`${start_date} ${start_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
+    const fecha_fin = moment.tz(`${end_date} ${end_time}`, 'YYYY-MM-DD HH:mm', clientTimezone).format();
+
+    console.log('🗓️ Fechas formateadas:', { fecha_inicio, fecha_fin });
+
+    // Insertar el evento en la base de datos
+    const insertQuery = `
+      INSERT INTO eventos (titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      RETURNING *
+    `;
+    const insertValues = [title, description, fecha_inicio, fecha_fin, all_day, assignment_type, assignment_id, companyId];
+
+    const insertResult = await pool.query(insertQuery, insertValues);
+    console.log('✅ Evento creado:', insertResult.rows[0]);
+
+    return res.status(201).json({ message: 'Evento creado correctamente', event: insertResult.rows[0] });
+
   } catch (error) {
-    console.error('❌ Error al consultar la base de datos:', error);
+    console.error('❌ Error al procesar:', error);
     return res.status(500).json({ message: 'Error interno del servidor' });
   }
 });
-
 
 app.post('/bot', 
   authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'BOT_WRITE']),

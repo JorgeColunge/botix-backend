@@ -1,4 +1,5 @@
 import express from 'express';
+import axios from 'axios';
 import pool from '../config/dbConfig.js';
 import { processMessage } from '../handlers/messageHandler.js';
 import { sendTextMessage, sendImageMessage, sendVideoMessage, sendDocumentMessage, sendAudioMessage, sendTemplateMessage, sendTemplateToSingleContact, sendReactMessage } from '../handlers/repliesHandler.js';
@@ -2785,13 +2786,252 @@ router.post('/events',
     console.log('Executing query:', query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]);
 
     const result = await pool.query(query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id]);
-    console.log('Created event:', result.rows[0]);
-    res.status(201).json(result.rows[0]);
+    const createdEvent = result.rows[0];
+    console.log('✔️ Evento creado:', createdEvent);
+
+    // Consultar solicitudes externas de tipo 'crear'
+    const requestQuery = `
+      SELECT * FROM scheduling_requests
+      WHERE assignment_type = $1 AND assignment_id = $2 AND company_id = $3 AND action = 'crear'
+    `;
+    const requestsResult = await pool.query(requestQuery, [tipo_asignacion, id_asignacion, company_id]);
+    const requests = requestsResult.rows;
+    console.log(`✔️ Solicitudes externas encontradas: ${requests.length}`);
+
+    // Ejecutar cada solicitud
+    for (const req of requests) {
+      try {
+        const payload = JSON.parse(req.request_payload);
+
+        // Reemplazar {{campos}} en el body con datos del evento
+        const bodyStr = JSON.stringify(payload.body);
+        const replacedBodyStr = bodyStr.replace(/{{(.*?)}}/g, (_, field) => {
+          return createdEvent[field] !== undefined ? createdEvent[field] : '';
+        });
+        payload.body = JSON.parse(replacedBodyStr);
+
+        console.log(`🚀 Ejecutando solicitud a ${payload.url} con body:`, payload.body);
+
+        // Hacer la solicitud externa
+        await axios({
+          method: payload.method,
+          url: payload.url,
+          headers: payload.headers,
+          data: payload.body,
+        });
+
+        console.log(`✅ Solicitud ejecutada correctamente para ${payload.url}`);
+      } catch (error) {
+        console.error(`❌ Error ejecutando solicitud externa:`, error.message);
+      }
+    }
+
+    res.status(201).json(createdEvent);
   } catch (error) {
     console.error('Error creating event:', error);
     res.status(500).send('Internal Server Error');
   }
 });
+
+// Ruta para editar un evento existente
+router.put('/events/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
+  const { id } = req.params;
+  const { titulo, descripcion, all_day, tipo_asignacion, id_asignacion, company_id } = req.body;
+  const clientTimezone = req.body.timezone || 'America/Bogota';
+
+  // Validar fechas
+  if (!req.body.fecha_inicio || !req.body.fecha_fin) {
+    return res.status(400).send('Faltan fechas de inicio o fin.');
+  }
+  const fecha_inicio = moment.tz(req.body.fecha_inicio, clientTimezone).format();
+  const fecha_fin = moment.tz(req.body.fecha_fin, clientTimezone).format();
+
+  console.log('Received body for update:', { id, titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id });
+
+  // Validar parámetros requeridos
+  if (!titulo || !tipo_asignacion || !id_asignacion || !company_id) {
+    console.error('Missing parameters in body:', { titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id });
+    return res.status(400).send('Faltan parámetros necesarios.');
+  }
+
+  try {
+    const query = `
+      UPDATE eventos
+      SET titulo = $1, descripcion = $2, fecha_inicio = $3, fecha_fin = $4, all_day = $5, tipo_asignacion = $6, id_asignacion = $7, company_id = $8
+      WHERE id_evento = $9
+      RETURNING *
+    `;
+    console.log('Executing update query:', query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id, id]);
+
+    const result = await pool.query(query, [titulo, descripcion, fecha_inicio, fecha_fin, all_day, tipo_asignacion, id_asignacion, company_id, id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).send('Evento no encontrado.');
+    }
+
+    console.log('Updated event:', result.rows[0]);
+    res.status(200).json(result.rows[0]);
+
+    // 🔍 Buscar solicitudes externas tipo 'editar'
+    const extQuery = `
+      SELECT * FROM scheduling_requests
+      WHERE assignment_type = $1 AND assignment_id = $2 AND company_id = $3 AND action = 'editar'
+    `;
+    const extRequests = await pool.query(extQuery, [tipo_asignacion, id_asignacion, company_id]);
+
+    for (const reqConfig of extRequests.rows) {
+      const payload = JSON.parse(reqConfig.request_payload);
+
+      // Reemplazar {{campos}} en el body con datos del evento
+      const bodyStr = JSON.stringify(payload.body);
+      const replacedBodyStr = bodyStr.replace(/{{(.*?)}}/g, (_, field) => {
+        return createdEvent[field] !== undefined ? createdEvent[field] : '';
+      });
+      payload.body = JSON.parse(replacedBodyStr);
+
+      console.log('Ejecutando solicitud externa:', payload.method, payload.url);
+      try {
+        await axios({
+          method: payload.method,
+          url: payload.url,
+          headers: payload.headers,
+          data: payload.body
+        });
+      } catch (error) {
+        console.error('❌ Error ejecutando solicitud externa (editar):', error.message);
+      }
+    }
+  } catch (error) {
+    console.error('Error updating event:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+// Ruta para eliminar un evento
+router.delete('/events/:id', 
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
+  const { id } = req.params;
+
+  console.log('Received request to delete event with id:', id);
+
+  try {
+    const query = 'DELETE FROM eventos WHERE id_evento = $1 RETURNING *';
+    console.log('Executing delete query:', query, [id]);
+
+    const result = await pool.query(query, [id]);
+
+    if (result.rows.length === 0) {
+      return res.status(404).send('Evento no encontrado.');
+    }
+
+    console.log('Deleted event:', result.rows[0]);
+    res.status(200).json({ message: 'Evento eliminado correctamente.', evento: result.rows[0] });
+
+    // 🔍 Buscar solicitudes externas tipo 'eliminar'
+    const extQuery = `
+      SELECT * FROM scheduling_requests
+      WHERE assignment_type = $1 AND assignment_id = $2 AND company_id = $3 AND action = 'eliminar'
+    `;
+    const extRequests = await pool.query(extQuery, [deletedEvent.tipo_asignacion, deletedEvent.id_asignacion, deletedEvent.company_id]);
+
+    // 🔄 Ejecutar cada solicitud externa
+    for (const reqConfig of extRequests.rows) {
+      try {
+        const payload = JSON.parse(reqConfig.request_payload);
+
+        // Reemplazo genérico en todo el payload
+        const replacedPayloadStr = JSON.stringify(payload).replace(/{{(.*?)}}/g, (_, field) => {
+          return deletedEvent[field] !== undefined ? deletedEvent[field] : '';
+        });
+        const replacedPayload = JSON.parse(replacedPayloadStr);
+
+        console.log('Ejecutando solicitud externa (eliminar):', replacedPayload.method, replacedPayload.url);
+        await axios({
+          method: replacedPayload.method,
+          url: replacedPayload.url,
+          headers: replacedPayload.headers,
+          data: replacedPayload.body
+        });
+      } catch (error) {
+        console.error('❌ Error ejecutando solicitud externa (eliminar):', error.message);
+      }
+    }
+  } catch (error) {
+    console.error('Error deleting event:', error);
+    res.status(500).send('Internal Server Error');
+  }
+});
+
+router.post('/scheduling-requests',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
+    const { assignment_type, assignment_id, company_id, action, request_payload } = req.body;
+
+    // Validar campos obligatorios
+    if (!assignment_type || !assignment_id || !company_id || !action || !request_payload) {
+      return res.status(400).json({ message: 'Faltan parámetros necesarios.' });
+    }
+
+    try {
+      const query = `
+        INSERT INTO scheduling_requests (assignment_type, assignment_id, company_id, action, request_payload)
+        VALUES ($1, $2, $3, $4, $5) RETURNING *
+      `;
+      const values = [assignment_type, assignment_id, company_id, action, request_payload];
+
+      const result = await pool.query(query, values);
+      res.status(201).json(result.rows[0]);
+    } catch (error) {
+      console.error('Error creating scheduling request:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+);
+
+router.get('/scheduling-requests/:assignment_type/:assignment_id',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
+    const { assignment_type, assignment_id } = req.params;
+
+    try {
+      const query = `
+        SELECT * FROM scheduling_requests
+        WHERE assignment_type = $1 AND assignment_id = $2
+        ORDER BY created_at DESC
+      `;
+      const result = await pool.query(query, [assignment_type, assignment_id]);
+
+      res.status(200).json(result.rows);
+    } catch (error) {
+      console.error('Error fetching scheduling requests:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+);
+
+router.delete('/scheduling-requests/:id',
+  authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG']),
+  async (req, res) => {
+    const { id } = req.params;
+
+    try {
+      const query = `DELETE FROM scheduling_requests WHERE id = $1 RETURNING *`;
+      const result = await pool.query(query, [id]);
+
+      if (result.rows.length === 0) {
+        return res.status(404).json({ message: 'Registro no encontrado.' });
+      }
+
+      res.status(200).json({ message: 'Registro eliminado.', data: result.rows[0] });
+    } catch (error) {
+      console.error('Error deleting scheduling request:', error);
+      res.status(500).send('Internal Server Error');
+    }
+  }
+);
 
 // Ruta para obtener horarios por tipo de asignación e ID de asignación
 router.get('/schedules', 

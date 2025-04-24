@@ -2871,8 +2871,8 @@ router.put('/events/:id',
       return res.status(404).send('Evento no encontrado.');
     }
 
-    console.log('Updated event:', result.rows[0]);
-    res.status(200).json(result.rows[0]);
+    const updatedEvent = result.rows[0]; // ✅ Aquí es donde usas updatedEvent en lugar de createdEvent
+    console.log('Updated event:', updatedEvent);
 
     // 🔍 Buscar solicitudes externas tipo 'editar'
     const extQuery = `
@@ -2881,28 +2881,32 @@ router.put('/events/:id',
     `;
     const extRequests = await pool.query(extQuery, [tipo_asignacion, id_asignacion, company_id]);
 
+    // 🔄 Ejecutar las solicitudes externas si existen
     for (const reqConfig of extRequests.rows) {
-      const payload = JSON.parse(reqConfig.request_payload);
-
-      // Reemplazar {{campos}} en el body con datos del evento
-      const bodyStr = JSON.stringify(payload.body);
-      const replacedBodyStr = bodyStr.replace(/{{(.*?)}}/g, (_, field) => {
-        return createdEvent[field] !== undefined ? createdEvent[field] : '';
-      });
-      payload.body = JSON.parse(replacedBodyStr);
-
-      console.log('Ejecutando solicitud externa:', payload.method, payload.url);
       try {
+        const payload = JSON.parse(reqConfig.request_payload);
+
+        // Reemplazar campos en todo el payload
+        const replacedPayloadStr = JSON.stringify(payload).replace(/{{(.*?)}}/g, (_, field) => {
+          return updatedEvent[field] !== undefined ? updatedEvent[field] : '';
+        });
+        const replacedPayload = JSON.parse(replacedPayloadStr);
+
+        console.log('Ejecutando solicitud externa (editar):', replacedPayload.method, replacedPayload.url);
+
         await axios({
-          method: payload.method,
-          url: payload.url,
-          headers: payload.headers,
-          data: payload.body
+          method: replacedPayload.method,
+          url: replacedPayload.url,
+          headers: replacedPayload.headers,
+          data: replacedPayload.body
         });
       } catch (error) {
         console.error('❌ Error ejecutando solicitud externa (editar):', error.message);
       }
     }
+
+    // ✅ Mover la respuesta aquí después de ejecutar las solicitudes externas
+    res.status(200).json(updatedEvent);
   } catch (error) {
     console.error('Error updating event:', error);
     res.status(500).send('Internal Server Error');

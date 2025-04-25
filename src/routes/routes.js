@@ -2931,8 +2931,8 @@ router.delete('/events/:id',
       return res.status(404).send('Evento no encontrado.');
     }
 
-    console.log('Deleted event:', result.rows[0]);
-    res.status(200).json({ message: 'Evento eliminado correctamente.', evento: result.rows[0] });
+    const deletedEvent = result.rows[0];
+    console.log('Deleted event:', deletedEvent);
 
     // 🔍 Buscar solicitudes externas tipo 'eliminar'
     const extQuery = `
@@ -2963,6 +2963,9 @@ router.delete('/events/:id',
         console.error('❌ Error ejecutando solicitud externa (eliminar):', error.message);
       }
     }
+
+    res.status(200).json({ message: 'Evento eliminado correctamente.', evento: deletedEvent });
+    
   } catch (error) {
     console.error('Error deleting event:', error);
     res.status(500).send('Internal Server Error');

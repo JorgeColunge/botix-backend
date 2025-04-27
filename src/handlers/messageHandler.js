@@ -873,7 +873,7 @@ async function getOrCreateContact(phoneNumber, companyId) {
 }
 
 async function getContactInfo(phoneNumber, companyId) {
-  const query = 'SELECT first_name, last_name, organization, id FROM contacts WHERE phone_number = $1 AND company_id = $2';
+  const query = 'SELECT * FROM contacts WHERE phone_number = $1 AND company_id = $2';
   try {
     const result = await pool.query(query, [phoneNumber, companyId]);
     if (result.rows.length > 0) {

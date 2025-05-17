@@ -3371,6 +3371,7 @@ export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
   if (conversation.conversation_id) {
     try {
       const phoneNumber = conversation.phone_number;
+      console.log("Numero a enviar", phoneNumber);
       let response;
       let mediaUrl = null;
 

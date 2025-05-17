@@ -3385,16 +3385,16 @@ export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
           whatsapp_phone_number_id);
       } else if (template.header_type === 'IMAGE') {
         const imageUrl = template.medio.startsWith("http") ? `${template.medio}` : `${backendUrl}${template.medio}`
-        response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+        response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, `${imageUrl}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = imageUrl;
       } else if (template.header_type === 'VIDEO') {
         const videoUrl = template.medio.startsWith("http") ? `${template.medio}` : `${backendUrl}${template.medio}`
-        response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+        response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${videoUrl}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = videoUrl;
       } else if (template.header_type === 'DOCUMENT') {
         const documentUrl = template.medio.startsWith("http") ? `${template.medio}` : `${backendUrl}${template.medio}`
         // const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`, whatsapp_api_token);
-        response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, `${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
+        response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, `${documentUrl}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = documentUrl;
       } else {
         response = await sendWhatsAppMessageCampaing(conversation.phone_number,

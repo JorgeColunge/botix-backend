@@ -2398,6 +2398,10 @@ app.post('/bot',
 
       const botCode = botResult.rows[0].codigo;
 
+      console.log("=========== Código del bot recibido ===========");
+      console.log(botCode);
+      console.log("============= FIN DEL CÓDIGO =============");
+
       // ⚠️ JWT SIN rol
       const newToken = jwt.sign(
         { id_usuario: user.id_usuario, email: email, privileges },

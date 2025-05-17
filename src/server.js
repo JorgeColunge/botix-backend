@@ -2345,72 +2345,101 @@ app.post('/scheduling-events', async (req, res) => {
   }
 });
 
-app.post('/bot',
-  //authorize(['ADMIN', 'SUPERADMIN'], ['CONFIG', 'BOT_WRITE']),
-  async (req, res) => {
-    //const externalData = req.body;
+app.post('/bot', async (req, res) => {
+  console.log(`Solicitud recibida a las ${new Date().toISOString()}:`, req.body);
+  const externalData = req.body;
+  const { botCredentials } = req.body;
+  const { email, password } = botCredentials;
 
-    console.log(`Solicitud recibida a las ${new Date().toISOString()}:`, req.body);
-    const externalData = req.body;
-    const { botCredentials } = req.body;
-    const { email, password } = botCredentials;
+  try {
+    // Verificar las credenciales del bot
+    const userResult = await pool.query(
+      'SELECT id_usuario, contraseña, company_id FROM users WHERE email = $1',
+      [email]
+    );
 
+    if (userResult.rowCount === 0) {
+      console.log('Usuario no encontrado');
+      return res.status(401).json({ error: 'Usuario no encontrado' });
+    }
+
+    const user = userResult.rows[0];
+
+    const privilegesQuery = `
+      SELECT p.name 
+      FROM public."Privileges" p
+      JOIN public."UserPrivileges" up ON p.id = up."privilegeId"
+      WHERE up."userId" = $1;
+    `;
+
+    const privilegesResult = await pool.query(privilegesQuery, [user.id_usuario]);
+    const privileges = privilegesResult.rows.map(row => row.name);
+
+    const isPasswordCorrect = await bcrypt.compare(password, user.contraseña);
+    if (!isPasswordCorrect) {
+      console.log('Contraseña incorrecta');
+      return res.status(401).json({ error: 'Contraseña incorrecta' });
+    }
+
+    const id_usuario = user.id_usuario;
+    const company_id = user.company_id;
+    const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
+    const clientTimezone = req.clientTimezone || 'America/Bogota';
+
+    // Consultar el código del bot
+    const botResult = await pool.query('SELECT codigo FROM bots WHERE id_usuario = $1', [id_usuario]);
+    if (botResult.rowCount === 0) {
+      console.log('Bot no encontrado');
+      return res.status(404).json({ error: 'Bot no encontrado' });
+    }
+
+    const botCode = botResult.rows[0].codigo;
+    console.log("=========== Código del bot recibido ===========");
+    console.log(botCode);
+    console.log("============= FIN DEL CÓDIGO =============");
+
+    // Crear JWT
+    const newToken = jwt.sign(
+      { id_usuario: user.id_usuario, email: email, privileges },
+      process.env.JWT_SECRET,
+    );
+
+    // Armar el contexto
+    const context = {
+      newToken,
+      sendTextMessage,
+      sendImageMessage,
+      sendVideoMessage,
+      sendDocumentMessage,
+      sendAudioMessage,
+      sendTemplateMessage,
+      sendTemplateToSingleContact: (io, req, res) => sendTemplateToSingleContact(io, newToken, req, res),
+      sendLocationMessage,
+      io,
+      senderId: '',
+      messageData: '',
+      conversationId: '',
+      pool,
+      axios,
+      getContactInfo,
+      updateContactName,
+      createContact,
+      updateContactCompany,
+      updateConversationState,
+      assignResponsibleUser,
+      processMessage,
+      getReverseGeocoding,
+      getGeocoding,
+      integrationDetails,
+      externalData,
+      clientTimezone,
+      moment
+    };
+
+    // Ejecutar el código del bot usando eval
     try {
-      // Verificar las credenciales en la tabla users
-      const userResult = await pool.query('SELECT id_usuario, contraseña, company_id FROM users WHERE email = $1', [email]);
-
-      if (userResult.rowCount === 0) {
-        console.log('Usuario no encontrado');
-        return res.status(401).json({ error: 'Usuario no encontrado' });
-      }
-
-      const user = userResult.rows[0];
-
-      const privilegesQuery = `
-  SELECT p.name 
-  FROM public."Privileges" p
-  JOIN public."UserPrivileges" up ON p.id = up."privilegeId"
-  WHERE up."userId" = $1;
-`;
-
-      const privilegesResult = await pool.query(privilegesQuery, [user.id_usuario]);
-      const privileges = privilegesResult.rows.map(row => row.name);
-
-      const isPasswordCorrect = await bcrypt.compare(password, user.contraseña);
-
-      if (!isPasswordCorrect) {
-        console.log('Contraseña incorrecta');
-        return res.status(401).json({ error: 'Contraseña incorrecta' });
-      }
-
-      const id_usuario = user.id_usuario;
-      const company_id = user.company_id;
-      const integrationDetails = await getIntegrationDetailsByCompanyId(company_id);
-      const clientTimezone = req.clientTimezone || 'America/Bogota';
-
-      // Consultar en la tabla bots por el campo id_usuario
-      const botResult = await pool.query('SELECT codigo FROM bots WHERE id_usuario = $1', [id_usuario]);
-
-      if (botResult.rowCount === 0) {
-        console.log('Bot no encontrado');
-        return res.status(404).json({ error: 'Bot no encontrado' });
-      }
-
-      const botCode = botResult.rows[0].codigo;
-
-      console.log("=========== Código del bot recibido ===========");
-      console.log(botCode);
-      console.log("============= FIN DEL CÓDIGO =============");
-
-      // ⚠️ JWT SIN rol
-      const newToken = jwt.sign(
-        { id_usuario: user.id_usuario, email: email, privileges },
-        process.env.JWT_SECRET,
-      );
-
-      console.log("ejecutando el bot++++++++++")
-      // Ejecutar el código del bot
-      const context = {
+      // Desestructura variables para que eval las pueda ver
+      const {
         newToken,
         sendTextMessage,
         sendImageMessage,
@@ -2418,12 +2447,12 @@ app.post('/bot',
         sendDocumentMessage,
         sendAudioMessage,
         sendTemplateMessage,
-        sendTemplateToSingleContact: (io, req, res) => sendTemplateToSingleContact(io, newToken, req, res),
+        sendTemplateToSingleContact,
         sendLocationMessage,
         io,
-        senderId: '',
-        messageData: '',
-        conversationId: '',
+        senderId,
+        messageData,
+        conversationId,
         pool,
         axios,
         getContactInfo,
@@ -2439,16 +2468,22 @@ app.post('/bot',
         externalData,
         clientTimezone,
         moment
-      };
+      } = context;
 
-      await executeBotCode(botCode, context);
+      console.log("ejecutando el bot++++++++++");
+      eval(botCode);
 
       res.status(200).json({ status: 'Bot ejecutado correctamente' });
     } catch (error) {
-      console.error('Error al verificar las credenciales o consultar el bot:', error);
-      res.status(500).json({ error: 'Error interno del servidor' });
+      console.error('Error ejecutando el código del bot:', error);
+      res.status(500).json({ error: 'Error en el código del bot' });
     }
-  });
+
+  } catch (error) {
+    console.error('Error al verificar las credenciales o consultar el bot:', error);
+    res.status(500).json({ error: 'Error interno del servidor' });
+  }
+});
 
 //Iniciar el servidor HTTP y WebSocket
 // db.sequelize.sync({ alter: true }) // Usa `alter: true` para ajustar las tablas existentes sin perder datos

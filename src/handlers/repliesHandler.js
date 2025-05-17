@@ -2916,7 +2916,10 @@ const sendDocumentWhatsAppMessage = async (phone, templateName, language, mediaI
             type: "header",
             parameters: [{
               type: "document",
-              document: { link: mediaId }
+              document: {
+                link: mediaId,
+                filename: templateName
+              }
             }]
           },
           {
@@ -3371,7 +3374,6 @@ export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
   if (conversation.conversation_id) {
     try {
       const phoneNumber = conversation.phone_number;
-      console.log("Numero a enviar", phoneNumber);
       let response;
       let mediaUrl = null;
 
@@ -3382,15 +3384,15 @@ export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
           whatsapp_api_token,
           whatsapp_phone_number_id);
       } else if (template.header_type === 'IMAGE') {
-        const imageUrl = `${backendUrl}${template.medio}`
+        const imageUrl = template.medio.startsWith("http") ? `${template.medio}` : `${backendUrl}${template.medio}`
         response = await sendImageWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = imageUrl;
       } else if (template.header_type === 'VIDEO') {
-        const videoUrl = `${backendUrl}${template.medio}`
+        const videoUrl = template.medio.startsWith("http") ? `${template.medio}` : `${backendUrl}${template.medio}`
         response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = videoUrl;
       } else if (template.header_type === 'DOCUMENT') {
-        const documentUrl = `${template.medio}`
+        const documentUrl = template.medio.startsWith("http") ? `${template.medio}` : `${backendUrl}${template.medio}`
         // const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`, whatsapp_api_token);
         response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, `${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = documentUrl;

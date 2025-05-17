@@ -3364,6 +3364,7 @@ export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
   }
   console.log("parametros", parametersReal)
   console.log("platnilla", template)
+  console.log("Encabezado", template.header_type)
   // Verificar que los campos necesarios de la plantilla están presentes
   if (!template.nombre || !template.language) {
     throw new Error('Template is missing required fields');
@@ -3389,6 +3390,7 @@ export async function sendTemplateToSingleContact(io, TokenBot, req, res) {
         response = await sendVideoWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);
         mediaUrl = videoUrl;
       } else if (template.header_type === 'DOCUMENT') {
+        console.log("Enviando documento");
         const documentUrl = `${template.medio}`
         // const mediaId = await uploadDocumentToWhatsApp(`${backendUrl}${template.medio}?token=${newToken}`, whatsapp_api_token);
         response = await sendDocumentWhatsAppMessage(phoneNumber, template.nombre, template.language, `${backendUrl}${template.medio}?token=${newToken}`, parametersReal.body, whatsapp_api_token, whatsapp_phone_number_id, whatsapp_business_account_id);

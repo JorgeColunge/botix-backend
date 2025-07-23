@@ -2033,14 +2033,14 @@ export async function sendLocationMessage(io, req, res) {
     // Emitir el mensaje procesado a los clientes suscritos a esa conversación
     // Consulta para obtener los administradores
     const adminQuery = `
-    SELECT id_usuario FROM users 
-    WHERE company_id = $1 
-      AND rol IN (SELECT id FROM roles WHERE name = 'Administrador')
-  `;
-    const adminResult = await pool.query(adminQuery, [integrationDetails.company_id]);
-
-
-    const adminIds = adminResult.rows.map(row => row.id_usuario);
+      SELECT u.id_usuario
+      FROM   users u
+      JOIN   role r ON r.id = u.role_id
+      WHERE  u.company_id = $1
+        AND  r.name      IN ('ADMIN', 'SUPERADMIN', 'Administrador')
+    `;
+    const adminRows = await pool.query(adminQuery, [integrationDetails.company_id]);
+    const adminIds = adminRows.rows.map(r => r.id_usuario);
 
     // Emitir el mensaje al usuario responsable y a los administradores
     const recipients = adminIds.includes(responsibleUserId)
